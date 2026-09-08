@@ -29,7 +29,6 @@
           <text class="type-desc">{{ contentTypeDesc(item.name) }}</text>
         </view>
       </view>
-      <button class="next-btn" @click="goTypeNext">下一步</button>
     </view>
 
     <template v-else>
@@ -521,13 +520,11 @@ export default {
       return item && item.type_code === REVIEW_NOTES_TYPE_CODE ? '👍' : '⌂'
     },
     selectContentType(typeCode) {
-      this.contentTypeCode = typeCode
-    },
-    goTypeNext() {
-      if (!this.contentTypeCode) {
+      if (!typeCode) {
         uni.showToast({ title: '请选择内容类型', icon: 'none' })
         return
       }
+      this.contentTypeCode = typeCode
       this.typeStepDone = true
       this.loadGalleries()
     },
@@ -1111,19 +1108,6 @@ export default {
 }
 .type-card.active .type-desc {
   color: #8a817c;
-}
-.next-btn {
-  margin-top: 8px;
-  height: 46px;
-  border-radius: 23px;
-  background: #b44a3a;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-}
-.next-btn::after {
-  border: none;
 }
 .selected-type-bar {
   display: flex;
