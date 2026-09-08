@@ -23,9 +23,9 @@ export default {
     return {
       safeBottom: 0,
       tabs: [
-        { key: 'home', path: '/pages/home/home', label: '首页', icon: '⌂' },
         { key: 'generate', path: '/pages/generate/generate', label: '内容生成', icon: '✎' },
         { key: 'manage', path: '/pages/manage/manage', label: '内容管理', icon: '☰' },
+        { key: 'materials', path: '/pages/materials/materials', label: '素材库', icon: '⌂' },
         { key: 'mine', path: '/pages/mine/mine', label: '我的', icon: '☺' }
       ]
     }
@@ -73,7 +73,7 @@ export default {
   outline: none;
 }
 .tab-item.active {
-  color: #b44a3a;
+  color: #BE2D22;
   background: transparent;
 }
 .icon {

@@ -42,7 +42,7 @@ export default {
         })
         setToken(data.access_token)
         uni.removeStorageSync(SESSION_KEY)
-        uni.reLaunch({ url: '/pages/home/home' })
+        uni.reLaunch({ url: '/pages/generate/generate' })
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       } finally {

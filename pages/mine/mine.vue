@@ -131,6 +131,6 @@ export default {
   line-height: 44px;
   border-radius: 12px;
   background: #fff;
-  color: #c0392b;
+  color: #BE2D22;
 }
 </style>

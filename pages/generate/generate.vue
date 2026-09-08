@@ -139,62 +139,27 @@
       </view>
 
       <view v-else class="block">
-        <view class="photo-tabs">
-          <view
-            class="photo-tab"
-            :class="{ active: photoSourceMode === 'gallery' }"
-            @click="switchPhotoSource('gallery')"
-          >选择图库</view>
-          <view
-            class="photo-tab"
-            :class="{ active: photoSourceMode === 'upload' }"
-            @click="switchPhotoSource('upload')"
-          >上传照片</view>
-          <text class="photo-tab-hint">二选一</text>
+        <text class="block-title">上传照片 *</text>
+        <view class="field">
+          <text class="label">上传分类 *</text>
+          <picker :range="uploadCategoryLabels" @change="onUploadCategory">
+            <view class="picker">{{ uploadCategoryLabel || '请选择素材分类' }}</view>
+          </picker>
         </view>
-        <template v-if="photoSourceMode === 'gallery'">
-          <view class="gallery-grid">
-            <view
-              v-for="item in rootGalleries"
-              :key="item.id"
-              class="gallery-card"
-              :class="{ active: reviewGalleryId === item.id }"
-              @click="openReviewGallery(item.id)"
-            >
-              <text class="gallery-name">{{ item.name }}</text>
-              <text class="gallery-count">{{ item.count }}张图片素材</text>
-            </view>
+        <view class="photo-grid">
+          <view v-for="(item, index) in photos" :key="item.assetId" class="photo-item">
+            <image :src="item.local" mode="aspectFill" />
+            <text class="photo-remove" @click.stop="removePhoto(index)">×</text>
           </view>
-          <view v-if="photos.length" class="photo-grid">
-            <view v-for="(item, index) in photos" :key="item.assetId" class="photo-item">
-              <image :src="item.local" mode="aspectFill" />
-              <text class="photo-remove" @click.stop="removePhoto(index)">×</text>
-            </view>
+          <view v-if="photos.length < maxPhotos" class="photo-add" @click="choosePhotos">
+            <text class="photo-add-text">+ 上传照片(最多{{ maxPhotos }}张)</text>
           </view>
-          <text class="hint">从素材库最多选 {{ maxPhotos }} 张；点图库进入后点选图片。</text>
-        </template>
-        <template v-else>
-          <view class="field">
-            <text class="label">上传分类 *</text>
-            <picker :range="uploadCategoryLabels" @change="onUploadCategory">
-              <view class="picker">{{ uploadCategoryLabel || '请选择素材分类' }}</view>
-            </picker>
-          </view>
-          <view class="photo-grid">
-            <view v-for="(item, index) in photos" :key="item.assetId" class="photo-item">
-              <image :src="item.local" mode="aspectFill" />
-              <text class="photo-remove" @click.stop="removePhoto(index)">×</text>
-            </view>
-            <view v-if="photos.length < maxPhotos" class="photo-add" @click="choosePhotos">
-              <text class="photo-add-text">+ 上传照片(最多{{ maxPhotos }}张)</text>
-            </view>
-          </view>
-          <text class="hint">支持 PNG / JPG / WebP，单张不超过 20 MB；上传逻辑与 PC 素材库一致。</text>
-        </template>
+        </view>
+        <text class="hint">支持 PNG / JPG / WebP，单张不超过 20 MB；上传逻辑与 PC 素材库一致。</text>
       </view>
 
       <button class="submit" :loading="submitting" @click="compile">
-        {{ serviceEntry === '好评笔记' ? '生成内容' : '形成事实简报' }}
+        生成内容
       </button>
     </template>
 
@@ -269,7 +234,7 @@
           </view>
         </view>
         <text v-if="!galleryLoading && !galleryItems.length && !galleryChildren.length" class="empty">
-          {{ galleryPickMode === 'review' ? '该图库暂无图片' : '该图库暂无图片，可返回后点上传图片' }}
+          该图库暂无图片，可返回后点上传图片
         </text>
       </scroll-view>
     </view>
@@ -279,6 +244,7 @@
 <script>
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
+import { TOKEN_KEY } from '../../config'
 import { errorMessage, mediaUrl } from '../../utils/request'
 
 const REGION_INITIAL = {
@@ -386,11 +352,8 @@ export default {
       galleryId: '',
       galleryItems: [],
       galleryLoading: false,
-      galleryPickMode: 'decoration',
       photos: [],
       maxPhotos: MAX_PHOTOS,
-      photoSourceMode: 'upload',
-      reviewGalleryId: '',
       uploadCategoryId: 'uncategorized',
       submitting: false,
       schemaLoaded: false,
@@ -407,13 +370,16 @@ export default {
       return (selected && selected.name) || '未选择'
     },
     variables() {
+      let list = []
       if (this.serviceEntry === '装修家居') {
         const selected = (this.schema.content_types || []).find(
           (item) => item.type_code === this.contentTypeCode
         )
-        return (selected && selected.variables) || []
+        list = (selected && selected.variables) || []
+      } else {
+        list = this.schema.variables || []
       }
-      return this.schema.variables || []
+      return this.prioritizeFormFields(list)
     },
     frameAreaLabels() {
       return (this.schema.frame_areas || []).map((item) => item.label)
@@ -483,6 +449,10 @@ export default {
     }
   },
   onLoad() {
+    if (!uni.getStorageSync(TOKEN_KEY)) {
+      uni.reLaunch({ url: '/pages/login/login' })
+      return
+    }
     this.loadSchema()
   },
   onShow() {
@@ -533,6 +503,19 @@ export default {
     },
     isQuoteField(name) {
       return ['基础', '木制品', '主材'].includes(name)
+    },
+    prioritizeFormFields(fields) {
+      const priority = ['外框面积', '基础', '木制品', '主材']
+      const rank = Object.fromEntries(priority.map((name, index) => [name, index]))
+      const fallback = priority.length
+      return (fields || [])
+        .map((field, index) => ({ field, index }))
+        .sort((a, b) => {
+          const aName = this.fieldName(a.field)
+          const bName = this.fieldName(b.field)
+          return (rank[aName] ?? fallback) - (rank[bName] ?? fallback) || a.index - b.index
+        })
+        .map((item) => item.field)
     },
     fieldName(item) {
       return String((item && (item.key || item.name)) || '').trim()
@@ -619,8 +602,6 @@ export default {
       this.contentTypeCode = ''
       this.formValues = {}
       this.photos = []
-      this.photoSourceMode = 'upload'
-      this.reviewGalleryId = ''
       this.uploadCategoryId = 'uncategorized'
       this.coverLocal = ''
       this.coverAssetId = ''
@@ -709,13 +690,6 @@ export default {
       const option = this.uploadCategoryOptions[event.detail.value]
       this.uploadCategoryId = (option && option.id) || 'uncategorized'
     },
-    switchPhotoSource(mode) {
-      if (this.photoSourceMode === mode) return
-      this.photoSourceMode = mode
-      this.photos = []
-      this.reviewGalleryId = ''
-      this.closeGallery()
-    },
     fileExt(path) {
       const clean = String(path || '').split('?')[0]
       const name = clean.split('/').pop() || ''
@@ -752,7 +726,6 @@ export default {
     },
     closeGallery() {
       this.galleryOpen = false
-      this.galleryPickMode = 'decoration'
     },
     isGalleryImageUsed(item) {
       return Boolean(item && item.in_use)
@@ -765,23 +738,6 @@ export default {
       this.closeGallery()
     },
     async openGallery(galleryId) {
-      this.galleryPickMode = 'decoration'
-      this.galleryId = galleryId
-      this.galleryOpen = true
-      this.galleryLoading = true
-      this.galleryItems = []
-      try {
-        const data = await mpContentApi.galleryItems(galleryId)
-        this.galleryItems = data.items || []
-      } catch (error) {
-        uni.showToast({ title: errorMessage(error), icon: 'none' })
-      } finally {
-        this.galleryLoading = false
-      }
-    },
-    async openReviewGallery(galleryId) {
-      this.galleryPickMode = 'review'
-      this.reviewGalleryId = galleryId
       this.galleryId = galleryId
       this.galleryOpen = true
       this.galleryLoading = true
@@ -798,26 +754,6 @@ export default {
     selectGalleryItem(item) {
       if (this.isGalleryImageUsed(item)) {
         uni.showToast({ title: '该图片已被其他内容使用', icon: 'none' })
-        return
-      }
-      if (this.galleryPickMode === 'review') {
-        if (this.photos.some((photo) => photo.assetId === item.asset_id)) {
-          uni.showToast({ title: '该图片已选择', icon: 'none' })
-          return
-        }
-        if (this.photos.length >= this.maxPhotos) {
-          uni.showToast({ title: `最多选择${this.maxPhotos}张图片`, icon: 'none' })
-          return
-        }
-        this.photos = [
-          ...this.photos,
-          {
-            local: this.mediaUrl(item.file_url),
-            assetId: item.asset_id,
-            libraryItemId: item.id
-          }
-        ]
-        this.closeGallery()
         return
       }
       this.imageItemId = item.id
@@ -1022,7 +958,7 @@ export default {
   font-weight: 600;
 }
 .entry.active {
-  background: #b44a3a;
+  background: #BE2D22;
   color: #fff;
 }
 .type-step {
@@ -1061,7 +997,7 @@ export default {
   text-align: center;
 }
 .type-card.active {
-  border-color: #b44a3a;
+  border-color: #BE2D22;
   background: #fbf4f2;
 }
 .type-icon-wrap {
@@ -1083,7 +1019,7 @@ export default {
   line-height: 1;
 }
 .type-card.active .type-icon {
-  color: #b44a3a;
+  color: #BE2D22;
 }
 .type-name {
   display: block;
@@ -1095,7 +1031,7 @@ export default {
   word-break: break-all;
 }
 .type-card.active .type-name {
-  color: #b44a3a;
+  color: #BE2D22;
 }
 .type-desc {
   display: block;
@@ -1124,7 +1060,7 @@ export default {
   font-weight: 600;
 }
 .selected-type-change {
-  color: #b44a3a;
+  color: #BE2D22;
   font-size: 12px;
 }
 .block {
@@ -1168,7 +1104,7 @@ export default {
   position: relative;
 }
 .gallery-card.active {
-  border-color: #b44a3a;
+  border-color: #BE2D22;
 }
 .gallery-name {
   display: block;
@@ -1186,7 +1122,7 @@ export default {
   top: 8px;
   right: 8px;
   font-size: 10px;
-  color: #b44a3a;
+  color: #BE2D22;
 }
 .cover-actions {
   display: flex;
@@ -1196,7 +1132,7 @@ export default {
   height: 36px;
   padding: 0 14px;
   border-radius: 18px;
-  background: #b44a3a;
+  background: #BE2D22;
   color: #fff;
   line-height: 36px;
   font-size: 13px;
@@ -1237,7 +1173,7 @@ export default {
 }
 .selected-cover-link {
   margin-left: 8px;
-  color: #b44a3a;
+  color: #BE2D22;
   font-size: 13px;
   flex-shrink: 0;
 }
@@ -1258,7 +1194,7 @@ export default {
 }
 .gallery-back {
   margin-bottom: 12px;
-  color: #b44a3a;
+  color: #BE2D22;
 }
 .empty {
   display: block;
@@ -1267,7 +1203,7 @@ export default {
   text-align: center;
 }
 .photo-item.active {
-  outline: 2px solid #b44a3a;
+  outline: 2px solid #BE2D22;
 }
 .photo-item.used {
   outline: none;
@@ -1281,7 +1217,7 @@ export default {
   right: 6px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(180, 74, 58, 0.92);
+  background: rgba(190, 45, 34, 0.92);
   color: #fff;
   font-size: 10px;
   line-height: 14px;
@@ -1300,7 +1236,7 @@ export default {
 }
 .chip.active {
   background: #f8ece9;
-  color: #b44a3a;
+  color: #BE2D22;
 }
 .field {
   margin-bottom: 12px;
@@ -1361,29 +1297,6 @@ input,
   display: flex;
   flex-wrap: wrap;
 }
-.photo-tabs {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin-bottom: 14px;
-  border-bottom: 1px solid #efe8e4;
-}
-.photo-tab {
-  padding: 8px 2px 10px;
-  color: #8a817c;
-  font-size: 14px;
-}
-.photo-tab.active {
-  color: #1f6feb;
-  font-weight: 600;
-  border-bottom: 2px solid #1f6feb;
-  margin-bottom: -1px;
-}
-.photo-tab-hint {
-  margin-left: auto;
-  color: #b0a7a2;
-  font-size: 12px;
-}
 .photo-item,
 .photo-add {
   width: 210rpx;
@@ -1419,7 +1332,7 @@ input,
   padding: 8px;
 }
 .photo-add-text {
-  color: #b44a3a;
+  color: #BE2D22;
   font-size: 12px;
   text-align: center;
   line-height: 18px;
@@ -1438,7 +1351,7 @@ input,
   vertical-align: top;
 }
 .tpl.active {
-  border-color: #b44a3a;
+  border-color: #BE2D22;
 }
 .tpl image {
   width: 72px;
@@ -1460,7 +1373,7 @@ input,
   line-height: 46px;
   border-radius: 12px;
   color: #fff;
-  background: #b44a3a;
+  background: #BE2D22;
 }
 .region-page {
   position: fixed;

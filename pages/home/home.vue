@@ -89,6 +89,9 @@ import TabBar from '../../components/tab-bar.vue'
 
 export default {
   components: { TabBar },
+  onLoad() {
+    uni.reLaunch({ url: '/pages/generate/generate' })
+  },
   data() {
     return {
       capIndex: 0,

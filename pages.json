@@ -1,6 +1,12 @@
 {
 	"pages": [
 		{
+			"path": "pages/generate/generate",
+			"style": {
+				"navigationBarTitleText": "内容生成"
+			}
+		},
+		{
 			"path": "pages/login/login",
 			"style": {
 				"navigationBarTitleText": "密码登录"
@@ -11,18 +17,6 @@
 			"style": {
 				"navigationBarTitleText": "登录确认",
 				"navigationStyle": "custom"
-			}
-		},
-		{
-			"path": "pages/home/home",
-			"style": {
-				"navigationBarTitleText": "首页"
-			}
-		},
-		{
-			"path": "pages/generate/generate",
-			"style": {
-				"navigationBarTitleText": "内容生成"
 			}
 		},
 		{
@@ -44,6 +38,12 @@
 			}
 		},
 		{
+			"path": "pages/materials/materials",
+			"style": {
+				"navigationBarTitleText": "素材库"
+			}
+		},
+		{
 			"path": "pages/mine/mine",
 			"style": {
 				"navigationBarTitleText": "我的"
@@ -53,6 +53,12 @@
 			"path": "pages/mine/bio",
 			"style": {
 				"navigationBarTitleText": "简介"
+			}
+		},
+		{
+			"path": "pages/home/home",
+			"style": {
+				"navigationBarTitleText": "首页"
 			}
 		}
 	],

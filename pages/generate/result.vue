@@ -128,10 +128,10 @@ export default {
 }
 .ghost {
   background: #f7f4f2;
-  color: #b44a3a;
+  color: #BE2D22;
 }
 .primary {
   color: #fff;
-  background: #b44a3a;
+  background: #BE2D22;
 }
 </style>

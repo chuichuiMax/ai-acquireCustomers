@@ -57,6 +57,6 @@ textarea {
   line-height: 46px;
   border-radius: 12px;
   color: #fff;
-  background: #b44a3a;
+  background: #BE2D22;
 }
 </style>

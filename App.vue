@@ -4,9 +4,9 @@ import { TOKEN_KEY } from './config'
 export default {
 	onLaunch() {
 		const token = uni.getStorageSync(TOKEN_KEY)
-		if (token) {
-			uni.reLaunch({ url: '/pages/home/home' })
-		}
+		uni.reLaunch({
+			url: token ? '/pages/generate/generate' : '/pages/login/login'
+		})
 	}
 }
 </script>

@@ -38,7 +38,7 @@
 
 <script>
 import { mpAuthApi } from '../../apis/mp'
-import { SESSION_KEY } from '../../config'
+import { SESSION_KEY, TOKEN_KEY } from '../../config'
 import { errorMessage, setToken } from '../../utils/request'
 
 export default {
@@ -55,6 +55,12 @@ export default {
   },
   onUnload() {
     if (this.timer) clearInterval(this.timer)
+  },
+  onShow() {
+    const token = uni.getStorageSync(TOKEN_KEY)
+    if (token) {
+      uni.reLaunch({ url: '/pages/generate/generate' })
+    }
   },
   methods: {
     phoneOk() {
@@ -102,7 +108,7 @@ export default {
       try {
         const data = await mpAuthApi.loginBySms({ phone: this.phone, code: this.code })
         setToken(data.access_token)
-        uni.reLaunch({ url: '/pages/home/home' })
+        uni.reLaunch({ url: '/pages/generate/generate' })
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       } finally {
@@ -240,7 +246,7 @@ export default {
   border-radius: 8px;
   font-size: 16px;
   color: #fff;
-  background: #c0392b;
+  background: #BE2D22;
 }
 .wechat {
   height: 46px;

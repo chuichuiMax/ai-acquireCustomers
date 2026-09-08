@@ -102,7 +102,7 @@ export default {
   font-size: 13px;
 }
 .filter.active {
-  background: #b44a3a;
+  background: #BE2D22;
   color: #fff;
 }
 .empty {
@@ -130,7 +130,7 @@ export default {
 }
 .code {
   display: block;
-  color: #b44a3a;
+  color: #BE2D22;
   font-size: 12px;
 }
 .title {
@@ -151,7 +151,7 @@ export default {
 }
 .action {
   padding: 8px 4px;
-  color: #b44a3a;
+  color: #BE2D22;
   font-size: 15px;
   line-height: 22px;
 }

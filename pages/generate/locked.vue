@@ -13,7 +13,7 @@
       <text class="block-title">请选择最终标题</text>
       <radio-group @change="onTitle">
         <label v-for="item in titleOptions" :key="item.id" class="option">
-          <radio :value="item.id" :checked="selectedTitleId === item.id" color="#b44a3a" />
+          <radio :value="item.id" :checked="selectedTitleId === item.id" color="#BE2D22" />
           <text>{{ item.text || item.title }}</text>
         </label>
       </radio-group>
@@ -320,7 +320,7 @@ export default {
 }
 .badge {
   display: block;
-  color: #b44a3a;
+  color: #BE2D22;
   font-weight: 700;
   font-size: 18px;
 }
@@ -359,7 +359,7 @@ export default {
   background: #f7f4f2;
 }
 .cover-option.active {
-  border-color: #b44a3a;
+  border-color: #BE2D22;
 }
 .cover-option image {
   width: 100%;
@@ -377,6 +377,6 @@ export default {
   line-height: 46px;
   border-radius: 12px;
   color: #fff;
-  background: #b44a3a;
+  background: #BE2D22;
 }
 </style>
