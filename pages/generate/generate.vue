@@ -63,6 +63,7 @@
           <picker
             v-if="isSelectField(item)"
             :range="fieldOptions(item)"
+            @click="onSelectFieldTap(item)"
             @change="onSelectField(item, $event)"
           >
             <view class="picker">
@@ -103,9 +104,16 @@
             <text v-if="selectedGalleryRootId === item.id" class="gallery-badge">已选择</text>
           </view>
         </view>
+        <view class="field">
+          <text class="label">上传分类 *</text>
+          <picker :range="uploadCategoryLabels" @change="onUploadCategory">
+            <view class="picker">{{ uploadCategoryLabel || '请选择素材分类' }}</view>
+          </picker>
+        </view>
         <view class="cover-actions">
           <view class="cover-action" @click="chooseCover">上传图片</view>
         </view>
+        <text class="hint">支持 PNG / JPG / WebP，单张不超过 20 MB；上传后写入素材库，与 PC 素材库一致。</text>
         <view v-if="imageItemId || coverAssetId" class="selected-cover">
           <image v-if="coverLocal" :src="coverLocal" mode="aspectFill" />
           <view class="selected-cover-copy">
@@ -132,15 +140,58 @@
       </view>
 
       <view v-else class="block">
-        <view class="photo-grid">
-          <view v-for="(item, index) in photos" :key="item.assetId" class="photo-item">
-            <image :src="item.local" mode="aspectFill" />
-            <text class="photo-remove" @click.stop="removePhoto(index)">×</text>
-          </view>
-          <view v-if="photos.length < maxPhotos" class="photo-add" @click="choosePhotos">
-            <text class="photo-add-text">+ 上传照片(最多{{ maxPhotos }}张)</text>
-          </view>
+        <view class="photo-tabs">
+          <view
+            class="photo-tab"
+            :class="{ active: photoSourceMode === 'gallery' }"
+            @click="switchPhotoSource('gallery')"
+          >选择图库</view>
+          <view
+            class="photo-tab"
+            :class="{ active: photoSourceMode === 'upload' }"
+            @click="switchPhotoSource('upload')"
+          >上传照片</view>
+          <text class="photo-tab-hint">二选一</text>
         </view>
+        <template v-if="photoSourceMode === 'gallery'">
+          <view class="gallery-grid">
+            <view
+              v-for="item in rootGalleries"
+              :key="item.id"
+              class="gallery-card"
+              :class="{ active: reviewGalleryId === item.id }"
+              @click="openReviewGallery(item.id)"
+            >
+              <text class="gallery-name">{{ item.name }}</text>
+              <text class="gallery-count">{{ item.count }}张图片素材</text>
+            </view>
+          </view>
+          <view v-if="photos.length" class="photo-grid">
+            <view v-for="(item, index) in photos" :key="item.assetId" class="photo-item">
+              <image :src="item.local" mode="aspectFill" />
+              <text class="photo-remove" @click.stop="removePhoto(index)">×</text>
+            </view>
+          </view>
+          <text class="hint">从素材库最多选 {{ maxPhotos }} 张；点图库进入后点选图片。</text>
+        </template>
+        <template v-else>
+          <view class="field">
+            <text class="label">上传分类 *</text>
+            <picker :range="uploadCategoryLabels" @change="onUploadCategory">
+              <view class="picker">{{ uploadCategoryLabel || '请选择素材分类' }}</view>
+            </picker>
+          </view>
+          <view class="photo-grid">
+            <view v-for="(item, index) in photos" :key="item.assetId" class="photo-item">
+              <image :src="item.local" mode="aspectFill" />
+              <text class="photo-remove" @click.stop="removePhoto(index)">×</text>
+            </view>
+            <view v-if="photos.length < maxPhotos" class="photo-add" @click="choosePhotos">
+              <text class="photo-add-text">+ 上传照片(最多{{ maxPhotos }}张)</text>
+            </view>
+          </view>
+          <text class="hint">支持 PNG / JPG / WebP，单张不超过 20 MB；上传逻辑与 PC 素材库一致。</text>
+        </template>
       </view>
 
       <button class="submit" :loading="submitting" @click="compile">
@@ -219,7 +270,7 @@
           </view>
         </view>
         <text v-if="!galleryLoading && !galleryItems.length && !galleryChildren.length" class="empty">
-          该图库暂无图片，可返回后点上传图片
+          {{ galleryPickMode === 'review' ? '该图库暂无图片' : '该图库暂无图片，可返回后点上传图片' }}
         </text>
       </scroll-view>
     </view>
@@ -272,6 +323,8 @@ function matchRegionCity(value, tree) {
 }
 
 const MAX_PHOTOS = 3
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+const ALLOWED_UPLOAD_EXTS = ['png', 'jpg', 'jpeg', 'webp']
 
 const REVIEW_NOTES_TYPE_CODE = 'review_notes'
 const REVIEW_NOTES_TYPE = {
@@ -307,6 +360,11 @@ export default {
         variables: [],
         frame_areas: [],
         design_styles: [],
+        project_stages: [],
+        target_audiences: [],
+        resident_populations: [],
+        process_types: [],
+        process_names_by_type: {},
         regions: [],
         region_tree: [],
         cover_templates: [],
@@ -329,8 +387,12 @@ export default {
       galleryId: '',
       galleryItems: [],
       galleryLoading: false,
+      galleryPickMode: 'decoration',
       photos: [],
       maxPhotos: MAX_PHOTOS,
+      photoSourceMode: 'upload',
+      reviewGalleryId: '',
+      uploadCategoryId: 'uncategorized',
       submitting: false,
       schemaLoaded: false,
       resumeAfterPicker: false
@@ -404,6 +466,21 @@ export default {
         current = (this.galleries || []).find((item) => item.id === current.parent_id)
       }
       return current ? current.id : ''
+    },
+    uploadCategoryOptions() {
+      const roots = this.rootGalleries || []
+      if (roots.length) return roots
+      return [{ id: 'uncategorized', name: '未分类' }]
+    },
+    uploadCategoryLabels() {
+      return this.uploadCategoryOptions.map((item) =>
+        item.description ? `${item.name} — ${item.description}` : item.name
+      )
+    },
+    uploadCategoryLabel() {
+      const selected = this.uploadCategoryOptions.find((item) => item.id === this.uploadCategoryId)
+      if (!selected) return ''
+      return selected.description ? `${selected.name} — ${selected.description}` : selected.name
     }
   },
   onLoad() {
@@ -452,7 +529,7 @@ export default {
         return
       }
       this.typeStepDone = true
-      if (this.serviceEntry === '装修家居') this.loadGalleries()
+      this.loadGalleries()
     },
     backToTypeStep() {
       this.typeStepDone = false
@@ -471,17 +548,73 @@ export default {
       return Boolean(item.required)
     },
     isSelectField(item) {
-      return item && (item.type === 'select' || (Array.isArray(item.options) && item.options.length > 0))
+      if (!item) return false
+      if (item.type === 'select' || (Array.isArray(item.options) && item.options.length > 0)) return true
+      const name = this.fieldName(item)
+      if (name === '目标人群' && (this.schema.target_audiences || []).length > 0) return true
+      if (name === '居住人口' && (this.schema.resident_populations || []).length > 0) return true
+      if (name === '工艺类型' && (this.schema.process_types || []).length > 0) return true
+      if (name === '工艺名称' && Object.keys(this.schema.process_names_by_type || {}).length > 0) return true
+      if (name === '项目阶段' && (this.schema.project_stages || []).length > 0) return true
+      return false
     },
     fieldOptions(item) {
+      const name = this.fieldName(item)
+      if (name === '目标人群' && (this.schema.target_audiences || []).length) {
+        return this.schema.target_audiences
+      }
+      if (name === '居住人口' && (this.schema.resident_populations || []).length) {
+        return this.schema.resident_populations
+      }
+      if (name === '工艺类型' && (this.schema.process_types || []).length) {
+        return this.schema.process_types
+      }
+      if (name === '工艺名称') {
+        const selectedType = String(this.formValues['工艺类型'] || '').trim()
+        if (!selectedType) return []
+        return (this.schema.process_names_by_type && this.schema.process_names_by_type[selectedType]) || []
+      }
+      if (name === '项目阶段' && (this.schema.project_stages || []).length) {
+        return this.schema.project_stages
+      }
       return (item && item.options) || []
+    },
+    hasProcessTypeVariable() {
+      return this.variables.some((item) => this.fieldName(item) === '工艺类型')
+    },
+    onSelectFieldTap(item) {
+      if (this.fieldName(item) !== '工艺名称') return
+      const selectedType = String(this.formValues['工艺类型'] || '').trim()
+      if (!this.hasProcessTypeVariable() || !selectedType) {
+        uni.showToast({
+          title: '请先选择工艺类型，若没有工艺类型变量，请联系管理员配置',
+          icon: 'none',
+          duration: 3000
+        })
+      }
     },
     onSelectField(item, event) {
       const name = this.fieldName(item)
+      if (name === '工艺名称') {
+        const selectedType = String(this.formValues['工艺类型'] || '').trim()
+        if (!this.hasProcessTypeVariable() || !selectedType) {
+          uni.showToast({
+            title: '请先选择工艺类型，若没有工艺类型变量，请联系管理员配置',
+            icon: 'none',
+            duration: 3000
+          })
+          return
+        }
+      }
       const options = this.fieldOptions(item)
       const value = options[event.detail.value]
       if (!name || value === undefined) return
-      this.formValues = { ...this.formValues, [name]: value }
+      const next = { ...this.formValues, [name]: value }
+      if (name === '工艺类型') {
+        const allowed = (this.schema.process_names_by_type && this.schema.process_names_by_type[value]) || []
+        if (next['工艺名称'] && !allowed.includes(next['工艺名称'])) next['工艺名称'] = ''
+      }
+      this.formValues = next
     },
     async switchEntry(value) {
       this.serviceEntry = value
@@ -489,6 +622,9 @@ export default {
       this.contentTypeCode = ''
       this.formValues = {}
       this.photos = []
+      this.photoSourceMode = 'upload'
+      this.reviewGalleryId = ''
+      this.uploadCategoryId = 'uncategorized'
       this.coverLocal = ''
       this.coverAssetId = ''
       this.coverTemplateId = ''
@@ -520,6 +656,8 @@ export default {
         if (!this.coverTemplateId || !templates.some((item) => item.id === this.coverTemplateId)) {
           this.coverTemplateId = templates.length ? templates[0].id : ''
         }
+        await this.loadGalleries()
+        this.ensureUploadCategory()
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
@@ -558,9 +696,53 @@ export default {
       try {
         const data = await mpContentApi.galleries()
         this.galleries = data.galleries || []
+        this.ensureUploadCategory()
       } catch (error) {
         this.galleries = []
         uni.showToast({ title: errorMessage(error), icon: 'none' })
+      }
+    },
+    ensureUploadCategory() {
+      const options = this.uploadCategoryOptions
+      if (!options.some((item) => item.id === this.uploadCategoryId)) {
+        this.uploadCategoryId = options[0]?.id || 'uncategorized'
+      }
+    },
+    onUploadCategory(event) {
+      const option = this.uploadCategoryOptions[event.detail.value]
+      this.uploadCategoryId = (option && option.id) || 'uncategorized'
+    },
+    switchPhotoSource(mode) {
+      if (this.photoSourceMode === mode) return
+      this.photoSourceMode = mode
+      this.photos = []
+      this.reviewGalleryId = ''
+      this.closeGallery()
+    },
+    fileExt(path) {
+      const clean = String(path || '').split('?')[0]
+      const name = clean.split('/').pop() || ''
+      const parts = name.split('.')
+      return parts.length > 1 ? parts.pop().toLowerCase() : ''
+    },
+    async assertUploadableImage(filePath) {
+      const ext = this.fileExt(filePath)
+      if (ext && !ALLOWED_UPLOAD_EXTS.includes(ext)) {
+        throw new Error('仅支持 PNG、JPG、WebP 图片')
+      }
+      try {
+        const info = await new Promise((resolve, reject) => {
+          uni.getFileInfo({
+            filePath,
+            success: resolve,
+            fail: reject
+          })
+        })
+        if ((info && info.size) > MAX_UPLOAD_BYTES) {
+          throw new Error('单张图片不能超过 20 MB')
+        }
+      } catch (error) {
+        if (error && error.message) throw error
       }
     },
     clearCover() {
@@ -573,6 +755,7 @@ export default {
     },
     closeGallery() {
       this.galleryOpen = false
+      this.galleryPickMode = 'decoration'
     },
     isGalleryImageUsed(item) {
       return Boolean(item && item.in_use)
@@ -585,6 +768,23 @@ export default {
       this.closeGallery()
     },
     async openGallery(galleryId) {
+      this.galleryPickMode = 'decoration'
+      this.galleryId = galleryId
+      this.galleryOpen = true
+      this.galleryLoading = true
+      this.galleryItems = []
+      try {
+        const data = await mpContentApi.galleryItems(galleryId)
+        this.galleryItems = data.items || []
+      } catch (error) {
+        uni.showToast({ title: errorMessage(error), icon: 'none' })
+      } finally {
+        this.galleryLoading = false
+      }
+    },
+    async openReviewGallery(galleryId) {
+      this.galleryPickMode = 'review'
+      this.reviewGalleryId = galleryId
       this.galleryId = galleryId
       this.galleryOpen = true
       this.galleryLoading = true
@@ -601,6 +801,26 @@ export default {
     selectGalleryItem(item) {
       if (this.isGalleryImageUsed(item)) {
         uni.showToast({ title: '该图片已被其他内容使用', icon: 'none' })
+        return
+      }
+      if (this.galleryPickMode === 'review') {
+        if (this.photos.some((photo) => photo.assetId === item.asset_id)) {
+          uni.showToast({ title: '该图片已选择', icon: 'none' })
+          return
+        }
+        if (this.photos.length >= this.maxPhotos) {
+          uni.showToast({ title: `最多选择${this.maxPhotos}张图片`, icon: 'none' })
+          return
+        }
+        this.photos = [
+          ...this.photos,
+          {
+            local: this.mediaUrl(item.file_url),
+            assetId: item.asset_id,
+            libraryItemId: item.id
+          }
+        ]
+        this.closeGallery()
         return
       }
       this.imageItemId = item.id
@@ -635,23 +855,29 @@ export default {
       this.closeRegion()
     },
     chooseCover() {
+      if (!this.uploadCategoryId) {
+        uni.showToast({ title: '请选择上传分类', icon: 'none' })
+        return
+      }
       this.resumeAfterPicker = true
       uni.chooseImage({
         count: 1,
+        sizeType: ['original'],
         success: async (res) => {
           const filePath = res.tempFilePaths[0]
           this.coverLocal = filePath
           try {
-            const uploaded = await mpContentApi.uploadCover(filePath)
+            await this.assertUploadableImage(filePath)
+            const uploaded = await mpContentApi.uploadCover(filePath, this.uploadCategoryId)
             this.coverAssetId = uploaded.asset.id
             this.imageItemId = uploaded.library_item_id || ''
             this.coverName = (uploaded.asset && uploaded.asset.original_file_name) || '上传图片'
-            this.coverCategory = '未分类'
-            this.coverGalleryId = 'uncategorized'
+            this.coverCategory = uploaded.category_name || this.uploadCategoryLabel || '未分类'
+            this.coverGalleryId = uploaded.category || this.uploadCategoryId
             await this.loadGalleries()
           } catch (error) {
             this.clearCover()
-            uni.showToast({ title: errorMessage(error), icon: 'none' })
+            uni.showToast({ title: error.message || errorMessage(error), icon: 'none' })
           }
         },
         fail: () => {
@@ -660,6 +886,10 @@ export default {
       })
     },
     choosePhotos() {
+      if (!this.uploadCategoryId) {
+        uni.showToast({ title: '请选择上传分类', icon: 'none' })
+        return
+      }
       const remain = this.maxPhotos - this.photos.length
       if (remain <= 0) {
         uni.showToast({ title: `最多上传${this.maxPhotos}张图片`, icon: 'none' })
@@ -668,6 +898,7 @@ export default {
       this.resumeAfterPicker = true
       uni.chooseImage({
         count: remain,
+        sizeType: ['original'],
         success: async (res) => {
           for (const filePath of res.tempFilePaths || []) {
             if (this.photos.length >= this.maxPhotos) {
@@ -675,13 +906,22 @@ export default {
               break
             }
             try {
-              const uploaded = await mpContentApi.uploadCover(filePath)
-              this.photos = [...this.photos, { local: filePath, assetId: uploaded.asset.id }]
+              await this.assertUploadableImage(filePath)
+              const uploaded = await mpContentApi.uploadCover(filePath, this.uploadCategoryId)
+              this.photos = [
+                ...this.photos,
+                {
+                  local: filePath,
+                  assetId: uploaded.asset.id,
+                  libraryItemId: uploaded.library_item_id || ''
+                }
+              ]
             } catch (error) {
-              uni.showToast({ title: errorMessage(error), icon: 'none' })
+              uni.showToast({ title: error.message || errorMessage(error), icon: 'none' })
               break
             }
           }
+          await this.loadGalleries()
         },
         fail: () => {
           this.resumeAfterPicker = false
@@ -1136,6 +1376,29 @@ input,
 .photo-grid {
   display: flex;
   flex-wrap: wrap;
+}
+.photo-tabs {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #efe8e4;
+}
+.photo-tab {
+  padding: 8px 2px 10px;
+  color: #8a817c;
+  font-size: 14px;
+}
+.photo-tab.active {
+  color: #1f6feb;
+  font-weight: 600;
+  border-bottom: 2px solid #1f6feb;
+  margin-bottom: -1px;
+}
+.photo-tab-hint {
+  margin-left: auto;
+  color: #b0a7a2;
+  font-size: 12px;
 }
 .photo-item,
 .photo-add {

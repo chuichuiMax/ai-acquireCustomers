@@ -21,7 +21,12 @@ export const mpContentApi = {
   pricing: (frameArea) =>
     request({ url: `/api/mp/content/pricing?frame_area=${encodeURIComponent(frameArea)}` }),
   coverTemplates: () => request({ url: '/api/mp/content/cover-templates' }),
-  uploadCover: (filePath) => uploadFile({ url: '/api/mp/content/uploads/cover', filePath }),
+  uploadCover: (filePath, category = 'uncategorized') =>
+    uploadFile({
+      url: '/api/mp/content/uploads/cover',
+      filePath,
+      formData: { category: category || 'uncategorized' }
+    }),
   galleries: () => request({ url: '/api/mp/content/galleries' }),
   galleryItems: (category) =>
     request({ url: `/api/mp/content/gallery-items?category=${encodeURIComponent(category)}` }),

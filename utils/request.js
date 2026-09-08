@@ -60,12 +60,13 @@ export function request({ url, method = 'GET', data, header = {} }) {
   })
 }
 
-export function uploadFile({ url, filePath, name = 'file' }) {
+export function uploadFile({ url, filePath, name = 'file', formData = {} }) {
   return new Promise((resolve, reject) => {
     uni.uploadFile({
       url: `${BASE_URL}${url}`,
       filePath,
       name,
+      formData,
       header: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
       success: (res) => {
         if (res.statusCode === 401) {
