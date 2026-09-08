@@ -1,0 +1,65 @@
+{
+	"pages": [
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "密码登录"
+			}
+		},
+		{
+			"path": "pages/login/confirm",
+			"style": {
+				"navigationBarTitleText": "登录确认",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/home/home",
+			"style": {
+				"navigationBarTitleText": "首页"
+			}
+		},
+		{
+			"path": "pages/generate/generate",
+			"style": {
+				"navigationBarTitleText": "内容生成"
+			}
+		},
+		{
+			"path": "pages/generate/locked",
+			"style": {
+				"navigationBarTitleText": "内容生成"
+			}
+		},
+		{
+			"path": "pages/generate/result",
+			"style": {
+				"navigationBarTitleText": "生成结果"
+			}
+		},
+		{
+			"path": "pages/manage/manage",
+			"style": {
+				"navigationBarTitleText": "内容管理"
+			}
+		},
+		{
+			"path": "pages/mine/mine",
+			"style": {
+				"navigationBarTitleText": "我的"
+			}
+		},
+		{
+			"path": "pages/mine/bio",
+			"style": {
+				"navigationBarTitleText": "简介"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "鸿扬AI获客",
+		"navigationBarBackgroundColor": "#ffffff",
+		"backgroundColor": "#f4f1ee"
+	}
+}
