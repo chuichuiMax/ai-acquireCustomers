@@ -495,10 +495,22 @@ export default {
         return
       }
       this.contentTypeCode = typeCode
-      this.typeStepDone = true
-      this.loadGalleries()
+      if (this._typeSelectTimer) {
+        clearTimeout(this._typeSelectTimer)
+        this._typeSelectTimer = null
+      }
+      // 先高亮卡片，再进入业务变量步骤
+      this._typeSelectTimer = setTimeout(() => {
+        this.typeStepDone = true
+        this.loadGalleries()
+        this._typeSelectTimer = null
+      }, 180)
     },
     backToTypeStep() {
+      if (this._typeSelectTimer) {
+        clearTimeout(this._typeSelectTimer)
+        this._typeSelectTimer = null
+      }
       this.typeStepDone = false
     },
     isQuoteField(name) {
@@ -597,6 +609,10 @@ export default {
       this.formValues = next
     },
     async switchEntry(value) {
+      if (this._typeSelectTimer) {
+        clearTimeout(this._typeSelectTimer)
+        this._typeSelectTimer = null
+      }
       this.serviceEntry = value
       this.typeStepDone = false
       this.contentTypeCode = ''
@@ -617,13 +633,6 @@ export default {
         const data = await mpContentApi.formSchema(this.serviceEntry)
         this.schema = data
         this.schemaLoaded = true
-        if (this.serviceEntry === '装修家居') {
-          if (!this.contentTypeCode && data.content_types.length) {
-            this.contentTypeCode = data.content_types[0].type_code
-          }
-        } else if (!this.contentTypeCode) {
-          this.contentTypeCode = REVIEW_NOTES_TYPE_CODE
-        }
         const next = { ...this.formValues }
         for (const item of this.variables) {
           const name = this.fieldName(item)
