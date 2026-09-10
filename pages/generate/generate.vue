@@ -112,7 +112,7 @@
         <view class="cover-actions">
           <view class="cover-action" @click="chooseCover">上传图片</view>
         </view>
-        <text class="hint">支持 PNG / JPG / WebP，单张不超过 20 MB；上传后写入素材库，与 PC 素材库一致。</text>
+        <text class="hint">请从系统相册选普通照片（勿选实况图）；上传前会自动压缩。单张不超过 20 MB，写入素材库后与 PC 一致。</text>
         <view v-if="imageItemId || coverAssetId" class="selected-cover">
           <image v-if="coverLocal" :src="coverLocal" mode="aspectFill" />
           <view class="selected-cover-copy">
@@ -155,7 +155,7 @@
             <text class="photo-add-text">+ 上传照片(最多{{ maxPhotos }}张)</text>
           </view>
         </view>
-        <text class="hint">支持 PNG / JPG / WebP，单张不超过 20 MB；上传逻辑与 PC 素材库一致。</text>
+        <text class="hint">请从系统相册选普通照片（勿选实况图）；上传前会自动压缩。单张不超过 20 MB，与 PC 素材库一致。</text>
       </view>
 
       <button class="submit" :loading="submitting" @click="compile">
@@ -707,8 +707,9 @@ export default {
     },
     async assertUploadableImage(filePath) {
       const ext = this.fileExt(filePath)
-      if (ext && !ALLOWED_UPLOAD_EXTS.includes(ext)) {
-        throw new Error('仅支持 PNG、JPG、WebP 图片')
+      // 微信临时路径常无扩展名；HEIC 可能带 .heic 或伪装成其它后缀，交给 compressImage 转 JPEG
+      if (ext && !ALLOWED_UPLOAD_EXTS.includes(ext) && !['heic', 'heif', 'gif', 'bmp'].includes(ext)) {
+        throw new Error('仅支持 PNG、JPG、WebP 图片（相册请选照片）')
       }
       try {
         const info = await new Promise((resolve, reject) => {
@@ -724,6 +725,21 @@ export default {
       } catch (error) {
         if (error && error.message) throw error
       }
+    },
+    prepareUploadImage(filePath) {
+      return new Promise((resolve) => {
+        // 微信相册常见 HEIC，原图直传会被后端拒绝；压缩后多为 JPEG
+        if (typeof uni.compressImage !== 'function') {
+          resolve(filePath)
+          return
+        }
+        uni.compressImage({
+          src: filePath,
+          quality: 80,
+          success: (res) => resolve((res && res.tempFilePath) || filePath),
+          fail: () => resolve(filePath)
+        })
+      })
     },
     clearCover() {
       this.coverLocal = ''
@@ -804,13 +820,14 @@ export default {
       this.resumeAfterPicker = true
       uni.chooseImage({
         count: 1,
-        sizeType: ['original'],
+        sizeType: ['compressed'],
         success: async (res) => {
           const filePath = res.tempFilePaths[0]
           this.coverLocal = filePath
           try {
             await this.assertUploadableImage(filePath)
-            const uploaded = await mpContentApi.uploadCover(filePath, this.uploadCategoryId)
+            const uploadPath = await this.prepareUploadImage(filePath)
+            const uploaded = await mpContentApi.uploadCover(uploadPath, this.uploadCategoryId)
             this.coverAssetId = uploaded.asset.id
             this.imageItemId = uploaded.library_item_id || ''
             this.coverName = (uploaded.asset && uploaded.asset.original_file_name) || '上传图片'
@@ -840,7 +857,7 @@ export default {
       this.resumeAfterPicker = true
       uni.chooseImage({
         count: remain,
-        sizeType: ['original'],
+        sizeType: ['compressed'],
         success: async (res) => {
           for (const filePath of res.tempFilePaths || []) {
             if (this.photos.length >= this.maxPhotos) {
@@ -849,7 +866,8 @@ export default {
             }
             try {
               await this.assertUploadableImage(filePath)
-              const uploaded = await mpContentApi.uploadCover(filePath, this.uploadCategoryId)
+              const uploadPath = await this.prepareUploadImage(filePath)
+              const uploaded = await mpContentApi.uploadCover(uploadPath, this.uploadCategoryId)
               this.photos = [
                 ...this.photos,
                 {

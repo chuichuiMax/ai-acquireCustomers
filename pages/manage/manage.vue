@@ -13,18 +13,47 @@
     </view>
     <view v-if="!items.length" class="empty">暂无内容</view>
     <view v-for="item in items" :key="item.task_id" class="card">
-      <image v-if="item.cover_file_url" class="thumb" :src="mediaUrl(item.cover_file_url)" mode="aspectFill" />
-      <view class="meta">
-        <text v-if="item.content_code" class="code">{{ item.content_code }}</text>
-        <text v-if="item.title" class="title">{{ item.title }}</text>
-        <text class="row">模块：{{ item.service_entry || '-' }}</text>
-        <text class="row">类型：{{ item.content_type_name || '-' }}</text>
-        <text class="row">公式：{{ item.formula || '-' }}</text>
-        <text class="row">状态：{{ statusLabel(item.status) }} · {{ item.created_at || '' }}</text>
-        <view class="actions">
-          <text class="action" @click="open(item)">查看</text>
-        </view>
+      <view class="row">
+        <text class="label">内容编码</text>
+        <text class="value">{{ item.content_code || '-' }}</text>
       </view>
+      <view class="row">
+        <text class="label">模块类型</text>
+        <text class="value">{{ item.service_entry || '-' }}</text>
+      </view>
+      <template v-if="item.service_entry === '装修家居'">
+        <view class="row">
+          <text class="label">创作手法</text>
+          <text class="value">{{ item.creation_methods || item.method || '-' }}</text>
+        </view>
+        <view class="row">
+          <text class="label">爆款标题</text>
+          <text class="value">{{ item.viral_title_formula || '-' }}</text>
+        </view>
+        <view class="row">
+          <text class="label">内容公式</text>
+          <text class="value">{{ item.content_formula || item.formula || '-' }}</text>
+        </view>
+      </template>
+      <view class="row">
+        <text class="label">状态</text>
+        <text class="value">{{ item.status_label || statusLabel(item.status) }}</text>
+      </view>
+      <view class="row">
+        <text class="label">创建时间</text>
+        <text class="value">{{ item.created_at_display || formatCreatedAt(item.created_at) }}</text>
+      </view>
+      <view class="row cover-row">
+        <text class="label">封面</text>
+        <image
+          v-if="item.cover_file_url"
+          class="cover"
+          :src="mediaUrl(item.cover_file_url)"
+          mode="aspectFill"
+        />
+        <text v-else class="value muted">暂无封面</text>
+      </view>
+      <view class="view-btn" @click="open(item)">查看</view>
     </view>
     <tab-bar current="manage" />
   </view>
@@ -54,15 +83,18 @@ export default {
   methods: {
     mediaUrl,
     statusLabel(status) {
-      const map = {
-        brief_ready: '已锁定',
-        queued: '排队中',
-        waiting_human: '待确认',
-        waiting_external: '生成封面',
-        completed: '已完成',
-        failed: '失败'
-      }
-      return map[status] || status || '-'
+      if (status === 'reviewed' || status === 'completed') return '已发布'
+      return '未发布'
+    },
+    formatCreatedAt(value) {
+      if (!value) return '-'
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return String(value)
+      const pad = (n) => String(n).padStart(2, '0')
+      return (
+        `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())} ` +
+        `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+      )
     },
     changeFilter(value) {
       this.serviceEntry = value
@@ -102,7 +134,7 @@ export default {
   font-size: 13px;
 }
 .filter.active {
-  background: #BE2D22;
+  background: #be2d22;
   color: #fff;
 }
 .empty {
@@ -111,48 +143,51 @@ export default {
   padding: 40px 0;
 }
 .card {
-  display: flex;
-  gap: 10px;
   background: #fff;
   border-radius: 14px;
-  padding: 12px;
+  padding: 14px 14px 12px;
+  margin-bottom: 12px;
+}
+.row {
+  display: flex;
+  align-items: flex-start;
   margin-bottom: 10px;
 }
-.thumb {
+.label {
+  width: 72px;
+  flex-shrink: 0;
+  color: #8a817c;
+  font-size: 13px;
+  line-height: 20px;
+}
+.value {
+  flex: 1;
+  color: #2b2422;
+  font-size: 13px;
+  line-height: 20px;
+  word-break: break-all;
+}
+.value.muted {
+  color: #b8b0aa;
+}
+.cover-row {
+  align-items: center;
+}
+.cover {
   width: 72px;
   height: 96px;
   border-radius: 8px;
   background: #eee;
-  flex-shrink: 0;
 }
-.meta {
-  flex: 1;
-}
-.code {
-  display: block;
-  color: #BE2D22;
-  font-size: 12px;
-}
-.title {
-  display: block;
-  margin: 4px 0;
-  font-weight: 600;
-}
-.row {
-  display: block;
-  color: #8a817c;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 10px;
-}
-.action {
-  padding: 8px 4px;
-  color: #BE2D22;
+.view-btn {
+  margin-top: 4px;
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  border-radius: 8px;
+  background: #be2d22;
+  color: #fff;
   font-size: 15px;
-  line-height: 22px;
+  font-weight: 600;
 }
 </style>
