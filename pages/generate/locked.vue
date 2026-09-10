@@ -313,7 +313,9 @@ export default {
         }
         if (data.status === 'completed') {
           this.stopPoll()
-          uni.redirectTo({ url: `/pages/generate/result?task_id=${this.taskId}` })
+          uni.redirectTo({
+            url: `/pages/generate/result?task_id=${this.taskId}&service_entry=${encodeURIComponent(this.serviceEntry || '')}`
+          })
           return
         }
         if (data.run_id && data.run_id !== this.runId) this.runId = data.run_id
@@ -546,7 +548,7 @@ export default {
 }
 .cover-option image {
   width: 100%;
-  height: 180px;
+  height: 220px;
   background: #eee;
 }
 .cover-option-label {

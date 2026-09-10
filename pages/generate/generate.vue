@@ -138,26 +138,6 @@
         </scroll-view>
       </view>
 
-      <view v-else class="block">
-        <text class="block-title">上传照片 *</text>
-        <view class="field">
-          <text class="label">上传分类 *</text>
-          <picker :range="uploadCategoryLabels" @change="onUploadCategory">
-            <view class="picker">{{ uploadCategoryLabel || '请选择素材分类' }}</view>
-          </picker>
-        </view>
-        <view class="photo-grid">
-          <view v-for="(item, index) in photos" :key="item.assetId" class="photo-item">
-            <image :src="item.local" mode="aspectFill" />
-            <text class="photo-remove" @click.stop="removePhoto(index)">×</text>
-          </view>
-          <view v-if="photos.length < maxPhotos" class="photo-add" @click="choosePhotos">
-            <text class="photo-add-text">+ 上传照片(最多{{ maxPhotos }}张)</text>
-          </view>
-        </view>
-        <text class="hint">请从系统相册选普通照片（勿选实况图）；上传前会自动压缩。单张不超过 20 MB，与 PC 素材库一致。</text>
-      </view>
-
       <button class="submit" :loading="submitting" @click="compile">
         生成内容
       </button>
@@ -361,8 +341,14 @@ export default {
     }
   },
   computed: {
+    isHomeDecor() {
+      return String(this.serviceEntry || '').includes('装修')
+    },
+    isReviewNotes() {
+      return String(this.serviceEntry || '').includes('好评')
+    },
     contentTypes() {
-      if (this.serviceEntry === '好评笔记') return [REVIEW_NOTES_TYPE]
+      if (this.isReviewNotes) return [REVIEW_NOTES_TYPE]
       return this.schema.content_types || []
     },
     selectedContentTypeName() {
@@ -390,9 +376,11 @@ export default {
     formVariables() {
       return this.variables.filter((item) => {
         const name = this.fieldName(item)
+        const label = this.fieldLabel(item)
         if (this.isQuoteField(name)) return false
         if (name === '所在区域') return false
-        if (this.serviceEntry === '装修家居' && ['外框面积', '设计风格'].includes(name)) return false
+        if (this.isHomeDecor && ['外框面积', '设计风格'].includes(name)) return false
+        if (this.isReviewNotes && /照片|图片|封面|上传/.test(`${name}${label}`)) return false
         return true
       })
     },
@@ -892,7 +880,7 @@ export default {
       this.photos = this.photos.filter((_, itemIndex) => itemIndex !== index)
     },
     async compile() {
-      if (this.serviceEntry === '装修家居' && !this.contentTypeCode) {
+      if (this.isHomeDecor && !this.contentTypeCode) {
         uni.showToast({ title: '请选择内容类型', icon: 'none' })
         return
       }
@@ -908,7 +896,7 @@ export default {
         uni.showToast({ title: '请选择所在区域', icon: 'none' })
         return
       }
-      if (this.serviceEntry === '装修家居') {
+      if (this.isHomeDecor) {
         for (const label of ['外框面积', '设计风格']) {
           if (!this.formValues[label]) {
             uni.showToast({ title: `请选择${label}`, icon: 'none' })
@@ -923,32 +911,35 @@ export default {
             return
           }
         }
-      }
-      if (this.serviceEntry === '好评笔记') {
-        if (!this.photos.length) {
-          uni.showToast({ title: '请上传照片', icon: 'none' })
+        if (!this.imageItemId && !this.coverAssetId) {
+          uni.showToast({ title: '请选择图库图片或上传封面图', icon: 'none' })
           return
         }
-      } else if (!this.imageItemId && !this.coverAssetId) {
-        uni.showToast({ title: '请选择图库图片或上传封面图', icon: 'none' })
-        return
-      } else if (!this.coverTemplateId) {
-        uni.showToast({ title: '请选择小红书封面模板', icon: 'none' })
-        return
+        if (!this.coverTemplateId) {
+          uni.showToast({ title: '请选择小红书封面模板', icon: 'none' })
+          return
+        }
       }
-      const coverAssetIds =
-        this.serviceEntry === '好评笔记' ? this.photos.map((item) => item.assetId) : this.coverAssetId ? [this.coverAssetId] : []
+      const formValues = { ...this.formValues }
+      delete formValues.cover_asset_ids
+      delete formValues.cover_asset_id
+      delete formValues.image_item_id
       this.submitting = true
       try {
-        const data = await mpContentApi.compileBrief({
+        const payload = {
           service_entry: this.serviceEntry,
-          content_type_code: this.serviceEntry === '装修家居' ? this.contentTypeCode : undefined,
-          form_values: { ...this.formValues, cover_asset_ids: coverAssetIds },
-          cover_asset_id: coverAssetIds[0],
-          cover_asset_ids: coverAssetIds,
-          image_item_id: this.serviceEntry === '装修家居' ? this.imageItemId || undefined : undefined,
-          hycanvas_template_id: this.serviceEntry === '装修家居' ? this.coverTemplateId || undefined : undefined
-        })
+          form_values: formValues
+        }
+        if (this.isHomeDecor) {
+          const coverAssetIds = this.coverAssetId ? [this.coverAssetId] : []
+          payload.content_type_code = this.contentTypeCode
+          payload.cover_asset_id = coverAssetIds[0]
+          payload.cover_asset_ids = coverAssetIds
+          payload.image_item_id = this.imageItemId || undefined
+          payload.hycanvas_template_id = this.coverTemplateId || undefined
+          formValues.cover_asset_ids = coverAssetIds
+        }
+        const data = await mpContentApi.compileBrief(payload)
         uni.navigateTo({
           url: `/pages/generate/locked?task_id=${data.task_id}&service_entry=${encodeURIComponent(this.serviceEntry)}`
         })

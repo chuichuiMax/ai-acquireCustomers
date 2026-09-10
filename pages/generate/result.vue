@@ -13,16 +13,15 @@
       <text class="tags">{{ tagsText }}</text>
     </view>
 
-    <view class="bottom-media">
-      <view v-if="coverUrl" class="cover-wrap">
-        <image class="cover" :src="coverUrl" mode="aspectFill" />
-        <view class="save-btn" @click="saveCover">保存照片</view>
-      </view>
-      <view class="copy-bar">
-        <button class="ghost" @click="copy(artifact.title, '标题已复制')">复制标题</button>
-        <button class="ghost" @click="copy(artifact.body, '正文已复制')">复制正文</button>
-        <button class="ghost" @click="copy(tagsText, '标签已复制')">复制标签</button>
-      </view>
+    <view v-if="showCover" class="cover-wrap">
+      <image class="cover" :src="coverUrl" mode="aspectFill" />
+      <view class="save-btn" @click="saveCover">保存照片</view>
+    </view>
+
+    <view class="copy-bar">
+      <button class="ghost" @click="copy(artifact.title, '标题已复制')">复制标题</button>
+      <button class="ghost" @click="copy(artifact.body, '正文已复制')">复制正文</button>
+      <button class="ghost" @click="copy(tagsText, '标签已复制')">复制标签</button>
     </view>
   </view>
 </template>
@@ -35,6 +34,7 @@ export default {
   data() {
     return {
       taskId: '',
+      serviceEntry: '',
       artifact: {}
     }
   },
@@ -45,10 +45,14 @@ export default {
     },
     coverUrl() {
       return mediaUrl(this.artifact.cover_file_url)
+    },
+    showCover() {
+      return this.serviceEntry === '装修家居' && Boolean(this.coverUrl)
     }
   },
   onLoad(query) {
     this.taskId = query.task_id
+    this.serviceEntry = decodeURIComponent(query.service_entry || '')
     this.load()
   },
   methods: {
@@ -56,6 +60,16 @@ export default {
       try {
         const data = await mpContentApi.getArtifact(this.taskId)
         this.artifact = data.artifact || {}
+        this.serviceEntry =
+          this.serviceEntry ||
+          this.artifact.service_entry ||
+          (data.task && data.task.service_entry) ||
+          ''
+        if (!this.serviceEntry) {
+          const taskData = await mpContentApi.getTask(this.taskId)
+          const values = (taskData.task && taskData.task.brief && taskData.task.brief.form_values) || {}
+          this.serviceEntry = values.mp_service_entry || (taskData.task && taskData.task.service_entry) || ''
+        }
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
@@ -91,18 +105,21 @@ export default {
 .page {
   min-height: 100vh;
   background: #f4f1ee;
-  padding: 16px 16px calc(300px + env(safe-area-inset-bottom));
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
 }
 .cover-wrap {
   position: relative;
-  width: auto;
-  height: 220px;
-  margin: 10px 16px;
+  width: 100%;
+  padding-top: 133.33%;
+  margin-bottom: 12px;
   overflow: hidden;
   border-radius: 14px;
   background: #ddd;
 }
 .cover {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 100%;
   height: 100%;
   display: block;
@@ -160,18 +177,8 @@ export default {
   font-size: 13px;
   line-height: 32px;
 }
-.bottom-media {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 20;
-  background: #f4f1ee;
-}
 .copy-bar {
   display: flex;
   gap: 8px;
-  padding: 0 16px 10px;
-  padding-bottom: calc(10px + env(safe-area-inset-bottom));
 }
 </style>

@@ -28,11 +28,11 @@
         </view>
         <view class="row">
           <text class="label">爆款标题</text>
-          <text class="value">{{ item.content_formula || item.formula || '-' }}</text>
+          <text class="value">{{ item.viral_title_formula || '-' }}</text>
         </view>
         <view class="row">
           <text class="label">内容公式</text>
-          <text class="value">{{ item.viral_title_formula || '-' }}</text>
+          <text class="value">{{ item.content_formula || item.formula || '-' }}</text>
         </view>
       </template>
       <view class="row">
@@ -43,7 +43,7 @@
         <text class="label">创建时间</text>
         <text class="value">{{ item.created_at_display || formatCreatedAt(item.created_at) }}</text>
       </view>
-      <view class="row cover-row">
+      <view v-if="item.service_entry === '装修家居'" class="row cover-row">
         <text class="label">封面</text>
         <image
           v-if="item.cover_file_url"
@@ -109,7 +109,9 @@ export default {
       }
     },
     open(item) {
-      uni.navigateTo({ url: `/pages/generate/result?task_id=${item.task_id}` })
+      uni.navigateTo({
+        url: `/pages/generate/result?task_id=${item.task_id}&service_entry=${encodeURIComponent(item.service_entry || '')}`
+      })
     }
   }
 }
