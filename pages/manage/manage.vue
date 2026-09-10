@@ -28,11 +28,11 @@
         </view>
         <view class="row">
           <text class="label">爆款标题</text>
-          <text class="value">{{ item.viral_title_formula || '-' }}</text>
+          <text class="value">{{ item.content_formula || item.formula || '-' }}</text>
         </view>
         <view class="row">
           <text class="label">内容公式</text>
-          <text class="value">{{ item.content_formula || item.formula || '-' }}</text>
+          <text class="value">{{ item.viral_title_formula || '-' }}</text>
         </view>
       </template>
       <view class="row">

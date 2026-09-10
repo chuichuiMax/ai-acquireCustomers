@@ -1,6 +1,16 @@
 <template>
   <view class="page">
-    <view class="card">
+    <view v-if="isGenerating" class="card loading-card">
+      <view class="spinner"></view>
+      <text class="badge">正在生成{{ serviceEntry || '内容' }}</text>
+      <text class="step">{{ currentStepLabel }}</text>
+      <view class="progress">
+        <view class="progress-bar" :style="{ width: progressPercent + '%' }"></view>
+      </view>
+      <text class="eta">{{ etaText }}</text>
+      <text class="elapsed">已等待 {{ elapsedText }}</text>
+    </view>
+    <view v-else class="card">
       <text class="badge">{{ autoRun ? '正在生成内容' : '策略和证据已锁定' }}</text>
       <text v-if="!autoRun && !runId" class="desc">内容将按策略 → 证据 → 标题 → 正文 → 审核生成。点击开始后，会在标题候选处暂停。</text>
       <button v-if="!autoRun && !runId" class="primary" :loading="starting" @click="start">点击开始生成</button>
@@ -67,6 +77,39 @@ import { errorMessage, mediaUrl } from '../../utils/request'
 
 const MAX_AUTO_RETRY = 5
 
+const ESTIMATE_SECONDS = {
+  装修家居: 120,
+  好评笔记: 50
+}
+
+const GENERATE_STEPS = {
+  装修家居: [
+    { key: 'prepare', label: '正在锁定策略与证据' },
+    { key: 'title', label: '正在生成爆款标题' },
+    { key: 'body', label: '正在撰写正文' },
+    { key: 'review', label: '正在审核内容' },
+    { key: 'cover', label: '正在生成封面' },
+    { key: 'finish', label: '即将完成，正在整理结果' }
+  ],
+  好评笔记: [
+    { key: 'prepare', label: '正在准备素材与口碑要点' },
+    { key: 'title', label: '正在生成标题' },
+    { key: 'body', label: '正在撰写正文' },
+    { key: 'review', label: '正在审核内容' },
+    { key: 'finish', label: '即将完成，正在整理结果' }
+  ]
+}
+
+function formatDuration(seconds) {
+  const value = Math.max(0, Math.ceil(seconds))
+  if (value >= 60) {
+    const minutes = Math.floor(value / 60)
+    const rest = value % 60
+    return rest ? `${minutes} 分 ${rest} 秒` : `${minutes} 分钟`
+  }
+  return `${value} 秒`
+}
+
 export default {
   data() {
     return {
@@ -82,12 +125,69 @@ export default {
       selectedTitleId: '',
       selectedCoverAssetId: '',
       retryCount: 0,
-      timer: null
+      timer: null,
+      tickTimer: null,
+      startedAt: 0,
+      now: Date.now()
     }
   },
   computed: {
     autoRun() {
       return this.serviceEntry === '好评笔记'
+    },
+    generateSteps() {
+      return GENERATE_STEPS[this.serviceEntry] || GENERATE_STEPS['好评笔记']
+    },
+    estimateSeconds() {
+      return ESTIMATE_SECONDS[this.serviceEntry] || 60
+    },
+    elapsedSeconds() {
+      if (!this.startedAt) return 0
+      return Math.max(0, Math.floor((this.now - this.startedAt) / 1000))
+    },
+    waitingUser() {
+      const type = this.interrupt && this.interrupt.interrupt_type
+      return Boolean(
+        !this.autoRun &&
+          type &&
+          type !== 'external_wait'
+      )
+    },
+    isGenerating() {
+      if (this.status === 'completed' || this.status === 'cancelled') return false
+      if (!this.autoRun && this.status === 'failed') return false
+      if (this.waitingUser) return false
+      return true
+    },
+    currentStepIndex() {
+      const steps = this.generateSteps
+      const type = this.interrupt && this.interrupt.interrupt_type
+      const byKey = (key) => Math.max(0, steps.findIndex((item) => item.key === key))
+      if (type === 'title_selection') return byKey('title')
+      if (type === 'content_correction' || type === 'content_approval') return byKey('review')
+      if (type === 'cover_selection' || type === 'external_wait') return byKey('cover')
+      if (type === 'formula_selection' || type === 'content_direction' || type === 'high_risk_facts') {
+        return byKey('prepare')
+      }
+      const ratio = Math.min(0.92, this.elapsedSeconds / this.estimateSeconds)
+      return Math.min(steps.length - 1, Math.floor(ratio * steps.length))
+    },
+    currentStepLabel() {
+      const step = this.generateSteps[this.currentStepIndex]
+      return (step && step.label) || '正在生成内容'
+    },
+    progressPercent() {
+      const timed = Math.min(92, Math.round((this.elapsedSeconds / this.estimateSeconds) * 100))
+      const stepped = Math.round(((this.currentStepIndex + 1) / this.generateSteps.length) * 90)
+      return Math.max(8, Math.min(95, Math.max(timed, stepped)))
+    },
+    elapsedText() {
+      return formatDuration(this.elapsedSeconds)
+    },
+    etaText() {
+      const remain = this.estimateSeconds - this.elapsedSeconds
+      if (remain <= 0) return '即将完成，请再稍候'
+      return `预计还需要 ${formatDuration(remain)}，请稍候`
     },
     statusText() {
       if (this.autoRun) return '生成中'
@@ -124,12 +224,32 @@ export default {
   onLoad(query) {
     this.taskId = query.task_id
     this.serviceEntry = decodeURIComponent(query.service_entry || '')
+    this.markStarted()
+    this.startTick()
     this.restore()
   },
   onUnload() {
     this.stopPoll()
+    this.stopTick()
   },
   methods: {
+    markStarted() {
+      if (!this.startedAt) this.startedAt = Date.now()
+      this.now = Date.now()
+    },
+    startTick() {
+      this.stopTick()
+      this.now = Date.now()
+      this.tickTimer = setInterval(() => {
+        this.now = Date.now()
+      }, 1000)
+    },
+    stopTick() {
+      if (this.tickTimer) {
+        clearInterval(this.tickTimer)
+        this.tickTimer = null
+      }
+    },
     stopPoll() {
       if (this.timer) {
         clearInterval(this.timer)
@@ -149,13 +269,14 @@ export default {
           this.poll()
           return
         }
-        if (this.autoRun) await this.start()
+        await this.start()
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
     },
     async start() {
       this.starting = true
+      this.markStarted()
       try {
         const data = await mpContentApi.startRun(this.taskId, {})
         this.runId = data.run_id
@@ -169,6 +290,8 @@ export default {
       }
     },
     poll() {
+      this.markStarted()
+      this.startTick()
       this.stopPoll()
       this.timer = setInterval(() => this.refresh(), 2000)
       this.refresh()
@@ -275,6 +398,8 @@ export default {
     },
     async retry() {
       this.retrying = true
+      this.startedAt = Date.now()
+      this.now = Date.now()
       try {
         const data = await mpContentApi.retryRun(this.runId, {})
         this.runId = data.run_id
@@ -323,6 +448,64 @@ export default {
   color: #BE2D22;
   font-weight: 700;
   font-size: 18px;
+}
+.loading-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 28px 20px 24px;
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 16px;
+  border: 3px solid #f0d9d4;
+  border-top-color: #BE2D22;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.step {
+  display: block;
+  margin-top: 10px;
+  color: #2b2422;
+  font-size: 15px;
+  font-weight: 600;
+}
+.progress {
+  width: 100%;
+  height: 8px;
+  margin: 16px 0 12px;
+  border-radius: 8px;
+  background: #f0ebe8;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  border-radius: 8px;
+  background: #BE2D22;
+  transition: width 0.4s ease;
+}
+.eta {
+  display: block;
+  color: #BE2D22;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+}
+.elapsed {
+  display: block;
+  margin-top: 6px;
+  color: #8a817c;
+  font-size: 12px;
 }
 .desc,
 .status {

@@ -1,22 +1,29 @@
 <template>
   <view class="page">
-    <image v-if="coverUrl" class="cover" :src="coverUrl" mode="aspectFill" />
     <view class="card">
       <text class="label">爆款标题</text>
       <text class="title">{{ artifact.title || '生成中或暂无标题' }}</text>
-      <button class="ghost" @click="copy(artifact.title, '标题已复制')">复制标题</button>
     </view>
     <view class="card">
       <text class="label">正文</text>
       <text class="body">{{ artifact.body }}</text>
-      <button class="ghost" @click="copy(artifact.body, '正文已复制')">复制正文</button>
     </view>
     <view class="card">
       <text class="label">话题标签</text>
       <text class="tags">{{ tagsText }}</text>
-      <button class="ghost" @click="copy(tagsText, '标签已复制')">复制标签</button>
     </view>
-    <button v-if="coverUrl" class="primary" @click="saveCover">保存照片</button>
+
+    <view class="bottom-media">
+      <view v-if="coverUrl" class="cover-wrap">
+        <image class="cover" :src="coverUrl" mode="aspectFill" />
+        <view class="save-btn" @click="saveCover">保存照片</view>
+      </view>
+      <view class="copy-bar">
+        <button class="ghost" @click="copy(artifact.title, '标题已复制')">复制标题</button>
+        <button class="ghost" @click="copy(artifact.body, '正文已复制')">复制正文</button>
+        <button class="ghost" @click="copy(tagsText, '标签已复制')">复制标签</button>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -84,14 +91,21 @@ export default {
 .page {
   min-height: 100vh;
   background: #f4f1ee;
-  padding: 16px 16px 32px;
+  padding: 16px 16px calc(300px + env(safe-area-inset-bottom));
+}
+.cover-wrap {
+  position: relative;
+  width: auto;
+  height: 220px;
+  margin: 10px 16px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #ddd;
 }
 .cover {
   width: 100%;
-  height: 220px;
-  border-radius: 14px;
-  margin-bottom: 12px;
-  background: #ddd;
+  height: 100%;
+  display: block;
 }
 .card {
   background: #fff;
@@ -119,19 +133,45 @@ export default {
   margin-bottom: 10px;
   white-space: pre-wrap;
 }
-.ghost,
-.primary {
+.ghost {
+  flex: 1;
   height: 40px;
   line-height: 40px;
+  margin: 0;
+  padding: 0;
   border-radius: 10px;
   font-size: 14px;
-}
-.ghost {
   background: #f7f4f2;
   color: #BE2D22;
 }
-.primary {
+.ghost::after {
+  border: none;
+}
+.save-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: rgba(190, 45, 34, 0.92);
   color: #fff;
-  background: #BE2D22;
+  font-size: 13px;
+  line-height: 32px;
+}
+.bottom-media {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  background: #f4f1ee;
+}
+.copy-bar {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
 }
 </style>
