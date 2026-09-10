@@ -513,7 +513,9 @@ export default {
         .sort((a, b) => {
           const aName = this.fieldName(a.field)
           const bName = this.fieldName(b.field)
-          return (rank[aName] ?? fallback) - (rank[bName] ?? fallback) || a.index - b.index
+          const aRank = Object.prototype.hasOwnProperty.call(rank, aName) ? rank[aName] : fallback
+          const bRank = Object.prototype.hasOwnProperty.call(rank, bName) ? rank[bName] : fallback
+          return aRank - bRank || a.index - b.index
         })
         .map((item) => item.field)
     },

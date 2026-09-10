@@ -59,8 +59,10 @@ function checkMiniProgramUpdate() {
 }
 
 export default {
-	onLaunch() {
+	onLaunch(options) {
 		checkMiniProgramUpdate()
+		const isSharedCase = options && options.path === 'pages/materials/shared-case' && options.query && options.query.shareId
+		if (isSharedCase) return
 		uni.reLaunch({ url: launchPath() })
 	}
 }

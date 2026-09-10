@@ -20,6 +20,13 @@ export function mediaUrl(path) {
   return `${BASE_URL}${path}${token ? `${joiner}access_token=${encodeURIComponent(token)}` : ''}`
 }
 
+// Share assets are intentionally public: WeChat fetches card covers outside the user's session.
+export function publicMediaUrl(path) {
+  if (!path) return ''
+  if (/^https?:\/\//.test(path)) return path
+  return `${BASE_URL}${path}`
+}
+
 export function errorMessage(res) {
   const detail = res && res.data && res.data.detail
   if (typeof detail === 'string') return detail
@@ -27,7 +34,7 @@ export function errorMessage(res) {
   return (res && res.data && res.data.message) || '请求失败'
 }
 
-export function request({ url, method = 'GET', data, header = {} }) {
+export function request({ url, method = 'GET', data, header = {}, requiresAuth = true }) {
   return new Promise((resolve, reject) => {
     uni.request({
       url: `${BASE_URL}${url}`,
@@ -35,11 +42,11 @@ export function request({ url, method = 'GET', data, header = {} }) {
       data,
       header: {
         'Content-Type': 'application/json',
-        ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        ...(requiresAuth && getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
         ...header
       },
       success: (res) => {
-        if (res.statusCode === 401) {
+        if (requiresAuth && res.statusCode === 401) {
           setToken('')
           const pages = getCurrentPages()
           const route = pages.length ? pages[pages.length - 1].route : ''

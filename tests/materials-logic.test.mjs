@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
+import * as materialsLogic from '../utils/materials-logic.mjs'
+
+const {
   STYLE_OPTIONS,
   filterGalleriesByStyle,
   createSelectionState,
   toggleSelection,
   buildShareSnapshot,
   buildWechatSharePayload
-} from '../utils/materials-logic.mjs'
+} = materialsLogic
 
 test('style options keep the agreed fixed order', () => {
   assert.deepEqual(STYLE_OPTIONS, [
@@ -26,7 +28,7 @@ test('style options keep the agreed fixed order', () => {
     '意境东方',
     '雅致现代',
     '复古风潮',
-    '其他'
+    '艺术室界'
   ])
 })
 
@@ -78,16 +80,17 @@ test('share snapshot preserves gallery metadata and selected image order', () =>
   })
 })
 
-test('wechat share payload uses the first selected image as cover and preserves the snapshot id', () => {
+test('wechat share payload uses a mini-program route and public cover', () => {
   const payload = buildWechatSharePayload({
     shareId: 'share-abc',
     galleryName: '客厅实景',
-    images: [{ id: 'img-2', file_name: '客厅.png', file_url: '/api/share/cases/share-abc/images/1' }]
+    coverUrl: 'https://cdn.example.com/share-abc-cover.jpg',
+    images: [{ id: 'img-2', file_name: '客厅.png', file_url: '/private-image.jpg' }]
   })
 
   assert.deepEqual(payload, {
-    title: '客厅实景 · 客厅.png',
-    imageUrl: '/api/share/cases/share-abc/images/1',
-    path: '/pages/materials/materials?shareId=share-abc'
+    title: '客厅实景 · 1 张实景图',
+    imageUrl: 'https://cdn.example.com/share-abc-cover.jpg',
+    path: '/pages/materials/shared-case?shareId=share-abc'
   })
 })

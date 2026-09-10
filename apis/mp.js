@@ -31,6 +31,8 @@ export const mpContentApi = {
   galleryItems: (category) =>
     request({ url: `/api/mp/content/gallery-items?category=${encodeURIComponent(category)}` }),
   createShare: (itemIds) => request({ url: '/api/mp/share/cases', method: 'POST', data: { item_ids: itemIds } }),
+  getShare: (shareId) =>
+    request({ url: `/api/material-library/shares/${encodeURIComponent(shareId)}`, requiresAuth: false }),
   compileBrief: (data) => request({ url: '/api/mp/content/compile-brief', method: 'POST', data }),
   getTask: (taskId) => request({ url: `/api/mp/content/tasks/${taskId}` }),
   startRun: (taskId, data = {}) =>

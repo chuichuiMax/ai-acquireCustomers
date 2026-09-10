@@ -1,8 +1,6 @@
 <template>
   <view class="page">
-    <web-view v-if="incomingShareId" class="share-webview" :src="shareH5Url" />
-
-    <view v-else-if="!activeGallery" class="library-view">
+    <view v-if="!activeGallery" class="library-view">
       <view class="heading">
         <text class="title">素材库</text>
         <text class="subtitle">按设计风格查看图库</text>
@@ -23,6 +21,10 @@
 
         <scroll-view class="gallery-content" scroll-y>
           <view v-if="loadingGalleries" class="state-block">正在加载图库…</view>
+          <view v-else-if="galleriesError" class="state-block error-state">
+            <text>素材库加载失败</text>
+            <button class="retry-button" @click="loadGalleries">重新加载</button>
+          </view>
           <view v-else-if="!visibleGalleries.length" class="state-block">暂无二级图库</view>
           <view v-else class="gallery-grid">
             <view
@@ -79,13 +81,13 @@
     <view v-if="shareSheetVisible" class="share-mask" @click="closeShareSheet">
       <view class="share-sheet" @click.stop>
         <view class="sheet-close" @click="closeShareSheet">×</view>
-        <text class="sheet-title">选择分享方式</text>
+        <text class="sheet-title">分享案例</text>
         <view class="share-options">
-          <view class="share-option" @click="shareTo('wechat')">
+          <view class="share-option" @click="prepareWechatShare">
             <view class="wechat-mark">微</view>
             <text>微信</text>
           </view>
-          <view class="share-option" @click="shareTo('work-wechat')">
+          <view class="share-option" @click="shareToWorkWechat">
             <view class="work-wechat-mark">企</view>
             <text>企业微信</text>
           </view>
@@ -116,7 +118,7 @@ import {
   buildShareSnapshot,
   buildWechatSharePayload
 } from '../../utils/materials-logic.mjs'
-import { BASE_URL } from '../../config'
+import { publicMediaUrl } from '../../utils/request'
 
 export default {
   components: { TabBar },
@@ -125,6 +127,7 @@ export default {
       styleOptions: STYLE_OPTIONS,
       selectedStyle: '全部',
       galleries: [],
+      galleriesError: false,
       activeGalleryId: '',
       items: [],
       selection: createSelectionState(),
@@ -132,7 +135,6 @@ export default {
       loadingItems: false,
       shareSheetVisible: false,
       shareSnapshot: null,
-      incomingShareId: '',
       wechatShareReady: false
     }
   },
@@ -151,27 +153,18 @@ export default {
     },
     selectedIds() {
       return this.selection.orderedIds
-    },
-    shareH5Url() {
-      return `${BASE_URL.replace(/\/$/, '')}/share/case/${encodeURIComponent(this.incomingShareId)}`
     }
   },
-  onLoad(options) {
-    this.incomingShareId = options?.shareId || ''
-  },
   onShow() {
-    if (!this.incomingShareId) this.loadGalleries()
+    this.loadGalleries()
   },
   onShareAppMessage() {
     const payload = buildWechatSharePayload(this.shareSnapshot)
-    if (!payload) {
-      return { title: '素材图库', path: '/pages/materials/materials' }
-    }
-    return payload
+    return payload || { title: '素材图库', path: '/pages/materials/materials' }
   },
   methods: {
     imageUrl(item) {
-      return mediaUrl(item.file_url || item.url || item.path || '')
+      return mediaUrl(item.thumbnail_file_url || item.file_url || item.url || item.path || '')
     },
     filename(item) {
       return item.file_name || item.filename || item.name || '图片素材'
@@ -181,11 +174,13 @@ export default {
     },
     async loadGalleries() {
       this.loadingGalleries = true
+      this.galleriesError = false
       try {
         const data = await mpContentApi.galleries()
         this.galleries = data.galleries || []
       } catch (error) {
         this.galleries = []
+        this.galleriesError = true
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       } finally {
         this.loadingGalleries = false
@@ -196,6 +191,7 @@ export default {
       this.items = []
       this.selection = createSelectionState(galleryId)
       this.shareSnapshot = null
+      this.wechatShareReady = false
       this.loadingItems = true
       try {
         const data = await mpContentApi.galleryItems(galleryId)
@@ -230,6 +226,7 @@ export default {
     toggleItem(item) {
       try {
         this.selection = toggleSelection(this.selection, item)
+        this.wechatShareReady = false
       } catch (error) {
         uni.showToast({ title: error.message, icon: 'none' })
       }
@@ -242,7 +239,7 @@ export default {
     closeShareSheet() {
       this.shareSheetVisible = false
     },
-    async shareTo(channel) {
+    async prepareWechatShare() {
       if (!this.selectedIds.length || !this.activeGallery) return
       try {
         const localSnapshot = buildShareSnapshot(this.activeGallery, this.items, this.selectedIds)
@@ -253,30 +250,34 @@ export default {
         this.shareSnapshot = {
           ...localSnapshot,
           shareId,
-          shareUrl: share.url || share.share_url || share.page_url || `${BASE_URL}/share/case/${shareId}`,
-          coverUrl: mediaUrl(share.cover_url || share.cover_file_url || ''),
+          title: share.title || '',
+          coverUrl: publicMediaUrl(share.cover_url || share.cover_file_url || ''),
           images: localSnapshot.images.map((item, index) => ({
             ...item,
-            public_url: index === 0 ? mediaUrl(share.cover_url || share.cover_file_url || '') : ''
+            public_url: index === 0 ? publicMediaUrl(share.cover_url || share.cover_file_url || '') : ''
           }))
         }
         this.shareSheetVisible = false
-        if (channel === 'wechat') {
-          this.wechatShareReady = true
-          uni.showToast({ title: '快照已生成，请点击“发送到微信”', icon: 'none' })
-          return
-        }
-
+        this.wechatShareReady = true
+        uni.showToast({ title: '快照已生成，请点击“发送到微信”', icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: errorMessage(error), icon: 'none' })
+      }
+    },
+    async shareToWorkWechat() {
+      if (!this.selectedIds.length || !this.activeGallery) return
+      try {
+        const response = await mpContentApi.createShare(this.selectedIds)
+        const share = response.share || response
+        const shareUrl = share.page_url || share.pageUrl || share.url || share.share_url
+        if (!shareUrl) throw new Error('服务端未返回分享链接')
         await new Promise((resolve, reject) => {
-          uni.setClipboardData({
-            data: this.shareSnapshot.shareUrl,
-            success: resolve,
-            fail: reject
-          })
+          uni.setClipboardData({ data: shareUrl, success: resolve, fail: reject })
         })
+        this.shareSheetVisible = false
         uni.showModal({
           title: '企业微信分享',
-          content: '当前小程序运行环境没有可直接调用的企业微信官方发送 API。链接已复制，请在企业微信中选择联系人或群聊后粘贴发送。若要接入企业微信专用能力，还需要完成 CorpID、AgentID、主体关联、可信域名和后端签名配置。',
+          content: '链接已复制，请在企业微信中选择联系人或群聊后粘贴发送。',
           showCancel: false
         })
       } catch (error) {
@@ -290,11 +291,16 @@ export default {
 <style scoped>
 .page {
   min-height: 100vh;
-  padding-bottom: 66px;
+  padding-bottom: calc(52px + env(safe-area-inset-bottom));
   box-sizing: border-box;
   background: #f4f1ee;
 }
-.library-view,
+.library-view {
+  height: calc(100vh - 52px - env(safe-area-inset-bottom));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 .detail-view {
   min-height: calc(100vh - 66px);
 }
@@ -322,11 +328,13 @@ export default {
   font-size: 13px;
 }
 .library-workspace {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  height: calc(100vh - 133px);
 }
 .style-sidebar {
   width: 116px;
+  min-height: 0;
   flex-shrink: 0;
   background: #fff;
   border-right: 1px solid #d8d8d8;
@@ -409,6 +417,22 @@ export default {
   color: #8a817c;
   font-size: 13px;
   text-align: center;
+}
+.error-state text {
+  display: block;
+}
+.retry-button {
+  width: 104px;
+  height: 34px;
+  margin-top: 14px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 34px;
+  background: #be2d22;
+}
+.retry-button::after {
+  border: 0;
 }
 .detail-heading {
   position: relative;
@@ -530,12 +554,6 @@ export default {
 }
 .native-share-button::after {
   border: 0;
-}
-.share-webview {
-  position: fixed;
-  inset: 0 0 0 0;
-  width: 100%;
-  height: 100%;
 }
 .share-icon {
   color: #fff;
