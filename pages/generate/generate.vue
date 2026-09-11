@@ -37,62 +37,65 @@
         <text class="selected-type-change">更换</text>
       </view>
 
-      <view class="block">
+      <view class="block vars-block">
         <text class="block-title">业务变量</text>
-        <view v-if="serviceEntry === '装修家居'" class="field">
-          <text class="label">外框面积 *</text>
-          <picker :range="frameAreaLabels" @change="onFrameArea">
-            <view class="picker">
-              <text class="picker-text">{{ formValues['外框面积'] || '请选择外框面积' }}</text>
-              <text class="picker-arrow">▾</text>
+        <view v-if="serviceEntry === '装修家居'" class="field-group">
+          <view class="field">
+            <text class="label"><text class="req">*</text><text class="label-text">外框面积</text></text>
+            <view class="field-control">
+              <picker :range="frameAreaLabels" @change="onFrameArea">
+                <view class="picker">
+                  <text class="picker-text" :class="{ placeholder: !formValues['外框面积'] }">{{ formValues['外框面积'] || '请选择外框面积' }}</text>
+                  <text class="picker-arrow">▾</text>
+                </view>
+              </picker>
             </view>
-          </picker>
-        </view>
-        <view v-if="serviceEntry === '装修家居' && quoteVariables.length" class="field">
-          <text class="label">预算 *</text>
-          <view v-for="item in quoteVariables" :key="item.id || item.key || item.name" class="quote-row">
-            <text class="quote-name">{{ fieldLabel(item) }}</text>
-            <input
-              class="quote-input"
-              :value="formValues[fieldName(item)]"
-              :placeholder="'根据外框面积自动带出价格范围'"
-              @input="onQuoteInput(fieldName(item), $event)"
-            />
+          </view>
+          <view v-if="quoteSummary.length" class="quote-summary">
+            <text v-for="item in quoteSummary" :key="item.name" class="quote-chip">{{ item.name }}:{{ item.value || '—' }}</text>
           </view>
         </view>
         <view v-for="item in formVariables" :key="item.id || item.key || item.name" class="field">
-          <text class="label">{{ fieldLabel(item) }}{{ isRequired(item) ? ' *' : '' }}</text>
-          <picker
-            v-if="isSelectField(item)"
-            :range="fieldOptions(item)"
-            @click="onSelectFieldTap(item)"
-            @change="onSelectField(item, $event)"
-          >
-            <view class="picker">
-              <text class="picker-text">{{ formValues[fieldName(item)] || item.placeholder || `请选择${fieldLabel(item)}` }}</text>
-              <text class="picker-arrow">▾</text>
-            </view>
-          </picker>
-          <input
-            v-else
-            v-model="formValues[fieldName(item)]"
-            :placeholder="item.placeholder || `请输入${fieldLabel(item)}`"
-          />
+          <text class="label"><text class="req" :class="{ hidden: !isRequired(item) }">*</text><text class="label-text">{{ fieldLabel(item) }}</text></text>
+          <view class="field-control">
+            <picker
+              v-if="isSelectField(item)"
+              :range="fieldOptions(item)"
+              @click="onSelectFieldTap(item)"
+              @change="onSelectField(item, $event)"
+            >
+              <view class="picker">
+                <text class="picker-text" :class="{ placeholder: !formValues[fieldName(item)] }">{{ formValues[fieldName(item)] || item.placeholder || `请选择${fieldLabel(item)}` }}</text>
+                <text class="picker-arrow">▾</text>
+              </view>
+            </picker>
+            <input
+              v-else
+              v-model="formValues[fieldName(item)]"
+              :placeholder="item.placeholder || `请输入${fieldLabel(item)}`"
+              placeholder-class="input-placeholder"
+              placeholder-style="color:#b8b0aa;font-size:13px;font-weight:400;"
+            />
+          </view>
         </view>
         <view v-if="serviceEntry === '装修家居'" class="field">
-          <text class="label">设计风格 *</text>
-          <picker :range="schema.design_styles" @change="onStyle">
-            <view class="picker">
-              <text class="picker-text">{{ formValues['设计风格'] || '请选择设计风格' }}</text>
-              <text class="picker-arrow">▾</text>
-            </view>
-          </picker>
+          <text class="label"><text class="req">*</text><text class="label-text">设计风格</text></text>
+          <view class="field-control">
+            <picker :range="schema.design_styles" @change="onStyle">
+              <view class="picker">
+                <text class="picker-text" :class="{ placeholder: !formValues['设计风格'] }">{{ formValues['设计风格'] || '请选择设计风格' }}</text>
+                <text class="picker-arrow">▾</text>
+              </view>
+            </picker>
+          </view>
         </view>
         <view v-if="hasRegionField" class="field">
-          <text class="label">所在区域{{ regionRequired ? ' *' : '' }}</text>
-          <view class="picker" @click="openRegion">
-            <text class="picker-text">{{ formValues['所在区域'] || '请选择所在区域' }}</text>
-            <text class="picker-arrow">▾</text>
+          <text class="label"><text class="req" :class="{ hidden: !regionRequired }">*</text><text class="label-text">所在区域</text></text>
+          <view class="field-control">
+            <view class="picker" @click="openRegion">
+              <text class="picker-text" :class="{ placeholder: !formValues['所在区域'] }">{{ formValues['所在区域'] || '请选择所在区域' }}</text>
+              <text class="picker-arrow">▾</text>
+            </view>
           </view>
         </view>
       </view>
@@ -389,6 +392,12 @@ export default {
     },
     quoteVariables() {
       return this.variables.filter((item) => this.isQuoteField(this.fieldName(item)))
+    },
+    quoteSummary() {
+      return this.quoteVariables.map((item) => ({
+        name: this.fieldLabel(item),
+        value: String(this.formValues[this.fieldName(item)] || '').trim()
+      }))
     },
     formVariables() {
       return this.variables.filter((item) => {
@@ -1172,6 +1181,63 @@ export default {
   font-weight: 600;
   color: #2b2422;
 }
+.vars-block .block-title {
+  margin-bottom: 14px;
+  font-size: 18px;
+  font-weight: 400;
+}
+.vars-block .label {
+  display: flex;
+  align-items: center;
+  width: 108px;
+  flex-shrink: 0;
+  margin-right: 10px;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 44px;
+}
+.vars-block .label .req,
+.vars-block .field .req {
+  width: 14px;
+  margin-right: 4px;
+  flex-shrink: 0;
+  font-size: 16px;
+  font-weight: 400;
+  text-align: left;
+}
+.vars-block .label .req.hidden {
+  visibility: hidden;
+}
+.vars-block .label-text {
+  flex: 1;
+  min-width: 0;
+}
+.vars-block input,
+.vars-block .picker {
+  height: 44px;
+  font-size: 16px;
+  font-weight: 400;
+}
+.vars-block .picker-text,
+.vars-block .picker-arrow {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 44px;
+}
+.vars-block .picker-text.placeholder,
+.vars-block .input-placeholder {
+  color: #b8b0aa;
+  font-size: 13px;
+  font-weight: 400;
+}
+.vars-block .quote-summary {
+  margin: 10px 0 0 132px;
+}
+.vars-block .quote-chip {
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 22px;
+}
 .hint {
   display: block;
   margin: -4px 0 12px;
@@ -1354,14 +1420,38 @@ export default {
   background: #f8ece9;
   color: #BE2D22;
 }
-.field {
+.field-group {
   margin-bottom: 12px;
 }
+.field {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.field-group .field {
+  margin-bottom: 0;
+}
 .label {
-  display: block;
-  margin-bottom: 6px;
-  color: #8a817c;
-  font-size: 12px;
+  width: 76px;
+  flex-shrink: 0;
+  margin-right: 8px;
+  margin-bottom: 0;
+  color: #2b2422;
+  font-size: 13px;
+  line-height: 40px;
+}
+.label .req,
+.field .req {
+  color: #d64545;
+  margin-right: 2px;
+}
+.field-control {
+  flex: 1;
+  min-width: 0;
+}
+.field-control input,
+.field-control .picker {
+  width: 100%;
 }
 input,
 .quote-row .quote-input {
@@ -1379,7 +1469,8 @@ input,
   justify-content: space-between;
   height: 40px;
   padding: 0 12px;
-  background: #f7f4f2;
+  background: #fff;
+  border: 1px solid #BE2D22;
   border-radius: 10px;
   box-sizing: border-box;
 }
@@ -1398,22 +1489,16 @@ input,
   line-height: 40px;
   flex-shrink: 0;
 }
-.quote-row {
+.quote-summary {
   display: flex;
-  align-items: center;
-  margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 8px 0 0 84px;
 }
-.quote-name {
-  width: 52px;
-  margin-right: 8px;
-  color: #6f6763;
+.quote-chip {
+  color: #2b2422;
   font-size: 13px;
-  flex-shrink: 0;
-}
-.quote-row .quote-input {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
+  line-height: 20px;
 }
 .cover-upload {
   height: 140px;

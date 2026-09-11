@@ -151,6 +151,10 @@ export default {
       this.wechatLoading = true
       try {
         const jsCode = await this.getJsCode()
+        if (!jsCode) {
+          uni.showToast({ title: '微信登录码获取失败', icon: 'none' })
+          return
+        }
         const session = await mpAuthApi.loginByWechat({ code: jsCode })
         const bound = await mpAuthApi.bindWechatPhone({
           session_id: session.session_id,

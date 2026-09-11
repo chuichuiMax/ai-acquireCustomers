@@ -124,7 +124,7 @@ export default {
       interrupt: null,
       selectedTitleId: '',
       selectedCoverAssetId: '',
-      retryCount: 0,
+      fromManage: false,
       timer: null,
       tickTimer: null,
       startedAt: 0,
@@ -224,6 +224,7 @@ export default {
   onLoad(query) {
     this.taskId = query.task_id
     this.serviceEntry = decodeURIComponent(query.service_entry || '')
+    this.fromManage = query.from === 'manage'
     this.markStarted()
     this.startTick()
     this.restore()
@@ -264,8 +265,13 @@ export default {
         const values = brief.form_values || {}
         this.serviceEntry = values.mp_service_entry || this.serviceEntry
         const runId = data.task && data.task.latest_run_id
+        const taskStatus = String((data.task && data.task.status) || '').toLowerCase()
         if (runId) {
           this.runId = runId
+          if (this.fromManage && (taskStatus === 'failed' || taskStatus === 'cancelled')) {
+            await this.retry()
+            return
+          }
           this.poll()
           return
         }

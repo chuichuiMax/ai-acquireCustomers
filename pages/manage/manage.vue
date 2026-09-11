@@ -12,7 +12,7 @@
       </view>
     </view>
     <view v-if="!items.length" class="empty">暂无内容</view>
-    <view v-for="item in items" :key="item.task_id" class="card">
+    <view v-for="item in items" :key="item.task_id || item.id" class="card">
       <view class="row">
         <text class="label">内容编码</text>
         <text class="value">{{ item.content_code || '-' }}</text>
@@ -37,7 +37,7 @@
       </template>
       <view class="row">
         <text class="label">状态</text>
-        <text class="value">{{ item.status_label || statusLabel(item.status) }}</text>
+        <text class="value" :class="statusClass(item)">{{ displayStatus(item) }}</text>
       </view>
       <view class="row">
         <text class="label">创建时间</text>
@@ -54,7 +54,15 @@
         />
         <text v-else class="value muted">暂无封面</text>
       </view>
-      <view class="view-btn" @click="open(item)">查看</view>
+      <view class="card-actions">
+        <view v-if="canView(item)" class="action-btn ghost" @click="open(item)">查看</view>
+        <view
+          v-if="canRegenerate(item)"
+          class="action-btn"
+          :class="{ disabled: regeneratingId === taskIdOf(item) }"
+          @click="regenerate(item)"
+        >再次生成</view>
+      </view>
     </view>
     <tab-bar current="manage" />
   </view>
@@ -65,11 +73,26 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, thumbUrl } from '../../utils/request'
 
+const STATUS_LABELS = {
+  draft: '草稿',
+  brief_ready: '简报完成',
+  strategy_ready: '策略完成',
+  queued: '排队中',
+  running: '排队中',
+  waiting_human: '等待人工',
+  failed: '失败',
+  reviewed: '已审核',
+  review_blocked: '审核阻断',
+  completed: '已完成',
+  cancelled: '已取消'
+}
+
 export default {
   components: { TabBar },
   data() {
     return {
       serviceEntry: '',
+      regeneratingId: '',
       filters: [
         { value: '', label: '全部' },
         { value: '装修家居', label: '装修家居' },
@@ -83,9 +106,38 @@ export default {
   },
   methods: {
     thumbUrl,
-    statusLabel(status) {
-      if (status === 'reviewed' || status === 'completed') return '已发布'
-      return '未发布'
+    statusKey(item) {
+      return String((item && item.status) || '').toLowerCase()
+    },
+    displayStatus(item) {
+      const status = this.statusKey(item)
+      if (STATUS_LABELS[status]) return STATUS_LABELS[status]
+      if (item && item.status_label) return item.status_label
+      return status || '-'
+    },
+    statusClass(item) {
+      const status = this.statusKey(item)
+      if (status === 'failed' || status === 'cancelled' || status === 'review_blocked') return 'is-failed'
+      if (status === 'queued' || status === 'running') return 'is-queued'
+      if (status === 'waiting_human') return 'is-waiting'
+      if (status === 'reviewed' || status === 'completed') return 'is-reviewed'
+      if (status === 'draft' || status === 'brief_ready' || status === 'strategy_ready') return 'is-draft'
+      return ''
+    },
+    canRegenerate(item) {
+      const status = this.statusKey(item)
+      const label = `${item && item.status_label ? item.status_label : ''}${this.displayStatus(item)}`
+      if (['draft', 'brief_ready', 'strategy_ready', 'queued', 'failed', 'cancelled'].includes(status)) {
+        return true
+      }
+      return /失败|排队中|草稿/.test(label)
+    },
+    taskIdOf(item) {
+      return (item && (item.task_id || item.id)) || ''
+    },
+    canView(item) {
+      const status = this.statusKey(item)
+      return status === 'reviewed' || status === 'completed' || Boolean(item && item.content_code)
     },
     formatCreatedAt(value) {
       if (!value) return '-'
@@ -104,15 +156,31 @@ export default {
     async load() {
       try {
         const data = await mpContentApi.list({ service_entry: this.serviceEntry || undefined, page: 1, page_size: 50 })
-        this.items = (data.items || []).filter((item) => item.content_code)
+        this.items = data.items || []
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
     },
     open(item) {
+      const taskId = this.taskIdOf(item)
+      if (!taskId) {
+        uni.showToast({ title: '缺少任务编号', icon: 'none' })
+        return
+      }
       uni.navigateTo({
-        url: `/pages/generate/result?task_id=${item.task_id}&service_entry=${encodeURIComponent(item.service_entry || '')}`
+        url: `/pages/generate/result?task_id=${taskId}&service_entry=${encodeURIComponent(item.service_entry || '')}`
       })
+    },
+    regenerate(item) {
+      const taskId = this.taskIdOf(item)
+      if (!taskId || this.regeneratingId) return
+      this.regeneratingId = taskId
+      uni.navigateTo({
+        url: `/pages/generate/locked?task_id=${taskId}&service_entry=${encodeURIComponent(
+          item.service_entry || ''
+        )}&from=manage`
+      })
+      this.regeneratingId = ''
     }
   }
 }
@@ -173,6 +241,21 @@ export default {
 .value.muted {
   color: #b8b0aa;
 }
+.value.is-failed {
+  color: #be2d22;
+}
+.value.is-queued {
+  color: #2b6cb0;
+}
+.value.is-waiting {
+  color: #b45309;
+}
+.value.is-reviewed {
+  color: #2f855a;
+}
+.value.is-draft {
+  color: #b45309;
+}
 .cover-row {
   align-items: center;
 }
@@ -182,15 +265,27 @@ export default {
   border-radius: 8px;
   background: #eee;
 }
-.view-btn {
+.card-actions {
+  display: flex;
+  gap: 8px;
   margin-top: 4px;
+}
+.action-btn {
+  flex: 1;
   height: 40px;
   line-height: 40px;
   text-align: center;
-  border-radius: 8px;
+  border-radius: 20px;
   background: #be2d22;
   color: #fff;
   font-size: 15px;
   font-weight: 600;
+}
+.action-btn.ghost {
+  background: #f7f4f2;
+  color: #be2d22;
+}
+.action-btn.disabled {
+  opacity: 0.6;
 }
 </style>

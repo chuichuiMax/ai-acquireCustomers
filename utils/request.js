@@ -103,15 +103,21 @@ export function errorMessage(res) {
   const detail = res && res.data && res.data.detail
   if (typeof detail === 'string') return detail
   if (detail && detail.error && detail.error.message) return detail.error.message
-  return (res && res.data && res.data.message) || '请求失败'
+  if (res && res.data && res.data.message) return res.data.message
+  const errMsg = String((res && (res.errMsg || res.message)) || '')
+  if (/timeout/i.test(errMsg)) return '请求超时，请稍后重试'
+  if (/fail/i.test(errMsg) && errMsg) return '网络请求失败，请检查网络后重试'
+  if (res && res.statusCode) return `请求失败（${res.statusCode}）`
+  return '请求失败'
 }
 
-export function request({ url, method = 'GET', data, header = {}, requiresAuth = true }) {
+export function request({ url, method = 'GET', data, header = {}, requiresAuth = true, timeout = 60000 }) {
   return new Promise((resolve, reject) => {
     uni.request({
       url: `${BASE_URL}${url}`,
       method,
       data,
+      timeout,
       header: {
         'Content-Type': 'application/json',
         ...(requiresAuth && getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),

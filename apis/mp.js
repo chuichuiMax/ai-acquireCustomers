@@ -1,12 +1,18 @@
 import { request, uploadFile } from '../utils/request'
 
 export const mpAuthApi = {
-  sendSms: (data) => request({ url: '/api/mp/auth/sms/send', method: 'POST', data }),
-  loginBySms: (data) => request({ url: '/api/mp/auth/sms/login', method: 'POST', data }),
-  loginByWechat: (data) => request({ url: '/api/mp/auth/wechat/code', method: 'POST', data }),
-  bindWechatPhone: (data) => request({ url: '/api/mp/auth/wechat/phone', method: 'POST', data }),
-  confirmLogin: (data) => request({ url: '/api/mp/auth/confirm', method: 'POST', data }),
-  cancelLogin: (data) => request({ url: '/api/mp/auth/cancel', method: 'POST', data }),
+  sendSms: (data) =>
+    request({ url: '/api/mp/auth/sms/send', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
+  loginBySms: (data) =>
+    request({ url: '/api/mp/auth/sms/login', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
+  loginByWechat: (data) =>
+    request({ url: '/api/mp/auth/wechat/code', method: 'POST', data, requiresAuth: false, timeout: 90000 }),
+  bindWechatPhone: (data) =>
+    request({ url: '/api/mp/auth/wechat/phone', method: 'POST', data, requiresAuth: false, timeout: 90000 }),
+  confirmLogin: (data) =>
+    request({ url: '/api/mp/auth/confirm', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
+  cancelLogin: (data) =>
+    request({ url: '/api/mp/auth/cancel', method: 'POST', data, requiresAuth: false, timeout: 15000 }),
   logout: () => request({ url: '/api/mp/auth/logout', method: 'POST' })
 }
 
