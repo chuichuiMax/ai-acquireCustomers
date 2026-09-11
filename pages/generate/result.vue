@@ -1,14 +1,14 @@
 <template>
-  <view class="page">
-    <view class="card">
+  <view class="page" :class="{ compact: !isHomeDecor }">
+    <view v-if="isHomeDecor || artifact.title" class="card">
       <text class="label">爆款标题</text>
       <text class="title">{{ artifact.title || '生成中或暂无标题' }}</text>
     </view>
-    <view class="card">
+    <view v-if="bodyText" class="card">
       <text class="label">正文</text>
-      <text class="body">{{ artifact.body }}</text>
+      <text class="body">{{ bodyText }}</text>
     </view>
-    <view class="card">
+    <view v-if="tagsText" class="card">
       <text class="label">话题标签</text>
       <text class="tags">{{ tagsText }}</text>
     </view>
@@ -19,9 +19,9 @@
     </view>
 
     <view class="copy-bar">
-      <button class="ghost" @click="copy(artifact.title, '标题已复制')">复制标题</button>
-      <button class="ghost" @click="copy(artifact.body, '正文已复制')">复制正文</button>
-      <button class="ghost" @click="copy(tagsText, '标签已复制')">复制标签</button>
+      <view class="copy-btn" @click="copy(artifact.title, '标题已复制')">复制标题</view>
+      <view class="copy-btn" @click="copy(bodyText, '正文已复制')">复制正文</view>
+      <view class="copy-btn" @click="copy(tagsText, '标签已复制')">复制标签</view>
     </view>
   </view>
 </template>
@@ -39,15 +39,45 @@ export default {
     }
   },
   computed: {
+    isHomeDecor() {
+      return String(this.serviceEntry || '').includes('装修')
+    },
+    isReviewNotes() {
+      return String(this.serviceEntry || '').includes('好评')
+    },
     tagsText() {
       const topics = this.artifact.topics || []
       return topics.map((item) => (String(item).startsWith('#') ? item : `#${item}`)).join(' ')
+    },
+    bodyText() {
+      const raw = String((this.artifact && this.artifact.body) || '')
+      if (!this.isReviewNotes) return raw
+      const lines = raw.split(/\r?\n/)
+      while (lines.length) {
+        const last = lines[lines.length - 1].trim()
+        if (!last) {
+          lines.pop()
+          continue
+        }
+        if (/^(?:#[^\s#]+[\s]*)+$/.test(last)) {
+          lines.pop()
+          continue
+        }
+        const stripped = last.replace(/(?:\s*#[^\s#]+)+$/, '').trim()
+        if (stripped !== last.trim()) {
+          if (stripped) lines[lines.length - 1] = stripped
+          else lines.pop()
+          continue
+        }
+        break
+      }
+      return lines.join('\n').replace(/\s+$/g, '')
     },
     coverUrl() {
       return mediaUrl(this.artifact.cover_file_url)
     },
     showCover() {
-      return this.serviceEntry === '装修家居' && Boolean(this.coverUrl)
+      return this.isHomeDecor && Boolean(this.coverUrl)
     }
   },
   onLoad(query) {
@@ -107,6 +137,11 @@ export default {
   background: #f4f1ee;
   padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
 }
+.page.compact {
+  min-height: 0;
+  height: auto;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
 .cover-wrap {
   position: relative;
   width: 100%;
@@ -150,7 +185,7 @@ export default {
   margin-bottom: 10px;
   white-space: pre-wrap;
 }
-.ghost {
+.copy-btn {
   flex: 1;
   height: 40px;
   line-height: 40px;
@@ -158,11 +193,14 @@ export default {
   padding: 0;
   border-radius: 10px;
   font-size: 14px;
+  text-align: center;
   background: #f7f4f2;
   color: #BE2D22;
 }
-.ghost::after {
-  border: none;
+.page.compact .copy-btn {
+  background: #BE2D22;
+  color: #fff;
+  font-weight: 600;
 }
 .save-btn {
   position: absolute;
@@ -180,5 +218,10 @@ export default {
 .copy-bar {
   display: flex;
   gap: 8px;
+  margin-top: 0;
+  position: static;
+}
+.page.compact .copy-bar {
+  margin-top: 0;
 }
 </style>

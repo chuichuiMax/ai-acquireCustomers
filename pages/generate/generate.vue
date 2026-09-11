@@ -42,7 +42,10 @@
         <view v-if="serviceEntry === '装修家居'" class="field">
           <text class="label">外框面积 *</text>
           <picker :range="frameAreaLabels" @change="onFrameArea">
-            <view class="picker">{{ formValues['外框面积'] || '请选择外框面积' }}</view>
+            <view class="picker">
+              <text class="picker-text">{{ formValues['外框面积'] || '请选择外框面积' }}</text>
+              <text class="picker-arrow">▾</text>
+            </view>
           </picker>
         </view>
         <view v-if="serviceEntry === '装修家居' && quoteVariables.length" class="field">
@@ -66,7 +69,8 @@
             @change="onSelectField(item, $event)"
           >
             <view class="picker">
-              {{ formValues[fieldName(item)] || item.placeholder || `请选择${fieldLabel(item)}` }}
+              <text class="picker-text">{{ formValues[fieldName(item)] || item.placeholder || `请选择${fieldLabel(item)}` }}</text>
+              <text class="picker-arrow">▾</text>
             </view>
           </picker>
           <input
@@ -78,18 +82,23 @@
         <view v-if="serviceEntry === '装修家居'" class="field">
           <text class="label">设计风格 *</text>
           <picker :range="schema.design_styles" @change="onStyle">
-            <view class="picker">{{ formValues['设计风格'] || '请选择设计风格' }}</view>
+            <view class="picker">
+              <text class="picker-text">{{ formValues['设计风格'] || '请选择设计风格' }}</text>
+              <text class="picker-arrow">▾</text>
+            </view>
           </picker>
         </view>
         <view v-if="hasRegionField" class="field">
           <text class="label">所在区域{{ regionRequired ? ' *' : '' }}</text>
-          <view class="picker" @click="openRegion">{{ formValues['所在区域'] || '请选择所在区域' }}</view>
+          <view class="picker" @click="openRegion">
+            <text class="picker-text">{{ formValues['所在区域'] || '请选择所在区域' }}</text>
+            <text class="picker-arrow">▾</text>
+          </view>
         </view>
       </view>
 
       <view v-if="serviceEntry === '装修家居'" class="block">
         <text class="block-title">选择图库图片 *</text>
-        <text class="hint">可从当前账号图库中选一张已启用且未被其他有效内容占用的图片，也可以上传新图。失败或已取消任务占用的图可重新选用；已被使用的图片会标记且不能再选。</text>
         <view class="gallery-grid">
           <view
             v-for="item in rootGalleries"
@@ -103,25 +112,8 @@
             <text v-if="selectedGalleryRootId === item.id" class="gallery-badge">已选择</text>
           </view>
         </view>
-        <view class="field">
-          <text class="label">上传分类 *</text>
-          <picker :range="uploadCategoryLabels" @change="onUploadCategory">
-            <view class="picker">{{ uploadCategoryLabel || '请选择素材分类' }}</view>
-          </picker>
-        </view>
         <view class="cover-actions">
           <view class="cover-action" @click="chooseCover">上传图片</view>
-        </view>
-        <text class="hint">请从系统相册选普通照片（勿选实况图）；上传前会自动压缩。单张不超过 20 MB，写入素材库后与 PC 一致。</text>
-        <view v-if="imageItemId || coverAssetId" class="selected-cover">
-          <image v-if="coverLocal" :src="coverLocal" mode="aspectFill" />
-          <view class="selected-cover-copy">
-            <text class="selected-cover-label">当前已选图片</text>
-            <text class="selected-cover-name">{{ coverName || '已选择 1 张图' }}</text>
-            <text v-if="coverCategory" class="selected-cover-cat">{{ coverCategory }}</text>
-          </view>
-          <text class="selected-cover-link" @click="coverGalleryId ? openGallery(coverGalleryId) : chooseCover">更换</text>
-          <text class="selected-cover-link" @click="clearCover">清除</text>
         </view>
         <text class="block-title">小红书封面模板 *</text>
         <scroll-view class="templates" scroll-x>
@@ -136,6 +128,31 @@
             <text class="tpl-title">{{ item.title }}</text>
           </view>
         </scroll-view>
+        <view v-if="coverPhotoSrc" class="xhs-preview">
+          <text class="block-title">小红书封面预览</text>
+          <view class="xhs-pair">
+            <view class="xhs-card">
+              <view class="xhs-preview-frame">
+                <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
+              </view>
+              <text class="xhs-card-label">封面原图</text>
+            </view>
+            <view class="xhs-card">
+              <view class="xhs-preview-frame">
+                <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
+                <view v-if="templateOverlaySrc" class="xhs-preview-overlay-wrap" :class="{ multiply: overlayUsesMultiply }">
+                  <image class="xhs-preview-overlay" :src="templateOverlaySrc" mode="scaleToFill" />
+                </view>
+              </view>
+              <text class="xhs-card-label">模板叠加效果</text>
+              <text v-if="selectedTemplateTitle" class="xhs-card-sub">{{ selectedTemplateTitle }}</text>
+            </view>
+          </view>
+          <view v-if="imageItemId || coverAssetId" class="xhs-preview-toolbar">
+            <text class="selected-cover-link" @click="coverGalleryId ? openGallery(coverGalleryId) : chooseCover">更换</text>
+            <text class="selected-cover-link" @click="clearCover">清除</text>
+          </view>
+        </view>
       </view>
 
       <button class="submit" :loading="submitting" @click="compile">
@@ -380,6 +397,7 @@ export default {
         if (this.isQuoteField(name)) return false
         if (name === '所在区域') return false
         if (this.isHomeDecor && ['外框面积', '设计风格'].includes(name)) return false
+        if (this.isUploadCategoryField(item)) return false
         if (this.isReviewNotes && /照片|图片|封面|上传/.test(`${name}${label}`)) return false
         return true
       })
@@ -434,6 +452,49 @@ export default {
       const selected = this.uploadCategoryOptions.find((item) => item.id === this.uploadCategoryId)
       if (!selected) return ''
       return selected.description ? `${selected.name} — ${selected.description}` : selected.name
+    },
+    selectedTemplate() {
+      return (this.schema.hycanvas_templates || []).find((item) => item.id === this.coverTemplateId) || null
+    },
+    selectedTemplateTitle() {
+      return (this.selectedTemplate && this.selectedTemplate.title) || ''
+    },
+    coverPhotoSrc() {
+      return this.coverLocal || ''
+    },
+    templateOverlaySrc() {
+      const template = this.selectedTemplate
+      if (!template) return ''
+      return this.firstMedia(
+        template.overlay_url,
+        template.overlay_file_url,
+        template.overlay_urls,
+        template.mask_url,
+        template.transparent_url,
+        template.layer_url,
+        template.layer_urls,
+        Array.isArray(template.preview_urls) && template.preview_urls.length > 1
+          ? template.preview_urls.slice(1)
+          : '',
+        template.preview_urls,
+        template.preview_url
+      )
+    },
+    overlayUsesMultiply() {
+      const template = this.selectedTemplate
+      if (!template) return false
+      return !this.firstMedia(
+        template.overlay_url,
+        template.overlay_file_url,
+        template.overlay_urls,
+        template.mask_url,
+        template.transparent_url,
+        template.layer_url,
+        template.layer_urls,
+        Array.isArray(template.preview_urls) && template.preview_urls.length > 1
+          ? template.preview_urls.slice(1)
+          : ''
+      )
     }
   },
   onLoad() {
@@ -466,6 +527,20 @@ export default {
   },
   methods: {
     mediaUrl,
+    firstMedia(...values) {
+      for (const value of values) {
+        if (Array.isArray(value) && value.length) {
+          const nested = this.firstMedia(...value)
+          if (nested) return nested
+        } else if (value && typeof value === 'object') {
+          const nested = this.firstMedia(value.url, value.file_url, value.preview_url)
+          if (nested) return nested
+        } else if (typeof value === 'string' && value.trim()) {
+          return this.mediaUrl(value.trim())
+        }
+      }
+      return ''
+    },
     shortTypeName(name) {
       return String(name || '')
         .replace(/^装修/, '')
@@ -524,6 +599,10 @@ export default {
     },
     fieldLabel(item) {
       return String((item && (item.label || item.name || item.key)) || '').trim()
+    },
+    isUploadCategoryField(item) {
+      const text = `${this.fieldName(item)}${this.fieldLabel(item)}`
+      return /上传分类|upload_category|uploadCategory/i.test(text)
     },
     isRequired(item) {
       if (!item || item.required === undefined || item.required === null) return true
@@ -685,10 +764,6 @@ export default {
         this.uploadCategoryId = options[0]?.id || 'uncategorized'
       }
     },
-    onUploadCategory(event) {
-      const option = this.uploadCategoryOptions[event.detail.value]
-      this.uploadCategoryId = (option && option.id) || 'uncategorized'
-    },
     fileExt(path) {
       const clean = String(path || '').split('?')[0]
       const name = clean.split('/').pop() || ''
@@ -803,10 +878,7 @@ export default {
       this.closeRegion()
     },
     chooseCover() {
-      if (!this.uploadCategoryId) {
-        uni.showToast({ title: '请选择上传分类', icon: 'none' })
-        return
-      }
+      this.ensureUploadCategory()
       this.resumeAfterPicker = true
       uni.chooseImage({
         count: 1,
@@ -835,10 +907,7 @@ export default {
       })
     },
     choosePhotos() {
-      if (!this.uploadCategoryId) {
-        uni.showToast({ title: '请选择上传分类', icon: 'none' })
-        return
-      }
+      this.ensureUploadCategory()
       const remain = this.maxPhotos - this.photos.length
       if (remain <= 0) {
         uni.showToast({ title: `最多上传${this.maxPhotos}张图片`, icon: 'none' })
@@ -926,6 +995,12 @@ export default {
       delete formValues.cover_asset_ids
       delete formValues.cover_asset_id
       delete formValues.image_item_id
+      this.ensureUploadCategory()
+      for (const item of this.variables) {
+        if (!this.isUploadCategoryField(item)) continue
+        const name = this.fieldName(item)
+        if (name) formValues[name] = '未分类'
+      }
       this.submitting = true
       try {
         const payload = {
@@ -1157,39 +1232,58 @@ export default {
   line-height: 36px;
   font-size: 13px;
 }
-.selected-cover {
+.xhs-preview {
+  margin-top: 14px;
+}
+.xhs-pair {
   display: flex;
-  align-items: center;
-  margin-bottom: 14px;
-  padding: 8px;
-  border-radius: 12px;
-  background: #f7f4f2;
+  gap: 10px;
 }
-.selected-cover image {
-  width: 48px;
-  height: 64px;
-  border-radius: 8px;
-  margin-right: 8px;
-  background: #fff;
-  flex-shrink: 0;
-}
-.selected-cover-copy {
+.xhs-card {
   flex: 1;
   min-width: 0;
 }
-.selected-cover-label,
-.selected-cover-cat {
-  display: block;
-  color: #8a817c;
-  font-size: 11px;
+.xhs-preview-frame {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  padding-top: 133.33%;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #f7f4f2;
 }
-.selected-cover-name {
+.xhs-preview-image,
+.xhs-preview-overlay,
+.xhs-preview-overlay-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
   display: block;
+}
+.xhs-preview-overlay-wrap.multiply {
+  mix-blend-mode: multiply;
+}
+.xhs-card-label {
+  display: block;
+  margin-top: 8px;
   color: #2b2422;
   font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: center;
+}
+.xhs-card-sub {
+  display: block;
+  margin-top: 2px;
+  color: #8a817c;
+  font-size: 12px;
+  text-align: center;
+}
+.xhs-preview-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 10px;
 }
 .selected-cover-link {
   margin-left: 8px;
@@ -1268,12 +1362,39 @@ export default {
   font-size: 12px;
 }
 input,
+.quote-row .quote-input {
+  height: 40px;
+  padding: 0 12px;
+  background: #fff;
+  border: 1px solid #BE2D22;
+  border-radius: 10px;
+  line-height: 40px;
+  box-sizing: border-box;
+}
 .picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   height: 40px;
   padding: 0 12px;
   background: #f7f4f2;
   border-radius: 10px;
+  box-sizing: border-box;
+}
+.picker-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   line-height: 40px;
+}
+.picker-arrow {
+  margin-left: 8px;
+  color: #8a817c;
+  font-size: 12px;
+  line-height: 40px;
+  flex-shrink: 0;
 }
 .quote-row {
   display: flex;
@@ -1290,10 +1411,6 @@ input,
 .quote-row .quote-input {
   flex: 1;
   min-width: 0;
-  height: 40px;
-  padding: 0 12px;
-  background: #f7f4f2;
-  border-radius: 10px;
   font-size: 13px;
 }
 .cover-upload {
