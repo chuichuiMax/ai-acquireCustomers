@@ -27,6 +27,10 @@ test('style options keep the agreed fixed order', () => {
     '北欧之光',
     '意境东方',
     '雅致现代',
+    '工业再造',
+    '优雅缤纷',
+    '极简侘寂',
+    '仿生未来',
     '复古风潮',
     '艺术室界'
   ])
@@ -37,11 +41,13 @@ test('gallery filtering only returns secondary galleries for one style', () => {
     { id: 'style-1', style: '复古风潮', parent_id: null },
     { id: 'case-1', name: '洋湖天序·三居式·复古写意', style: '复古风潮', parent_id: 'style-1' },
     { id: 'case-2', name: '现代案例', style: '雅致现代', parent_id: 'style-2' },
-    { id: 'style-2', style: '雅致现代', parent_id: null }
+    { id: 'style-2', style: '雅致现代', parent_id: null },
+    { id: 'case-3', name: '未来住宅', design_style: '仿生未来', parent_id: 'style-3' }
   ]
 
   assert.deepEqual(filterGalleriesByStyle(galleries, '复古风潮'), [galleries[1]])
-  assert.deepEqual(filterGalleriesByStyle(galleries, '全部'), [galleries[1], galleries[2]])
+  assert.deepEqual(filterGalleriesByStyle(galleries, '仿生未来'), [galleries[4]])
+  assert.deepEqual(filterGalleriesByStyle(galleries, '全部'), [galleries[1], galleries[2], galleries[4]])
 })
 
 test('selection numbers follow click order and are limited to one gallery', () => {
