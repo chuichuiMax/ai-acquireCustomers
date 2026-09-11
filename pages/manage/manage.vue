@@ -48,8 +48,9 @@
         <image
           v-if="item.cover_file_url"
           class="cover"
-          :src="mediaUrl(item.cover_file_url)"
+          :src="thumbUrl(item.cover_file_url, 400)"
           mode="aspectFill"
+          lazy-load
         />
         <text v-else class="value muted">暂无封面</text>
       </view>
@@ -62,7 +63,7 @@
 <script>
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
-import { errorMessage, mediaUrl } from '../../utils/request'
+import { errorMessage, thumbUrl } from '../../utils/request'
 
 export default {
   components: { TabBar },
@@ -81,7 +82,7 @@ export default {
     this.load()
   },
   methods: {
-    mediaUrl,
+    thumbUrl,
     statusLabel(status) {
       if (status === 'reviewed' || status === 'completed') return '已发布'
       return '未发布'

@@ -124,7 +124,7 @@
             :class="{ active: coverTemplateId === item.id }"
             @click="coverTemplateId = item.id"
           >
-            <image :src="mediaUrl(item.preview_urls && item.preview_urls[0])" mode="aspectFill" />
+            <image :src="thumbUrl(item.preview_urls && item.preview_urls[0], 360)" mode="aspectFill" lazy-load />
             <text class="tpl-title">{{ item.title }}</text>
           </view>
         </scroll-view>
@@ -226,7 +226,7 @@
             :class="{ active: imageItemId === item.id && !isGalleryImageUsed(item), used: isGalleryImageUsed(item) }"
             @click="selectGalleryItem(item)"
           >
-            <image :src="mediaUrl(item.file_url)" mode="aspectFill" />
+            <image :src="galleryThumbUrl(item)" mode="aspectFill" lazy-load />
             <text v-if="isGalleryImageUsed(item)" class="used-badge">已使用</text>
           </view>
         </view>
@@ -242,7 +242,7 @@
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { TOKEN_KEY } from '../../config'
-import { errorMessage, mediaUrl } from '../../utils/request'
+import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 
 const REGION_INITIAL = {
   芙: 'F', 天: 'T', 岳: 'Y', 开: 'K', 雨: 'Y', 望: 'W', 长: 'C', 浏: 'L', 宁: 'N',
@@ -527,6 +527,8 @@ export default {
   },
   methods: {
     mediaUrl,
+    thumbUrl,
+    galleryThumbUrl,
     firstMedia(...values) {
       for (const value of values) {
         if (Array.isArray(value) && value.length) {
@@ -536,7 +538,7 @@ export default {
           const nested = this.firstMedia(value.url, value.file_url, value.preview_url)
           if (nested) return nested
         } else if (typeof value === 'string' && value.trim()) {
-          return this.mediaUrl(value.trim())
+          return this.mediaUrl(value.trim(), { format: 'webp', width: 1080, quality: 80 })
         }
       }
       return ''
@@ -851,7 +853,7 @@ export default {
       this.coverName = item.name || item.file_name || ''
       this.coverCategory = item.category_name || this.activeGallery?.name || ''
       this.coverGalleryId = this.galleryId
-      this.coverLocal = this.mediaUrl(item.file_url)
+      this.coverLocal = this.mediaUrl(item.file_url, { format: 'webp', width: 1080, quality: 80 })
       this.closeGallery()
     },
     closeRegion() {

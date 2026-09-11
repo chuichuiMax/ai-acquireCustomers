@@ -58,7 +58,7 @@
         <view v-else class="photo-grid">
           <view v-for="item in items" :key="item.id" class="photo-item">
             <view class="photo-wrap" @click="previewItem(item)">
-              <image :src="imageUrl(item)" mode="aspectFill" />
+              <image :src="imageUrl(item)" mode="aspectFill" lazy-load />
               <view
                 class="select-badge"
                 :class="{ selected: isSelected(item) }"
@@ -109,7 +109,7 @@
 <script>
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
-import { errorMessage, mediaUrl } from '../../utils/request'
+import { errorMessage, galleryThumbUrl } from '../../utils/request'
 import {
   STYLE_OPTIONS,
   galleryStyle,
@@ -164,7 +164,7 @@ export default {
   },
   methods: {
     imageUrl(item) {
-      return mediaUrl(item.thumbnail_file_url || item.file_url || item.url || item.path || '')
+      return galleryThumbUrl(item, 480)
     },
     filename(item) {
       return item.file_name || item.filename || item.name || '图片素材'
@@ -211,8 +211,8 @@ export default {
       this.wechatShareReady = false
     },
     previewItem(item) {
-      const current = this.imageUrl(item)
-      const urls = this.items.map((candidate) => this.imageUrl(candidate)).filter(Boolean)
+      const current = galleryThumbUrl(item, 1080)
+      const urls = this.items.map((candidate) => galleryThumbUrl(candidate, 1080)).filter(Boolean)
       if (!current || !urls.length) return
       uni.previewImage({ current, urls })
     },

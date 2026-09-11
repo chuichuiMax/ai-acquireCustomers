@@ -51,7 +51,7 @@
           :class="{ active: selectedCoverAssetId === assetId }"
           @click="selectedCoverAssetId = assetId"
         >
-          <image :src="coverFileUrl(assetId)" mode="aspectFill" />
+          <image :src="coverFileUrl(assetId)" mode="aspectFill" lazy-load />
           <text class="cover-option-label">封面候选 {{ index + 1 }}</text>
         </view>
       </view>
@@ -370,7 +370,7 @@ export default {
       await this.doResume(this.resumePayload({ title_id: this.selectedTitleId }))
     },
     coverFileUrl(assetId) {
-      return mediaUrl(`/api/mp/content/covers/${assetId}/file`)
+      return mediaUrl(`/api/mp/content/covers/${assetId}/file`, { format: 'webp', width: 720, quality: 75 })
     },
     async resumeCover() {
       if (!this.selectedCoverAssetId) {
