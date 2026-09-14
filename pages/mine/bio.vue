@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <textarea v-model="bio" maxlength="200" placeholder="请输入个人简介" />
     <button class="primary" :loading="saving" @click="save">确定</button>
   </view>
@@ -8,12 +8,15 @@
 <script>
 import { mpMeApi } from '../../apis/mp'
 import { errorMessage } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
+  mixins: [internalPageMixin],
   data() {
     return { bio: '', saving: false }
   },
   async onLoad() {
+    if (!(await this.ensureInternalAccess())) return
     try {
       const data = await mpMeApi.get()
       this.bio = (data.employee && data.employee.bio) || ''

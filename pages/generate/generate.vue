@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <view class="entries">
       <view
         v-for="item in entries"
@@ -244,8 +244,8 @@
 <script>
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
-import { TOKEN_KEY } from '../../config'
 import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
 
 const REGION_INITIAL = {
   芙: 'F', 天: 'T', 岳: 'Y', 开: 'K', 雨: 'Y', 望: 'W', 长: 'C', 浏: 'L', 宁: 'N',
@@ -312,6 +312,7 @@ const CONTENT_TYPE_DESC = {
 
 export default {
   components: { TabBar },
+  mixins: [internalPageMixin],
   data() {
     return {
       serviceEntry: '装修家居',
@@ -357,6 +358,7 @@ export default {
       uploadCategoryId: 'uncategorized',
       submitting: false,
       schemaLoaded: false,
+      schemaLoading: false,
       resumeAfterPicker: false
     }
   },
@@ -506,14 +508,12 @@ export default {
       )
     }
   },
-  onLoad() {
-    if (!uni.getStorageSync(TOKEN_KEY)) {
-      uni.reLaunch({ url: '/pages/login/login' })
-      return
-    }
+  async onLoad() {
+    if (!(await this.ensureInternalAccess())) return
     this.loadSchema()
   },
-  onShow() {
+  async onShow() {
+    if (!(await this.ensureInternalAccess())) return
     // 从系统相册选图返回会触发 onShow；此时不应重拉 schema，否则会把步骤打回内容类型选择。
     if (this.resumeAfterPicker) {
       this.resumeAfterPicker = false
@@ -709,6 +709,8 @@ export default {
       await this.loadSchema()
     },
     async loadSchema() {
+      if (this.schemaLoading) return
+      this.schemaLoading = true
       try {
         const data = await mpContentApi.formSchema(this.serviceEntry)
         this.schema = data
@@ -727,6 +729,8 @@ export default {
         this.ensureUploadCategory()
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
+      } finally {
+        this.schemaLoading = false
       }
     },
     onFrameArea(event) {

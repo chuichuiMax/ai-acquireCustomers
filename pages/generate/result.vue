@@ -1,5 +1,5 @@
 <template>
-  <view class="page" :class="{ compact: !isHomeDecor }">
+  <view v-if="internalAccessGranted" class="page" :class="{ compact: !isHomeDecor }">
     <view v-if="isHomeDecor || artifact.title" class="card">
       <text class="label">爆款标题</text>
       <text class="title">{{ artifact.title || '生成中或暂无标题' }}</text>
@@ -29,8 +29,10 @@
 <script>
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, mediaUrl } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
+  mixins: [internalPageMixin],
   data() {
     return {
       taskId: '',
@@ -80,7 +82,8 @@ export default {
       return this.isHomeDecor && Boolean(this.coverUrl)
     }
   },
-  onLoad(query) {
+  async onLoad(query) {
+    if (!(await this.ensureInternalAccess())) return
     this.taskId = query.task_id
     this.serviceEntry = decodeURIComponent(query.service_entry || '')
     this.load()

@@ -1,9 +1,5 @@
 <script>
-import { TOKEN_KEY } from './config'
-
-function launchPath() {
-	return uni.getStorageSync(TOKEN_KEY) ? '/pages/generate/generate' : '/pages/login/login'
-}
+const ENTRY_PATH = '/pages/index/index'
 
 function isDevtools() {
 	try {
@@ -14,7 +10,7 @@ function isDevtools() {
 }
 
 function restartMiniProgram() {
-	const path = launchPath()
+	const path = ENTRY_PATH
 	// #ifdef MP-WEIXIN
 	if (typeof uni.restartMiniProgram === 'function') {
 		uni.restartMiniProgram({
@@ -59,11 +55,8 @@ function checkMiniProgramUpdate() {
 }
 
 export default {
-	onLaunch(options) {
+	onLaunch() {
 		checkMiniProgramUpdate()
-		const isSharedCase = options && options.path === 'pages/materials/shared-case' && options.query && options.query.shareId
-		if (isSharedCase) return
-		uni.reLaunch({ url: launchPath() })
 	}
 }
 </script>

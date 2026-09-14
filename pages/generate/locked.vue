@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <view v-if="isGenerating" class="card loading-card">
       <view class="spinner"></view>
       <text class="badge">正在生成{{ serviceEntry || '内容' }}</text>
@@ -74,6 +74,7 @@
 <script>
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, mediaUrl } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
 
 const MAX_AUTO_RETRY = 5
 
@@ -111,6 +112,7 @@ function formatDuration(seconds) {
 }
 
 export default {
+  mixins: [internalPageMixin],
   data() {
     return {
       taskId: '',
@@ -221,7 +223,8 @@ export default {
         .filter(Boolean)
     }
   },
-  onLoad(query) {
+  async onLoad(query) {
+    if (!(await this.ensureInternalAccess())) return
     this.taskId = query.task_id
     this.serviceEntry = decodeURIComponent(query.service_entry || '')
     this.fromManage = query.from === 'manage'

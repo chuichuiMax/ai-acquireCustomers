@@ -48,6 +48,7 @@
 
 <script>
 import { mpContentApi } from '../../apis/mp'
+import { formatArea } from '../../utils/materials-logic.mjs'
 import { errorMessage, publicMediaUrl } from '../../utils/request'
 
 export default {
@@ -72,9 +73,7 @@ export default {
         { label: '楼盘', value: this.caseInfo.building },
         {
           label: '面积',
-          value: this.caseInfo.area
-            ? `${this.caseInfo.area}${String(this.caseInfo.area).includes('㎡') ? '' : '㎡'}`
-            : ''
+          value: formatArea(this.caseInfo.area)
         },
         { label: '风格', value: this.caseInfo.style, wide: true }
       ].filter((item) => Boolean(item.value))
@@ -83,6 +82,11 @@ export default {
   onLoad(options) {
     this.shareId = options?.shareId || ''
     this.loadShare()
+  },
+  onShow() {
+    // #ifdef MP-WEIXIN
+    if (typeof uni.hideHomeButton === 'function') uni.hideHomeButton()
+    // #endif
   },
   onShareAppMessage() {
     return {

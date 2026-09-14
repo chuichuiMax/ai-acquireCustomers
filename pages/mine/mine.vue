@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <view class="profile">
       <image class="avatar" :src="avatarSrc" mode="aspectFit" />
       <view>
@@ -24,9 +24,11 @@
 import TabBar from '../../components/tab-bar.vue'
 import { mpAuthApi, mpMeApi } from '../../apis/mp'
 import { errorMessage, setToken } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
   components: { TabBar },
+  mixins: [internalPageMixin],
   data() {
     return { employee: {} }
   },
@@ -35,7 +37,8 @@ export default {
       return this.employee.avatar || '/static/hirun-logo.png'
     }
   },
-  onShow() {
+  async onShow() {
+    if (!(await this.ensureInternalAccess())) return
     this.load()
   },
   methods: {

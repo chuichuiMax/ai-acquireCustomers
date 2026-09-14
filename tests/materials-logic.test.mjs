@@ -6,6 +6,7 @@ import * as materialsLogic from '../utils/materials-logic.mjs'
 const {
   STYLE_OPTIONS,
   filterGalleriesByStyle,
+  galleryCoverPath,
   createSelectionState,
   toggleSelection,
   buildShareSnapshot,
@@ -84,6 +85,27 @@ test('share snapshot preserves gallery metadata and selected image order', () =>
     card: { building: '洋湖天序', area: '120㎡', style: '复古写意' },
     images: [items[1], items[0]]
   })
+})
+
+test('folder cards use the gallery first-image thumbnail and fall back to its file', () => {
+  assert.equal(
+    galleryCoverPath({
+      cover_file_url: '/api/mp/content/gallery-items/first/file',
+      cover_thumbnail_file_url: '/api/mp/content/gallery-items/first/thumbnail'
+    }),
+    '/api/mp/content/gallery-items/first/thumbnail'
+  )
+  assert.equal(
+    galleryCoverPath({ cover_file_url: '/api/mp/content/gallery-items/first/file' }),
+    '/api/mp/content/gallery-items/first/file'
+  )
+  assert.equal(galleryCoverPath({}), '')
+})
+
+test('shared case area renders exactly one canonical unit', () => {
+  for (const rawArea of ['120', '120㎡', '120m²', '120 m²', '120m2']) {
+    assert.equal(materialsLogic.formatArea?.(rawArea), '120㎡')
+  }
 })
 
 test('wechat share payload uses a mini-program route and public cover', () => {

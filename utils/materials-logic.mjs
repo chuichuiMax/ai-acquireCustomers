@@ -31,6 +31,17 @@ export function filterGalleriesByStyle(galleries = [], style = '全部') {
   })
 }
 
+export function galleryCoverPath(gallery) {
+  return gallery?.cover_thumbnail_file_url || gallery?.cover_file_url || ''
+}
+
+export function formatArea(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return ''
+  const normalized = text.replace(/\s*(?:㎡|m(?:²|2))\s*$/i, '').trim()
+  return normalized ? `${normalized}㎡` : ''
+}
+
 export function createSelectionState(galleryId = '') {
   return { galleryId, orderedIds: [] }
 }

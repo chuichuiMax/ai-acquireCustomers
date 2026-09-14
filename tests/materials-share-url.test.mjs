@@ -28,10 +28,23 @@ test('style sidebar stays within the space above the tab bar', () => {
 
 test('WeChat prepares a mini-program card while enterprise WeChat keeps its link entry', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
-  const wechatMethod = page.match(/async prepareWechatShare\(\) \{([\s\S]*?)\n    \},\n    async shareToWorkWechat/)
+  const wechatMethod = page.match(/async prepareWechatShare\(\) \{([\s\S]*?)\r?\n    \},\r?\n    async shareToWorkWechat/)
 
   assert.match(page, /prepareWechatShare/)
   assert.ok(wechatMethod)
   assert.doesNotMatch(wechatMethod[1], /setClipboardData/)
   assert.match(page, /shareToWorkWechat/)
+})
+
+test('a native share without a snapshot never falls back to the internal materials page', () => {
+  const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
+
+  assert.doesNotMatch(page, /path:\s*'\/pages\/materials\/materials'/)
+  assert.match(page, /uni\.hideShareMenu/)
+})
+
+test('the public shared-case page hides WeChat native home navigation', () => {
+  const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/shared-case.vue'), 'utf8')
+
+  assert.match(page, /onShow\(\)\s*\{[\s\S]*?uni\.hideHomeButton/)
 })
