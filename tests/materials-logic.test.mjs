@@ -66,6 +66,17 @@ test('selection numbers follow click order and are limited to one gallery', () =
   )
 })
 
+test('gallery images are grouped into complete two-item rows without losing the final item', () => {
+  const items = [{ id: 'img-1' }, { id: 'img-2' }, { id: 'img-3' }, { id: 'img-4' }, { id: 'img-5' }]
+
+  assert.deepEqual(materialsLogic.groupGalleryItemsIntoRows(items), [
+    [items[0], items[1]],
+    [items[2], items[3]],
+    [items[4]]
+  ])
+  assert.deepEqual(materialsLogic.groupGalleryItemsIntoRows([]), [])
+})
+
 test('share snapshot preserves gallery metadata and selected image order', () => {
   const gallery = {
     id: 'case-1',

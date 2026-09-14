@@ -31,6 +31,14 @@ export function filterGalleriesByStyle(galleries = [], style = '全部') {
   })
 }
 
+export function groupGalleryItemsIntoRows(items = [], columns = 2) {
+  const rows = []
+  for (let index = 0; index < items.length; index += columns) {
+    rows.push(items.slice(index, index + columns))
+  }
+  return rows
+}
+
 export function galleryCoverPath(gallery) {
   return gallery?.cover_thumbnail_file_url || gallery?.cover_file_url || ''
 }

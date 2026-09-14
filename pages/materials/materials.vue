@@ -54,30 +54,31 @@
       <view class="detail-heading">
         <text class="back" @click="closeGallery">‹</text>
         <view class="detail-title-wrap">
-          <text class="title">素材库</text>
           <text class="detail-gallery-name">{{ activeGallery.name }}</text>
         </view>
       </view>
 
-      <scroll-view class="photo-content" scroll-y>
+      <view class="photo-content">
         <view v-if="loadingItems" class="state-block">正在加载图片…</view>
         <view v-else-if="!items.length" class="state-block">该图库暂无图片素材</view>
         <view v-else class="photo-grid">
-          <view v-for="item in items" :key="item.id" class="photo-item">
-            <view class="photo-wrap" @click="previewItem(item)">
-              <image :src="imageUrl(item)" mode="aspectFill" lazy-load />
-              <view
-                class="select-badge"
-                :class="{ selected: isSelected(item) }"
-                @click.stop="toggleItem(item)"
-              >
-                <text v-if="isSelected(item)">{{ selectionNumber(item) }}</text>
+          <view v-for="row in photoRows" :key="row[0].id" class="photo-row">
+            <view v-for="item in row" :key="item.id" class="photo-item">
+              <view class="photo-wrap" @click="previewItem(item)">
+                <image :src="imageUrl(item)" mode="aspectFill" lazy-load />
+                <view
+                  class="select-badge"
+                  :class="{ selected: isSelected(item) }"
+                  @click.stop="toggleItem(item)"
+                >
+                  <text v-if="isSelected(item)">{{ selectionNumber(item) }}</text>
+                </view>
               </view>
+              <text class="photo-name">{{ filename(item) }}</text>
             </view>
-            <text class="photo-name">{{ filename(item) }}</text>
           </view>
         </view>
-      </scroll-view>
+      </view>
 
       <view v-if="selectedIds.length" class="share-fab" @click="openShareSheet">
         <text class="share-icon">↗</text>
@@ -122,6 +123,7 @@ import {
   STYLE_OPTIONS,
   galleryStyle,
   galleryCoverPath,
+  groupGalleryItemsIntoRows,
   createSelectionState,
   toggleSelection,
   buildShareSnapshot,
@@ -160,6 +162,9 @@ export default {
         const parent = this.galleries.find((candidate) => candidate.id === item.parent_id)
         return galleryStyle(parent) === this.selectedStyle
       })
+    },
+    photoRows() {
+      return groupGalleryItemsIntoRows(this.items)
     },
     selectedIds() {
       return this.selection.orderedIds
@@ -328,7 +333,7 @@ export default {
   flex-direction: column;
 }
 .detail-view {
-  min-height: calc(100vh - 66px);
+  min-height: calc(100vh - 52px - env(safe-area-inset-bottom));
 }
 .heading {
   padding: 20px 18px 14px;
@@ -389,8 +394,7 @@ export default {
   background: #178df0;
   content: '';
 }
-.gallery-content,
-.photo-content {
+.gallery-content {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
@@ -490,6 +494,7 @@ export default {
   border: 0;
 }
 .detail-heading {
+  flex-shrink: 0;
   position: relative;
   min-height: 64px;
   padding: 10px 18px;
@@ -508,31 +513,36 @@ export default {
   flex: 1;
   text-align: center;
 }
-.detail-title-wrap .title {
-  font-size: 20px;
-}
 .detail-gallery-name {
   max-width: 260px;
-  margin: 4px auto 0;
+  margin: 0 auto;
   overflow: hidden;
-  color: #8a817c;
-  font-size: 12px;
+  color: #1e1c1b;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .photo-content {
-  height: calc(100vh - 130px);
-  padding: 18px 14px 100px;
+  box-sizing: border-box;
+  padding: 18px 14px 120px;
   background: #f4f4f4;
 }
 .photo-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  display: block;
+}
+.photo-row {
+  overflow: hidden;
+  margin-bottom: 18px;
 }
 .photo-item {
+  float: left;
   width: 48.5%;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+}
+.photo-item + .photo-item {
+  float: right;
 }
 .photo-wrap {
   position: relative;
