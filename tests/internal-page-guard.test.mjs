@@ -8,6 +8,7 @@ const internalPages = [
   'pages/generate/locked.vue',
   'pages/generate/result.vue',
   'pages/manage/manage.vue',
+  'pages/cover/cover.vue',
   'pages/materials/materials.vue',
   'pages/mine/mine.vue',
   'pages/mine/bio.vue',

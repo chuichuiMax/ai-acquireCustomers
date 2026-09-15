@@ -9,7 +9,7 @@
 		{
 			"path": "pages/generate/generate",
 			"style": {
-				"navigationBarTitleText": "内容生成"
+				"navigationBarTitleText": "生产"
 			}
 		},
 		{
@@ -40,19 +40,25 @@
 		{
 			"path": "pages/manage/manage",
 			"style": {
-				"navigationBarTitleText": "内容管理"
+				"navigationBarTitleText": "记录"
 			}
 		},
 		{
 			"path": "pages/materials/materials",
 			"style": {
-				"navigationBarTitleText": "素材库"
+				"navigationBarTitleText": "案例"
 			}
 		},
 		{
 			"path": "pages/materials/shared-case",
 			"style": {
 				"navigationBarTitleText": "案例分享"
+			}
+		},
+		{
+			"path": "pages/cover/cover",
+			"style": {
+				"navigationBarTitleText": "图片生成"
 			}
 		},
 		{

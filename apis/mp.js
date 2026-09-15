@@ -1,5 +1,40 @@
 import { request, uploadFile } from '../utils/request'
 
+function isMissingApi(error) {
+  const status = error && error.statusCode
+  return status === 404 || status === 405
+}
+
+function toCoverGeneratePayload(data) {
+  return {
+    mode: data.source_asset_id || data.source_item_id ? 'image_to_image' : 'text_to_image',
+    source_asset_ids: data.source_asset_id ? [data.source_asset_id] : [],
+    image_item_id: data.source_item_id || undefined,
+    prompt: data.prompt,
+    size: data.size,
+    n: data.n,
+    parameters: {
+      quality: data.quality,
+      save_target: data.save_target,
+      style: data.style,
+      extra_description: data.extra_description || ''
+    }
+  }
+}
+
+async function firstAvailable(fns) {
+  let lastError
+  for (const fn of fns) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      if (!isMissingApi(error)) throw error
+    }
+  }
+  throw lastError
+}
+
 export const mpAuthApi = {
   sendSms: (data) =>
     request({ url: '/api/mp/auth/sms/send', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
@@ -60,4 +95,62 @@ export const mpContentApi = {
   unfavorite: (taskId) => request({ url: `/api/mp/contents/${taskId}/favorite`, method: 'DELETE' }),
   duplicate: (taskId) => request({ url: `/api/mp/contents/${taskId}/duplicate`, method: 'POST' }),
   remove: (taskId) => request({ url: `/api/mp/contents/${taskId}`, method: 'DELETE' })
+}
+
+export const mpImageApi = {
+  polish: (data) =>
+    firstAvailable([
+      () => request({ url: '/api/mp/image/polish', method: 'POST', data, timeout: 120000 }),
+      () => request({ url: '/api/mp/design/polish', method: 'POST', data, timeout: 120000 })
+    ]),
+  generate: (data) =>
+    firstAvailable([
+      () => request({ url: '/api/mp/image/generate', method: 'POST', data, timeout: 180000 }),
+      () => request({ url: '/api/mp/design/generate', method: 'POST', data, timeout: 180000 }),
+      () =>
+        request({
+          url: '/api/mp/content/covers/generate',
+          method: 'POST',
+          data: toCoverGeneratePayload(data),
+          timeout: 180000
+        })
+    ]),
+  jobs: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    const suffix = query ? `?${query}` : ''
+    return firstAvailable([
+      () => request({ url: `/api/mp/image/jobs${suffix}` }),
+      () => request({ url: `/api/mp/design/jobs${suffix}` }),
+      () => request({ url: `/api/mp/content/covers/jobs${suffix}` })
+    ])
+  },
+  job: (jobId) =>
+    firstAvailable([
+      () => request({ url: `/api/mp/image/jobs/${jobId}` }),
+      () => request({ url: `/api/mp/design/jobs/${jobId}` }),
+      () => request({ url: `/api/mp/content/covers/jobs/${jobId}` })
+    ]),
+  uploads: () =>
+    firstAvailable([
+      () => request({ url: '/api/mp/image/uploads' }),
+      () => request({ url: '/api/mp/design/uploads' })
+    ]),
+  uploadPhoto: (filePath, category = 'uncategorized') =>
+    firstAvailable([
+      () =>
+        uploadFile({
+          url: '/api/mp/image/uploads',
+          filePath,
+          formData: { category: category || 'uncategorized' }
+        }),
+      () =>
+        uploadFile({
+          url: '/api/mp/content/uploads/cover',
+          filePath,
+          formData: { category: category || 'uncategorized' }
+        })
+    ])
 }

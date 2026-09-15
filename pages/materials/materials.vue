@@ -2,7 +2,7 @@
   <view v-if="internalAccessGranted" class="page">
     <view v-if="!activeGallery" class="library-view">
       <view class="heading">
-        <text class="title">素材库</text>
+        <text class="title">案例</text>
         <text class="subtitle">按设计风格查看图库</text>
       </view>
 
@@ -22,7 +22,7 @@
         <scroll-view class="gallery-content" scroll-y>
           <view v-if="loadingGalleries" class="state-block">正在加载图库…</view>
           <view v-else-if="galleriesError" class="state-block error-state">
-            <text>素材库加载失败</text>
+            <text>案例加载失败</text>
             <button class="retry-button" @click="loadGalleries">重新加载</button>
           </view>
           <view v-else-if="!visibleGalleries.length" class="state-block">暂无二级图库</view>
