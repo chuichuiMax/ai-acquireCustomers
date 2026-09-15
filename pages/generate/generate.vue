@@ -1,5 +1,9 @@
 <template>
-  <view v-if="internalAccessGranted" class="page">
+  <view
+    v-if="internalAccessGranted"
+    class="page"
+    :class="{ 'page-type-selection': !typeStepDone && isHomeDecor }"
+  >
     <view class="entries">
       <view
         v-for="item in entries"
@@ -14,7 +18,13 @@
 
     <view v-if="!typeStepDone" class="block type-step">
       <text class="type-label"><text class="req">*</text>内容类型</text>
-      <view class="type-grid" :class="{ 'type-grid-single': contentTypes.length === 1 }">
+      <view
+        class="type-grid"
+        :class="{
+          'type-grid-single': contentTypes.length === 1,
+          'type-grid-home': isHomeDecor
+        }"
+      >
         <view
           v-for="item in contentTypes"
           :key="item.id"
@@ -23,7 +33,8 @@
           @click="selectContentType(item.type_code)"
         >
           <view class="type-icon-wrap">
-            <text class="type-icon">{{ typeCardIcon(item) }}</text>
+            <image v-if="typeCardIcon(item)" class="type-icon-image" :src="typeCardIcon(item)" mode="aspectFit" />
+            <text v-else class="type-icon-text">⌂</text>
           </view>
           <text class="type-name">{{ item.name }}</text>
           <text class="type-desc">{{ contentTypeDesc(item.name) }}</text>
@@ -246,6 +257,7 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
+import { contentTypeIcon } from '../../utils/generate-content-type-icons'
 
 const REGION_INITIAL = {
   芙: 'F', 天: 'T', 岳: 'Y', 开: 'K', 雨: 'Y', 望: 'W', 长: 'C', 浏: 'L', 宁: 'N',
@@ -561,7 +573,7 @@ export default {
       return CONTENT_TYPE_DESC[name] || '按所选内容类型生成专业小红书文案'
     },
     typeCardIcon(item) {
-      return item && item.type_code === REVIEW_NOTES_TYPE_CODE ? '👍' : '⌂'
+      return contentTypeIcon(item)
     },
     selectContentType(typeCode) {
       if (!typeCode) {
@@ -578,7 +590,7 @@ export default {
         this.typeStepDone = true
         this.loadGalleries()
         this._typeSelectTimer = null
-      }, 180)
+      }, 220)
     },
     backToTypeStep() {
       if (this._typeSelectTimer) {
@@ -1051,6 +1063,25 @@ export default {
   background: #f4f1ee;
   padding: 16px 16px 110px;
 }
+.page-type-selection {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+  overflow-y: auto;
+}
+.page-type-selection .entries {
+  flex-shrink: 0;
+}
+.page-type-selection .type-step {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 0;
+}
 .entries {
   display: flex;
   gap: 8px;
@@ -1090,6 +1121,14 @@ export default {
   flex-wrap: wrap;
   justify-content: space-between;
 }
+.type-grid-home {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+  min-height: 0;
+}
 .type-grid-single {
   justify-content: flex-start;
 }
@@ -1097,6 +1136,7 @@ export default {
   width: 48%;
 }
 .type-card {
+  position: relative;
   width: 48%;
   box-sizing: border-box;
   margin-bottom: 10px;
@@ -1105,6 +1145,42 @@ export default {
   border: 1px solid #e5e0dc;
   background: #fff;
   text-align: center;
+}
+.type-card::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(222, 180, 108, 0.08) 0%,
+    rgba(222, 180, 108, 0.45) 20%,
+    rgba(222, 180, 108, 0.72) 50%,
+    rgba(222, 180, 108, 0.45) 80%,
+    rgba(222, 180, 108, 0.08) 100%
+  );
+  box-shadow:
+    0 3px 8px rgba(210, 158, 78, 0.22),
+    0 0 5px rgba(255, 226, 174, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 60ms linear;
+}
+.type-card.active::after {
+  opacity: 0.86;
+}
+.type-grid-home .type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 0;
+  margin-bottom: 0;
+  padding: 10px;
 }
 .type-card.active {
   border-color: #BE2D22;
@@ -1123,12 +1199,16 @@ export default {
 .type-card.active .type-icon-wrap {
   background: #f0d9d4;
 }
-.type-icon {
+.type-icon-image {
+  width: 28px;
+  height: 28px;
+}
+.type-icon-text {
   color: #9a918c;
   font-size: 22px;
   line-height: 1;
 }
-.type-card.active .type-icon {
+.type-card.active .type-icon-text {
   color: #BE2D22;
 }
 .type-name {

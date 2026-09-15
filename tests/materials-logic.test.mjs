@@ -10,7 +10,8 @@ const {
   createSelectionState,
   toggleSelection,
   buildShareSnapshot,
-  buildWechatSharePayload
+  buildWechatSharePayload,
+  buildSharedCaseImages
 } = materialsLogic
 
 test('style options keep the agreed fixed order', () => {
@@ -124,12 +125,38 @@ test('wechat share payload uses a mini-program route and public cover', () => {
     shareId: 'share-abc',
     galleryName: '客厅实景',
     coverUrl: 'https://cdn.example.com/share-abc-cover.jpg',
+    coverLocalPath: 'wxfile://tmp/share-abc-cover.jpg',
     images: [{ id: 'img-2', file_name: '客厅.png', file_url: '/private-image.jpg' }]
   })
 
   assert.deepEqual(payload, {
     title: '客厅实景 · 1 张实景图',
-    imageUrl: 'https://cdn.example.com/share-abc-cover.jpg',
+    imageUrl: 'wxfile://tmp/share-abc-cover.jpg',
     path: '/pages/materials/shared-case?shareId=share-abc'
   })
+})
+
+test('shared cases display WebP derivatives while preserving original images for preview', () => {
+  const images = buildSharedCaseImages(
+    [
+      { id: 'first', file_name: '客厅.png', url: '/shares/token/images/1', webp_url: '/shares/token/images/1.webp' },
+      { id: 'legacy', file_name: '阳台.png', url: '/shares/token/images/2' }
+    ],
+    (path) => `https://share.example.test${path}`
+  )
+
+  assert.deepEqual(images, [
+    {
+      id: 'first',
+      name: '客厅.png',
+      displayUrl: 'https://share.example.test/shares/token/images/1.webp',
+      previewUrl: 'https://share.example.test/shares/token/images/1'
+    },
+    {
+      id: 'legacy',
+      name: '阳台.png',
+      displayUrl: 'https://share.example.test/shares/token/images/2',
+      previewUrl: 'https://share.example.test/shares/token/images/2'
+    }
+  ])
 })

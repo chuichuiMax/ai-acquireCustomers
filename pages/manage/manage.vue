@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <view class="filters">
       <view
         v-for="item in filters"
@@ -72,6 +72,7 @@
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, thumbUrl } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
 
 const STATUS_LABELS = {
   draft: '草稿',
@@ -89,6 +90,7 @@ const STATUS_LABELS = {
 
 export default {
   components: { TabBar },
+  mixins: [internalPageMixin],
   data() {
     return {
       serviceEntry: '',
@@ -101,7 +103,8 @@ export default {
       items: []
     }
   },
-  onShow() {
+  async onShow() {
+    if (!(await this.ensureInternalAccess())) return
     this.load()
   },
   methods: {

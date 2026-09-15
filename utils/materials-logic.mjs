@@ -91,7 +91,22 @@ export function buildWechatSharePayload(snapshot) {
   const imageCount = snapshot.images.length
   return {
     title: snapshot.title || `${snapshot.galleryName || '素材图库'} · ${imageCount} 张实景图`,
-    imageUrl: snapshot.coverUrl || first.public_url || first.file_url || first.url || first.path || '',
+    imageUrl: snapshot.coverLocalPath || snapshot.coverUrl || first.public_url || first.file_url || first.url || first.path || '',
     path: `/pages/materials/shared-case?shareId=${encodeURIComponent(snapshot.shareId)}`
   }
+}
+
+export function buildSharedCaseImages(rawImages = [], toPublicUrl = (url) => url) {
+  return rawImages
+    .map((image) => {
+      const originalPath = image.url || image.file_url || image.public_url || image.path || ''
+      const displayPath = image.webp_url || image.display_url || originalPath
+      return {
+        id: image.id,
+        name: image.file_name || image.filename || image.name || '',
+        displayUrl: toPublicUrl(displayPath),
+        previewUrl: toPublicUrl(originalPath || displayPath)
+      }
+    })
+    .filter((image) => Boolean(image.displayUrl))
 }
