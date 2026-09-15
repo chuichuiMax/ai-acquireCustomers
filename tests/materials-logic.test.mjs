@@ -6,6 +6,7 @@ import * as materialsLogic from '../utils/materials-logic.mjs'
 const {
   STYLE_OPTIONS,
   filterGalleriesByStyle,
+  galleryCoverPath,
   createSelectionState,
   toggleSelection,
   buildShareSnapshot,
@@ -65,6 +66,17 @@ test('selection numbers follow click order and are limited to one gallery', () =
   )
 })
 
+test('gallery images are grouped into complete two-item rows without losing the final item', () => {
+  const items = [{ id: 'img-1' }, { id: 'img-2' }, { id: 'img-3' }, { id: 'img-4' }, { id: 'img-5' }]
+
+  assert.deepEqual(materialsLogic.groupGalleryItemsIntoRows(items), [
+    [items[0], items[1]],
+    [items[2], items[3]],
+    [items[4]]
+  ])
+  assert.deepEqual(materialsLogic.groupGalleryItemsIntoRows([]), [])
+})
+
 test('share snapshot preserves gallery metadata and selected image order', () => {
   const gallery = {
     id: 'case-1',
@@ -84,6 +96,27 @@ test('share snapshot preserves gallery metadata and selected image order', () =>
     card: { building: '洋湖天序', area: '120㎡', style: '复古写意' },
     images: [items[1], items[0]]
   })
+})
+
+test('folder cards use the gallery first-image thumbnail and fall back to its file', () => {
+  assert.equal(
+    galleryCoverPath({
+      cover_file_url: '/api/mp/content/gallery-items/first/file',
+      cover_thumbnail_file_url: '/api/mp/content/gallery-items/first/thumbnail'
+    }),
+    '/api/mp/content/gallery-items/first/thumbnail'
+  )
+  assert.equal(
+    galleryCoverPath({ cover_file_url: '/api/mp/content/gallery-items/first/file' }),
+    '/api/mp/content/gallery-items/first/file'
+  )
+  assert.equal(galleryCoverPath({}), '')
+})
+
+test('shared case area renders exactly one canonical unit', () => {
+  for (const rawArea of ['120', '120㎡', '120m²', '120 m²', '120m2']) {
+    assert.equal(materialsLogic.formatArea?.(rawArea), '120㎡')
+  }
 })
 
 test('wechat share payload uses a mini-program route and public cover', () => {

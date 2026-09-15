@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import test from 'node:test'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -13,3 +14,7 @@ for (const page of pages) {
     `Registered page "${page.path}" must have a matching .vue component`,
   )
 }
+
+test('WeChat home opens the neutral entry page instead of an internal page', () => {
+  assert.equal(pages[0].path, 'pages/index/index')
+})

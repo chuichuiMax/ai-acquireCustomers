@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <view class="hero">
       <image class="hero-bg" src="/static/home-hero.jpg" mode="aspectFill" />
       <view class="hero-mask" />
@@ -86,10 +86,13 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
+import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
   components: { TabBar },
-  onLoad() {
+  mixins: [internalPageMixin],
+  async onLoad() {
+    if (!(await this.ensureInternalAccess())) return
     uni.reLaunch({ url: '/pages/generate/generate' })
   },
   data() {

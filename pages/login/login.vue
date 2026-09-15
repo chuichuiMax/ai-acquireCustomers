@@ -38,8 +38,9 @@
 
 <script>
 import { mpAuthApi } from '../../apis/mp'
-import { SESSION_KEY, TOKEN_KEY } from '../../config'
+import { SESSION_KEY } from '../../config'
 import { errorMessage, setToken } from '../../utils/request'
+import { requireInternalAccess } from '../../utils/internal-access'
 
 export default {
   data() {
@@ -56,9 +57,8 @@ export default {
   onUnload() {
     if (this.timer) clearInterval(this.timer)
   },
-  onShow() {
-    const token = uni.getStorageSync(TOKEN_KEY)
-    if (token) {
+  async onShow() {
+    if (await requireInternalAccess({ redirect: false })) {
       uni.reLaunch({ url: '/pages/generate/generate' })
     }
   },

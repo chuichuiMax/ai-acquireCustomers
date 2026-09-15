@@ -1,6 +1,12 @@
 {
 	"pages": [
 		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "正在验证身份"
+			}
+		},
+		{
 			"path": "pages/generate/generate",
 			"style": {
 				"navigationBarTitleText": "内容生成"

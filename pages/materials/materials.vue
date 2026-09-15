@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <view v-if="!activeGallery" class="library-view">
       <view class="heading">
         <text class="title">素材库</text>
@@ -34,6 +34,13 @@
               @click="openGallery(gallery.id)"
             >
               <view class="folder-icon">
+                <image
+                  v-if="folderCoverUrl(gallery)"
+                  class="folder-preview"
+                  :src="folderCoverUrl(gallery)"
+                  mode="aspectFill"
+                  lazy-load
+                />
                 <view class="folder-tab" />
               </view>
               <text class="gallery-name">{{ gallery.name }}</text>
@@ -47,30 +54,31 @@
       <view class="detail-heading">
         <text class="back" @click="closeGallery">‹</text>
         <view class="detail-title-wrap">
-          <text class="title">素材库</text>
           <text class="detail-gallery-name">{{ activeGallery.name }}</text>
         </view>
       </view>
 
-      <scroll-view class="photo-content" scroll-y>
+      <view class="photo-content">
         <view v-if="loadingItems" class="state-block">正在加载图片…</view>
         <view v-else-if="!items.length" class="state-block">该图库暂无图片素材</view>
         <view v-else class="photo-grid">
-          <view v-for="item in items" :key="item.id" class="photo-item">
-            <view class="photo-wrap" @click="previewItem(item)">
-              <image :src="imageUrl(item)" mode="aspectFill" lazy-load />
-              <view
-                class="select-badge"
-                :class="{ selected: isSelected(item) }"
-                @click.stop="toggleItem(item)"
-              >
-                <text v-if="isSelected(item)">{{ selectionNumber(item) }}</text>
+          <view v-for="row in photoRows" :key="row[0].id" class="photo-row">
+            <view v-for="item in row" :key="item.id" class="photo-item">
+              <view class="photo-wrap" @click="previewItem(item)">
+                <image :src="imageUrl(item)" mode="aspectFill" lazy-load />
+                <view
+                  class="select-badge"
+                  :class="{ selected: isSelected(item) }"
+                  @click.stop="toggleItem(item)"
+                >
+                  <text v-if="isSelected(item)">{{ selectionNumber(item) }}</text>
+                </view>
               </view>
+              <text class="photo-name">{{ filename(item) }}</text>
             </view>
-            <text class="photo-name">{{ filename(item) }}</text>
           </view>
         </view>
-      </scroll-view>
+      </view>
 
       <view v-if="selectedIds.length" class="share-fab" @click="openShareSheet">
         <text class="share-icon">↗</text>
@@ -109,10 +117,13 @@
 <script>
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
-import { errorMessage, galleryThumbUrl } from '../../utils/request'
+import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
 import {
   STYLE_OPTIONS,
   galleryStyle,
+  galleryCoverPath,
+  groupGalleryItemsIntoRows,
   createSelectionState,
   toggleSelection,
   buildShareSnapshot,
@@ -122,6 +133,7 @@ import { publicMediaUrl } from '../../utils/request'
 
 export default {
   components: { TabBar },
+  mixins: [internalPageMixin],
   data() {
     return {
       styleOptions: STYLE_OPTIONS,
@@ -151,20 +163,35 @@ export default {
         return galleryStyle(parent) === this.selectedStyle
       })
     },
+    photoRows() {
+      return groupGalleryItemsIntoRows(this.items)
+    },
     selectedIds() {
       return this.selection.orderedIds
     }
   },
-  onShow() {
+  async onShow() {
+    if (!(await this.ensureInternalAccess())) return
+    this.hideWechatShareMenu()
     this.loadGalleries()
   },
   onShareAppMessage() {
-    const payload = buildWechatSharePayload(this.shareSnapshot)
-    return payload || { title: '素材图库', path: '/pages/materials/materials' }
+    return buildWechatSharePayload(this.shareSnapshot)
   },
   methods: {
+    hideWechatShareMenu() {
+      if (typeof uni.hideShareMenu === 'function') uni.hideShareMenu()
+    },
+    showWechatShareMenu() {
+      if (typeof uni.showShareMenu === 'function') {
+        uni.showShareMenu({ menus: ['shareAppMessage'] })
+      }
+    },
     imageUrl(item) {
       return galleryThumbUrl(item, 480)
+    },
+    folderCoverUrl(gallery) {
+      return mediaUrl(galleryCoverPath(gallery))
     },
     filename(item) {
       return item.file_name || item.filename || item.name || '图片素材'
@@ -192,6 +219,7 @@ export default {
       this.selection = createSelectionState(galleryId)
       this.shareSnapshot = null
       this.wechatShareReady = false
+      this.hideWechatShareMenu()
       this.loadingItems = true
       try {
         const data = await mpContentApi.galleryItems(galleryId)
@@ -209,6 +237,7 @@ export default {
       this.shareSnapshot = null
       this.shareSheetVisible = false
       this.wechatShareReady = false
+      this.hideWechatShareMenu()
     },
     previewItem(item) {
       const current = galleryThumbUrl(item, 1080)
@@ -227,6 +256,7 @@ export default {
       try {
         this.selection = toggleSelection(this.selection, item)
         this.wechatShareReady = false
+        this.hideWechatShareMenu()
       } catch (error) {
         uni.showToast({ title: error.message, icon: 'none' })
       }
@@ -259,6 +289,7 @@ export default {
         }
         this.shareSheetVisible = false
         this.wechatShareReady = true
+        this.showWechatShareMenu()
         uni.showToast({ title: '快照已生成，请点击“发送到微信”', icon: 'none' })
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
@@ -302,7 +333,7 @@ export default {
   flex-direction: column;
 }
 .detail-view {
-  min-height: calc(100vh - 66px);
+  min-height: calc(100vh - 52px - env(safe-area-inset-bottom));
 }
 .heading {
   padding: 20px 18px 14px;
@@ -363,8 +394,7 @@ export default {
   background: #178df0;
   content: '';
 }
-.gallery-content,
-.photo-content {
+.gallery-content {
   flex: 1;
   min-width: 0;
   box-sizing: border-box;
@@ -385,24 +415,53 @@ export default {
 }
 .folder-icon {
   position: relative;
-  width: 84px;
-  height: 70px;
-  margin: 0 auto 12px;
-  border-radius: 0 12px 12px 12px;
-  background: #ffbd48;
+  width: 106px;
+  height: 82px;
+  margin: 0 auto 10px;
+  overflow: visible;
+  --folder-back-color: #ffc238;
+  border-radius: 0 8px 10px 10px;
+  background: var(--folder-back-color);
+  box-shadow: 0 2px 5px rgba(177, 120, 8, 0.18);
 }
 .folder-icon::before {
   position: absolute;
-  top: -8px;
+  z-index: 0;
+  top: -9px;
   left: 0;
-  width: 34px;
-  height: 14px;
-  border-radius: 8px 8px 0 0;
-  background: #ffbd48;
+  width: 50px;
+  height: 18px;
+  -webkit-clip-path: polygon(0 0, 70% 0, 100% 100%, 0 100%);
+  clip-path: polygon(0 0, 70% 0, 100% 100%, 0 100%);
+  border-radius: 7px 0 0 0;
+  background: var(--folder-back-color);
   content: '';
 }
+.folder-preview {
+  position: absolute;
+  z-index: 1;
+  top: 7px;
+  right: 4px;
+  left: 4px;
+  width: auto;
+  height: 58px;
+  border-radius: 4px 4px 6px 6px;
+  background: #f3eee5;
+}
 .folder-tab {
-  display: none;
+  position: absolute;
+  z-index: 2;
+  right: 0;
+  top: 44px;
+  left: 0;
+  display: block;
+  height: 38px;
+  border-radius: 7px 8px 9px 9px;
+  background: linear-gradient(180deg, #ffe9a3 0%, #ffdc79 55%, #ffd15a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 249, 220, 0.85),
+    inset 0 -2px 0 rgba(235, 168, 28, 0.22),
+    0 2px 4px rgba(177, 120, 8, 0.14);
 }
 .gallery-name {
   overflow: hidden;
@@ -435,6 +494,7 @@ export default {
   border: 0;
 }
 .detail-heading {
+  flex-shrink: 0;
   position: relative;
   min-height: 64px;
   padding: 10px 18px;
@@ -453,31 +513,36 @@ export default {
   flex: 1;
   text-align: center;
 }
-.detail-title-wrap .title {
-  font-size: 20px;
-}
 .detail-gallery-name {
   max-width: 260px;
-  margin: 4px auto 0;
+  margin: 0 auto;
   overflow: hidden;
-  color: #8a817c;
-  font-size: 12px;
+  color: #1e1c1b;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .photo-content {
-  height: calc(100vh - 130px);
-  padding: 18px 14px 100px;
+  box-sizing: border-box;
+  padding: 18px 14px 120px;
   background: #f4f4f4;
 }
 .photo-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  display: block;
+}
+.photo-row {
+  overflow: hidden;
+  margin-bottom: 18px;
 }
 .photo-item {
+  float: left;
   width: 48.5%;
-  margin-bottom: 18px;
+  margin-bottom: 0;
+}
+.photo-item + .photo-item {
+  float: right;
 }
 .photo-wrap {
   position: relative;
