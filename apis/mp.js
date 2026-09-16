@@ -68,9 +68,14 @@ export const mpContentApi = {
       filePath,
       formData: { category: category || 'uncategorized' }
     }),
-  galleries: () => request({ url: '/api/mp/content/galleries' }),
-  galleryItems: (category) =>
-    request({ url: `/api/mp/content/gallery-items?category=${encodeURIComponent(category)}` }),
+  galleries: (scope = '') =>
+    request({ url: `/api/mp/content/galleries${scope ? `?scope=${encodeURIComponent(scope)}` : ''}` }),
+  galleryItems: (category, scope = '') => {
+    const query = [`category=${encodeURIComponent(category)}`]
+    if (scope) query.push(`scope=${encodeURIComponent(scope)}`)
+    return request({ url: `/api/mp/content/gallery-items?${query.join('&')}` })
+  },
+  deleteGalleryItem: (itemId) => request({ url: `/api/mp/content/gallery-items/${encodeURIComponent(itemId)}`, method: 'DELETE' }),
   createShare: (itemIds) => request({ url: '/api/mp/share/cases', method: 'POST', data: { item_ids: itemIds } }),
   getShare: (shareId) =>
     request({ url: `/api/material-library/shares/${encodeURIComponent(shareId)}`, requiresAuth: false }),
@@ -98,6 +103,14 @@ export const mpContentApi = {
 }
 
 export const mpImageApi = {
+  works: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    return request({ url: `/api/mp/image/works${query ? `?${query}` : ''}` })
+  },
+  hideWork: (assetId) => request({ url: `/api/mp/image/works/${encodeURIComponent(assetId)}`, method: 'DELETE' }),
   polish: (data) =>
     firstAvailable([
       () => request({ url: '/api/mp/image/polish', method: 'POST', data, timeout: 120000 }),
