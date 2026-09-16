@@ -156,7 +156,7 @@ export default {
       )
     },
     isGenerating() {
-      if (this.status === 'completed' || this.status === 'cancelled') return false
+      if (this.status === 'completed' || this.status === 'cancelled' || this.status === 'reviewed') return false
       if (!this.autoRun && this.status === 'failed') return false
       if (this.waitingUser) return false
       return true
@@ -260,6 +260,12 @@ export default {
         this.timer = null
       }
     },
+    goResult() {
+      this.stopPoll()
+      uni.redirectTo({
+        url: `/pages/generate/result?task_id=${this.taskId}&service_entry=${encodeURIComponent(this.serviceEntry || '')}`
+      })
+    },
     async restore() {
       if (!this.taskId) return
       try {
@@ -273,6 +279,10 @@ export default {
           this.runId = runId
           if (this.fromManage && (taskStatus === 'failed' || taskStatus === 'cancelled')) {
             await this.retry()
+            return
+          }
+          if (taskStatus === 'reviewed' || taskStatus === 'completed') {
+            this.goResult()
             return
           }
           this.poll()
@@ -312,6 +322,7 @@ export default {
         this.status = data.status
         this.interrupt = data.interrupt
         this.errorMessage = this.autoRun ? '' : data.error_message || ''
+        if (data.run_id && data.run_id !== this.runId) this.runId = data.run_id
         if (
           data.interrupt &&
           data.interrupt.interrupt_type === 'cover_selection' &&
@@ -320,14 +331,10 @@ export default {
         ) {
           this.selectedCoverAssetId = data.interrupt.asset_ids[0]
         }
-        if (data.status === 'completed') {
-          this.stopPoll()
-          uni.redirectTo({
-            url: `/pages/generate/result?task_id=${this.taskId}&service_entry=${encodeURIComponent(this.serviceEntry || '')}`
-          })
+        if (data.status === 'completed' || data.status === 'reviewed') {
+          this.goResult()
           return
         }
-        if (data.run_id && data.run_id !== this.runId) this.runId = data.run_id
         if (this.autoRun) {
           await this.advanceAuto()
           return

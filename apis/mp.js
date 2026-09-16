@@ -91,6 +91,13 @@ export const mpContentApi = {
       .join('&')
     return request({ url: `/api/mp/contents${query ? `?${query}` : ''}` })
   },
+  listTasks: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    return request({ url: `/api/mp/content/tasks${query ? `?${query}` : ''}` })
+  },
   favorite: (taskId) => request({ url: `/api/mp/contents/${taskId}/favorite`, method: 'POST' }),
   unfavorite: (taskId) => request({ url: `/api/mp/contents/${taskId}/favorite`, method: 'DELETE' }),
   duplicate: (taskId) => request({ url: `/api/mp/contents/${taskId}/duplicate`, method: 'POST' }),

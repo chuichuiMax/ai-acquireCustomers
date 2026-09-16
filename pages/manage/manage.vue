@@ -1,5 +1,5 @@
 <template>
-  <view class="page">
+  <view v-if="internalAccessGranted" class="page">
     <view class="filters">
       <view
         v-for="item in filters"
@@ -11,7 +11,8 @@
         {{ item.label }}
       </view>
     </view>
-    <view v-if="!items.length" class="empty">暂无内容</view>
+    <view v-if="loading" class="empty">正在加载记录…</view>
+    <view v-else-if="!items.length" class="empty">暂无内容</view>
     <view v-for="item in items" :key="item.task_id || item.id" class="card">
       <view class="row">
         <text class="label">内容编码</text>
@@ -72,6 +73,9 @@
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, thumbUrl } from '../../utils/request'
+import { internalPageMixin } from '../../utils/internal-access'
+import { isMissingApi } from '../../utils/design-image.mjs'
+import { normalizeContentList } from '../../utils/records.mjs'
 
 const STATUS_LABELS = {
   draft: '草稿',
@@ -89,10 +93,12 @@ const STATUS_LABELS = {
 
 export default {
   components: { TabBar },
+  mixins: [internalPageMixin],
   data() {
     return {
       serviceEntry: '',
       regeneratingId: '',
+      loading: false,
       filters: [
         { value: '', label: '全部' },
         { value: '装修家居', label: '装修家居' },
@@ -101,7 +107,8 @@ export default {
       items: []
     }
   },
-  onShow() {
+  async onShow() {
+    if (!(await this.ensureInternalAccess())) return
     this.load()
   },
   methods: {
@@ -153,12 +160,40 @@ export default {
       this.serviceEntry = value
       this.load()
     },
-    async load() {
+    async loadContents() {
+      const params = {
+        page: 1,
+        page_size: 50,
+        service_entry: this.serviceEntry || undefined
+      }
       try {
-        const data = await mpContentApi.list({ service_entry: this.serviceEntry || undefined, page: 1, page_size: 50 })
-        this.items = data.items || []
+        const items = normalizeContentList(await mpContentApi.list(params))
+        if (items.length) return items
       } catch (error) {
+        if (!isMissingApi(error)) {
+          try {
+            return normalizeContentList(await mpContentApi.listTasks(params))
+          } catch (fallbackError) {
+            throw error.statusCode ? error : fallbackError
+          }
+        }
+      }
+      try {
+        return normalizeContentList(await mpContentApi.listTasks(params))
+      } catch (error) {
+        if (isMissingApi(error)) return []
+        throw error
+      }
+    },
+    async load() {
+      this.loading = true
+      try {
+        this.items = await this.loadContents()
+      } catch (error) {
+        this.items = []
         uni.showToast({ title: errorMessage(error), icon: 'none' })
+      } finally {
+        this.loading = false
       }
     },
     open(item) {
@@ -194,6 +229,7 @@ export default {
 }
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }

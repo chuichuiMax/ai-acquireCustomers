@@ -1,5 +1,5 @@
 <script>
-const ENTRY_PATH = '/pages/index/index'
+const ENTRY_URL = '/pages/index/index'
 
 function isDevtools() {
 	try {
@@ -9,20 +9,8 @@ function isDevtools() {
 	}
 }
 
-function restartMiniProgram() {
-	const path = ENTRY_PATH
-	// #ifdef MP-WEIXIN
-	if (typeof uni.restartMiniProgram === 'function') {
-		uni.restartMiniProgram({
-			path,
-			fail: () => {
-				uni.reLaunch({ url: path })
-			}
-		})
-		return
-	}
-	// #endif
-	uni.reLaunch({ url: path })
+function reopenEntry() {
+	uni.reLaunch({ url: ENTRY_URL })
 }
 
 function checkMiniProgramUpdate() {
@@ -40,7 +28,7 @@ function checkMiniProgramUpdate() {
 		try {
 			updateManager.applyUpdate()
 		} catch (error) {
-			restartMiniProgram()
+			reopenEntry()
 		}
 	})
 
