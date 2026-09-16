@@ -18,3 +18,10 @@ for (const page of pages) {
 test('WeChat home opens the neutral entry page instead of an internal page', () => {
   assert.equal(pages[0].path, 'pages/index/index')
 })
+
+test('personal center registers dedicated works and uploads pages', () => {
+  const paths = pages.map((page) => page.path)
+
+  assert.equal(paths.includes('pages/mine/works'), true)
+  assert.equal(paths.includes('pages/mine/uploads'), true)
+})

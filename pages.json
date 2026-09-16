@@ -74,6 +74,18 @@
 			}
 		},
 		{
+			"path": "pages/mine/works",
+			"style": {
+				"navigationBarTitleText": "我的作品"
+			}
+		},
+		{
+			"path": "pages/mine/uploads",
+			"style": {
+				"navigationBarTitleText": "我的上传"
+			}
+		},
+		{
 			"path": "pages/home/home",
 			"style": {
 				"navigationBarTitleText": "首页"

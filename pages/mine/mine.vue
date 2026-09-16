@@ -12,6 +12,16 @@
       <text class="label">简介</text>
       <text class="bio">{{ employee.bio || '点击填写简介' }}</text>
     </view>
+    <view class="card menu-card">
+      <view class="menu-row" @click="goWorks">
+        <text>我的作品</text>
+        <text class="arrow">›</text>
+      </view>
+      <view class="menu-row" @click="goUploads">
+        <text>我的上传</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
     <view class="banner">
       <image class="banner-logo" src="/static/hirun-logo.png" mode="aspectFit" />
     </view>
@@ -52,6 +62,12 @@ export default {
     },
     goBio() {
       uni.navigateTo({ url: '/pages/mine/bio' })
+    },
+    goWorks() {
+      uni.navigateTo({ url: '/pages/mine/works' })
+    },
+    goUploads() {
+      uni.navigateTo({ url: '/pages/mine/uploads' })
     },
     async logout() {
       try {
@@ -114,6 +130,24 @@ export default {
   display: block;
   margin-top: 8px;
   color: #2b2422;
+}
+.menu-card {
+  padding: 0 16px;
+}
+.menu-row {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #eee8e4;
+  color: #2b2422;
+}
+.menu-row:last-child {
+  border-bottom: 0;
+}
+.arrow {
+  color: #a49a94;
+  font-size: 22px;
 }
 .banner {
   background: #fff;
