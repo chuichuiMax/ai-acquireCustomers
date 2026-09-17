@@ -91,25 +91,21 @@
         <view class="sheet-close" @click="closeShareSheet">×</view>
         <text class="sheet-title">分享案例</text>
         <view class="share-options">
-          <view class="share-option" @click="prepareWechatShare">
+          <button class="share-option native-share-option" open-type="share">
             <view class="wechat-mark">微</view>
             <text>微信</text>
-          </view>
-          <view class="share-option" @click="shareToWorkWechat">
+          </button>
+          <button
+            class="share-option native-share-option"
+            :open-type="isWorkWechatHost() ? 'share' : ''"
+            @click="shareToWorkWechat"
+          >
             <view class="work-wechat-mark">企</view>
             <text>企业微信</text>
-          </view>
+          </button>
         </view>
       </view>
     </view>
-
-    <button
-      v-if="wechatShareReady"
-      class="native-share-button"
-      open-type="share"
-      @click="wechatShareReady = false"
-    >发送到微信</button>
-
     <tab-bar current="materials" />
   </view>
 </template>
@@ -147,7 +143,7 @@ export default {
       loadingItems: false,
       shareSheetVisible: false,
       shareSnapshot: null,
-      wechatShareReady: false
+      sharePreparing: false
     }
   },
   computed: {
@@ -218,7 +214,6 @@ export default {
       this.items = []
       this.selection = createSelectionState(galleryId)
       this.shareSnapshot = null
-      this.wechatShareReady = false
       this.hideWechatShareMenu()
       this.loadingItems = true
       try {
@@ -236,7 +231,6 @@ export default {
       this.selection = createSelectionState()
       this.shareSnapshot = null
       this.shareSheetVisible = false
-      this.wechatShareReady = false
       this.hideWechatShareMenu()
     },
     previewItem(item) {
@@ -255,23 +249,30 @@ export default {
     toggleItem(item) {
       try {
         this.selection = toggleSelection(this.selection, item)
-        this.wechatShareReady = false
         this.hideWechatShareMenu()
       } catch (error) {
         uni.showToast({ title: error.message, icon: 'none' })
       }
     },
-    openShareSheet() {
-      if (!this.selectedIds.length || !this.activeGallery) return
-      this.shareSnapshot = buildShareSnapshot(this.activeGallery, this.items, this.selectedIds)
-      this.shareSheetVisible = true
+    async openShareSheet() {
+      if (!this.selectedIds.length || !this.activeGallery || this.sharePreparing) return
+      this.sharePreparing = true
+      try {
+        if (await this.prepareWechatShare()) this.shareSheetVisible = true
+      } finally {
+        this.sharePreparing = false
+      }
     },
     closeShareSheet() {
       this.shareSheetVisible = false
     },
+    isWorkWechatHost() {
+      if (typeof uni.getAppBaseInfo !== 'function') return false
+      const host = uni.getAppBaseInfo()?.host || {}
+      return /wecom|wework|wxwork|企业微信/i.test(`${host.env || ''} ${host.name || ''}`)
+    },
     async prepareWechatShare() {
       if (!this.selectedIds.length || !this.activeGallery) return
-      this.wechatShareReady = false
       this.hideWechatShareMenu()
       try {
         const localSnapshot = buildShareSnapshot(this.activeGallery, this.items, this.selectedIds)
@@ -287,6 +288,7 @@ export default {
           ...localSnapshot,
           shareId,
           title: share.title || '',
+          shareUrl: share.page_url || share.pageUrl || share.url || share.share_url || '',
           coverUrl: cardCoverUrl,
           coverLocalPath,
           images: localSnapshot.images.map((item, index) => ({
@@ -294,12 +296,10 @@ export default {
             public_url: index === 0 ? cardCoverUrl : ''
           }))
         }
-        this.shareSheetVisible = false
-        this.wechatShareReady = true
-        this.showWechatShareMenu()
-        uni.showToast({ title: '快照已生成，请点击“发送到微信”', icon: 'none' })
+        return true
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
+        return false
       }
     },
     downloadWechatShareCover(url) {
@@ -319,19 +319,16 @@ export default {
       })
     },
     async shareToWorkWechat() {
-      if (!this.selectedIds.length || !this.activeGallery) return
+      if (this.isWorkWechatHost()) return
+      if (!this.shareSnapshot?.shareUrl) return
       try {
-        const response = await mpContentApi.createShare(this.selectedIds)
-        const share = response.share || response
-        const shareUrl = share.page_url || share.pageUrl || share.url || share.share_url
-        if (!shareUrl) throw new Error('服务端未返回分享链接')
         await new Promise((resolve, reject) => {
-          uni.setClipboardData({ data: shareUrl, success: resolve, fail: reject })
+          uni.setClipboardData({ data: this.shareSnapshot.shareUrl, success: resolve, fail: reject })
         })
         this.shareSheetVisible = false
         uni.showModal({
           title: '企业微信分享',
-          content: '链接已复制，请在企业微信中选择联系人或群聊后粘贴发送。',
+          content: '当前不在企业微信内，链接已复制，请在企业微信中选择联系人或群聊后粘贴发送。',
           showCancel: false
         })
       } catch (error) {
@@ -625,24 +622,6 @@ export default {
   background: #287cf0;
   box-shadow: 0 8px 18px rgba(40, 124, 240, 0.28);
 }
-.native-share-button {
-  position: fixed;
-  right: 22px;
-  bottom: 84px;
-  z-index: 20;
-  width: 132px;
-  height: 44px;
-  padding: 0;
-  border-radius: 22px;
-  background: #39bd67;
-  color: #fff;
-  font-size: 14px;
-  line-height: 44px;
-  box-shadow: 0 8px 18px rgba(57, 189, 103, 0.28);
-}
-.native-share-button::after {
-  border: 0;
-}
 .share-icon {
   color: #fff;
   font-size: 27px;
@@ -691,9 +670,15 @@ export default {
 }
 .share-option {
   min-width: 76px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: #332e2a;
   font-size: 13px;
   text-align: center;
+}
+.share-option::after {
+  border: 0;
 }
 .share-option text {
   display: block;
