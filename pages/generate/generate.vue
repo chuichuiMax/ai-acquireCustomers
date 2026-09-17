@@ -154,7 +154,7 @@
             <view class="xhs-card">
               <view class="xhs-preview-frame">
                 <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
-                <view v-if="templateOverlaySrc" class="xhs-preview-overlay-wrap" :class="{ multiply: overlayUsesMultiply }">
+                <view v-if="templateOverlaySrc" class="xhs-preview-overlay-wrap">
                   <image class="xhs-preview-overlay" :src="templateOverlaySrc" mode="scaleToFill" />
                 </view>
               </view>
@@ -258,6 +258,7 @@ import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { contentTypeIcon } from '../../utils/generate-content-type-icons'
+import { templateOverlayPath } from '../../utils/cover-overlay.mjs'
 
 const REGION_INITIAL = {
   芙: 'F', 天: 'T', 岳: 'Y', 开: 'K', 雨: 'Y', 望: 'W', 长: 'C', 浏: 'L', 宁: 'N',
@@ -486,38 +487,8 @@ export default {
       return this.coverLocal || ''
     },
     templateOverlaySrc() {
-      const template = this.selectedTemplate
-      if (!template) return ''
-      return this.firstMedia(
-        template.overlay_url,
-        template.overlay_file_url,
-        template.overlay_urls,
-        template.mask_url,
-        template.transparent_url,
-        template.layer_url,
-        template.layer_urls,
-        Array.isArray(template.preview_urls) && template.preview_urls.length > 1
-          ? template.preview_urls.slice(1)
-          : '',
-        template.preview_urls,
-        template.preview_url
-      )
-    },
-    overlayUsesMultiply() {
-      const template = this.selectedTemplate
-      if (!template) return false
-      return !this.firstMedia(
-        template.overlay_url,
-        template.overlay_file_url,
-        template.overlay_urls,
-        template.mask_url,
-        template.transparent_url,
-        template.layer_url,
-        template.layer_urls,
-        Array.isArray(template.preview_urls) && template.preview_urls.length > 1
-          ? template.preview_urls.slice(1)
-          : ''
-      )
+      const path = templateOverlayPath(this.selectedTemplate)
+      return path ? this.mediaUrl(path, { width: 1080 }) : ''
     }
   },
   async onLoad() {
@@ -550,20 +521,6 @@ export default {
     mediaUrl,
     thumbUrl,
     galleryThumbUrl,
-    firstMedia(...values) {
-      for (const value of values) {
-        if (Array.isArray(value) && value.length) {
-          const nested = this.firstMedia(...value)
-          if (nested) return nested
-        } else if (value && typeof value === 'object') {
-          const nested = this.firstMedia(value.url, value.file_url, value.preview_url)
-          if (nested) return nested
-        } else if (typeof value === 'string' && value.trim()) {
-          return this.mediaUrl(value.trim(), { format: 'webp', width: 1080, quality: 80 })
-        }
-      }
-      return ''
-    },
     shortTypeName(name) {
       return String(name || '')
         .replace(/^装修/, '')
@@ -1397,7 +1354,6 @@ export default {
 }
 .xhs-preview-frame {
   position: relative;
-  isolation: isolate;
   width: 100%;
   padding-top: 133.33%;
   overflow: hidden;
@@ -1414,8 +1370,8 @@ export default {
   height: 100%;
   display: block;
 }
-.xhs-preview-overlay-wrap.multiply {
-  mix-blend-mode: multiply;
+.xhs-preview-overlay {
+  background: transparent;
 }
 .xhs-card-label {
   display: block;
