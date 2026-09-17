@@ -18,7 +18,11 @@
 
     <view v-if="!typeStepDone" class="block type-step">
       <text class="type-label"><text class="req">*</text>内容类型</text>
+      <view v-if="schemaLoading && !schemaLoaded" class="type-loading">
+        <text>内容类型加载中…</text>
+      </view>
       <view
+        v-else
         class="type-grid"
         :class="{
           'type-grid-single': contentTypes.length === 1,
@@ -319,18 +323,9 @@ const REVIEW_NOTES_TYPE = {
   variables: []
 }
 
-const DEFAULT_DECORATION_CONTENT_TYPES = Object.freeze([
-  { id: 'default-NRLX0001', type_code: 'NRLX0001', name: '工艺施工展示' },
-  { id: 'default-NRLX0002', type_code: 'NRLX0002', name: '装修报价清单' },
-  { id: 'default-NRLX0003', type_code: 'NRLX0003', name: '装修避坑分享' },
-  { id: 'default-NRLX0004', type_code: 'NRLX0004', name: '装修省钱攻略' },
-  { id: 'default-NRLX0006', type_code: 'NRLX0006', name: '装修知识科普' },
-  { id: 'default-NRLX0007', type_code: 'NRLX0007', name: '人设自荐' }
-])
-
 function createInitialSchema() {
   return {
-    content_types: DEFAULT_DECORATION_CONTENT_TYPES,
+    content_types: [],
     variables: [],
     frame_areas: [],
     design_styles: [],
@@ -519,6 +514,7 @@ export default {
   },
   async onLoad() {
     if (!(await this.ensureInternalAccess())) return
+    this.loadSchema()
   },
   async onShow() {
     if (!(await this.ensureInternalAccess())) return
@@ -527,6 +523,7 @@ export default {
       this.resumeAfterPicker = false
       return
     }
+    if (!this.schemaLoaded && !this.schemaLoading) this.loadSchema()
   },
   watch: {
     contentTypeCode() {
@@ -565,13 +562,12 @@ export default {
         this._typeSelectTimer = null
       }
       // 先高亮卡片，再进入业务变量步骤
-      this._typeSelectTimer = setTimeout(async () => {
-        const schemaLoaded = await this.loadSchema()
-        if (schemaLoaded && this.contentTypes.some((item) => item.type_code === this.contentTypeCode)) {
+      this._typeSelectTimer = setTimeout(() => {
+        if (this.schemaLoaded && this.contentTypes.some((item) => item.type_code === this.contentTypeCode)) {
           this.typeStepDone = true
-        } else if (schemaLoaded) {
+        } else {
           this.contentTypeCode = ''
-          uni.showToast({ title: '该内容类型已停用，请重新选择', icon: 'none' })
+          uni.showToast({ title: '内容类型加载失败，请稍后重试', icon: 'none' })
         }
         this._typeSelectTimer = null
       }, 220)
@@ -703,6 +699,7 @@ export default {
       this.closeRegion()
       this.schema = createInitialSchema()
       this.schemaLoaded = false
+      this.loadSchema()
     },
     async loadSchema() {
       if (this.schemaLoading) return false
@@ -721,7 +718,7 @@ export default {
         if (!this.coverTemplateId || !templates.some((item) => item.id === this.coverTemplateId)) {
           this.coverTemplateId = templates.length ? templates[0].id : ''
         }
-        await this.loadGalleries()
+        this.loadGalleries()
         this.ensureUploadCategory()
         return true
       } catch (error) {
@@ -1107,6 +1104,15 @@ export default {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
+}
+.type-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  color: #9a918c;
+  font-size: 14px;
 }
 .type-grid-home {
   display: grid;

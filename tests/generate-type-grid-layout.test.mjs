@@ -67,14 +67,23 @@ test('selected content card changes only its border and icon frame before advanc
   assert.match(page, /this\._typeSelectTimer\s*=\s*setTimeout\([\s\S]*?},\s*220\)/)
 })
 
-test('content type cards have a local default before the schema request', () => {
-  assert.match(page, /const DEFAULT_DECORATION_CONTENT_TYPES\s*=\s*Object\.freeze\(/)
-  assert.match(page, /content_types:\s*DEFAULT_DECORATION_CONTENT_TYPES/)
+test('content type cards are populated from the schema instead of a misleading local fallback', () => {
+  assert.doesNotMatch(page, /DEFAULT_DECORATION_CONTENT_TYPES/)
+  assert.match(page, /content_types:\s*\[\]/)
+  assert.match(page, /v-if="schemaLoading && !schemaLoaded"/)
 
   const onLoad = page.match(/async onLoad\(\) \{([\s\S]*?)\r?\n  \},\r?\n  async onShow/)
-  const selectContentType = page.match(/selectContentType\(typeCode\) \{([\s\S]*?)\r?\n    \},\r?\n    backToTypeStep/)
   assert.ok(onLoad)
+  assert.match(onLoad[1], /this\.loadSchema\(\)/)
+})
+
+test('selecting an available content type does not wait for schema or gallery requests', () => {
+  const selectContentType = page.match(/selectContentType\(typeCode\) \{([\s\S]*?)\r?\n    \},\r?\n    backToTypeStep/)
+  const loadSchema = page.match(/async loadSchema\(\) \{([\s\S]*?)\r?\n    \},\r?\n    onFrameArea/)
+
   assert.ok(selectContentType)
-  assert.doesNotMatch(onLoad[1], /loadSchema\(/)
-  assert.match(selectContentType[1], /await this\.loadSchema\(\)/)
+  assert.ok(loadSchema)
+  assert.doesNotMatch(selectContentType[1], /await this\.loadSchema\(\)/)
+  assert.doesNotMatch(loadSchema[1], /await this\.loadGalleries\(\)/)
+  assert.match(loadSchema[1], /this\.loadGalleries\(\)/)
 })
