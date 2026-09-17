@@ -167,3 +167,36 @@ export const mpImageApi = {
         })
     ])
 }
+
+// Image design is deliberately isolated from the legacy content-image APIs.  Its
+// library owns only references selected for image generation and never changes
+// the source material-library item.
+export const mpImageDesignApi = {
+  drafts: () => request({ url: '/api/mp/image-design/drafts' }),
+  saveDrafts: (drafts) => request({ url: '/api/mp/image-design/drafts', method: 'PUT', data: { drafts } }),
+  library: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    return request({ url: `/api/mp/image-design/library${query ? `?${query}` : ''}` })
+  },
+  addLibraryItem: (data) => request({ url: '/api/mp/image-design/library', method: 'POST', data }),
+  uploadInput: (filePath, role) =>
+    uploadFile({
+      url: '/api/mp/image-design/uploads',
+      filePath,
+      formData: { role }
+    }),
+  polish: (data) => request({ url: '/api/mp/image-design/polish', method: 'POST', data, timeout: 120000 }),
+  createTask: (data) => request({ url: '/api/mp/image-design/tasks', method: 'POST', data, timeout: 180000 }),
+  task: (taskId) => request({ url: `/api/mp/image-design/tasks/${encodeURIComponent(taskId)}` }),
+  retryTask: (taskId) => request({ url: `/api/mp/image-design/tasks/${encodeURIComponent(taskId)}/retry`, method: 'POST' }),
+  results: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    return request({ url: `/api/mp/image-design/results${query ? `?${query}` : ''}` })
+  }
+}
