@@ -1,5 +1,12 @@
 <template>
-  <view class="tab-bar" :style="{ paddingBottom: safeBottom + 'px' }">
+  <view
+    class="tab-bar"
+    :style="{
+      paddingBottom: safeBottom + 'px',
+      '--tab-active-color': colors.active,
+      '--tab-inactive-color': colors.inactive
+    }"
+  >
     <view
       v-for="item in tabs"
       :key="item.path"
@@ -7,16 +14,15 @@
       :class="{ active: current === item.key }"
       @click="go(item.path)"
     >
-      <view v-if="item.key === 'cover'" class="plus-wrap">
-        <text class="icon plus">+</text>
-      </view>
-      <text v-else class="icon">{{ item.icon }}</text>
+      <image class="icon" :src="resolveTabIcon(item, current)" mode="aspectFit" />
       <text class="label">{{ item.label }}</text>
     </view>
   </view>
 </template>
 
 <script>
+import { resolveTabIcon, tabBarColors, tabBarItems } from '../utils/tab-bar-icons.mjs'
+
 export default {
   name: 'TabBar',
   props: {
@@ -25,13 +31,8 @@ export default {
   data() {
     return {
       safeBottom: 0,
-      tabs: [
-        { key: 'generate', path: '/pages/generate/generate', label: '生产', icon: '▦' },
-        { key: 'manage', path: '/pages/manage/manage', label: '记录', icon: '▤' },
-        { key: 'cover', path: '/pages/cover/cover', label: '生图', icon: '+' },
-        { key: 'materials', path: '/pages/materials/materials', label: '案例', icon: '⌂' },
-        { key: 'mine', path: '/pages/mine/mine', label: '我的', icon: '☺' }
-      ]
+      colors: tabBarColors,
+      tabs: tabBarItems
     }
   },
   created() {
@@ -39,6 +40,7 @@ export default {
     this.safeBottom = info.safeAreaInsets ? info.safeAreaInsets.bottom : 0
   },
   methods: {
+    resolveTabIcon,
     go(path) {
       const pages = getCurrentPages()
       const route = pages.length ? `/${pages[pages.length - 1].route}` : ''
@@ -67,31 +69,20 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #9a908a;
+  color: var(--tab-inactive-color);
 }
 .tab-item.active {
-  color: #BE2D22;
+  color: var(--tab-active-color);
 }
 .icon {
-  font-size: 18px;
-  line-height: 20px;
-}
-.plus-wrap {
-  width: 20px;
-  height: 20px;
-  border: 1px solid currentColor;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-.plus {
-  font-size: 16px;
-  line-height: 18px;
+  width: 24px;
+  height: 24px;
+  display: block;
+  flex: 0 0 24px;
 }
 .label {
   margin-top: 2px;
   font-size: 11px;
+  line-height: 14px;
 }
 </style>

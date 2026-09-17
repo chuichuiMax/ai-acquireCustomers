@@ -36,10 +36,6 @@ async function firstAvailable(fns) {
 }
 
 export const mpAuthApi = {
-  sendSms: (data) =>
-    request({ url: '/api/mp/auth/sms/send', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
-  loginBySms: (data) =>
-    request({ url: '/api/mp/auth/sms/login', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
   loginByWechat: (data) =>
     request({ url: '/api/mp/auth/wechat/code', method: 'POST', data, requiresAuth: false, timeout: 90000 }),
   bindWechatPhone: (data) =>
@@ -68,9 +64,14 @@ export const mpContentApi = {
       filePath,
       formData: { category: category || 'uncategorized' }
     }),
-  galleries: () => request({ url: '/api/mp/content/galleries' }),
-  galleryItems: (category) =>
-    request({ url: `/api/mp/content/gallery-items?category=${encodeURIComponent(category)}` }),
+  galleries: (scope = '') =>
+    request({ url: `/api/mp/content/galleries${scope ? `?scope=${encodeURIComponent(scope)}` : ''}` }),
+  galleryItems: (category, scope = '') => {
+    const query = [`category=${encodeURIComponent(category)}`]
+    if (scope) query.push(`scope=${encodeURIComponent(scope)}`)
+    return request({ url: `/api/mp/content/gallery-items?${query.join('&')}` })
+  },
+  deleteGalleryItem: (itemId) => request({ url: `/api/mp/content/gallery-items/${encodeURIComponent(itemId)}`, method: 'DELETE' }),
   createShare: (itemIds) => request({ url: '/api/mp/share/cases', method: 'POST', data: { item_ids: itemIds } }),
   getShare: (shareId) =>
     request({ url: `/api/material-library/shares/${encodeURIComponent(shareId)}`, requiresAuth: false }),
@@ -91,13 +92,6 @@ export const mpContentApi = {
       .join('&')
     return request({ url: `/api/mp/contents${query ? `?${query}` : ''}` })
   },
-  listTasks: (params = {}) => {
-    const query = Object.entries(params)
-      .filter(([, value]) => value !== undefined && value !== null && value !== '')
-      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-      .join('&')
-    return request({ url: `/api/mp/content/tasks${query ? `?${query}` : ''}` })
-  },
   favorite: (taskId) => request({ url: `/api/mp/contents/${taskId}/favorite`, method: 'POST' }),
   unfavorite: (taskId) => request({ url: `/api/mp/contents/${taskId}/favorite`, method: 'DELETE' }),
   duplicate: (taskId) => request({ url: `/api/mp/contents/${taskId}/duplicate`, method: 'POST' }),
@@ -105,6 +99,14 @@ export const mpContentApi = {
 }
 
 export const mpImageApi = {
+  works: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    return request({ url: `/api/mp/image/works${query ? `?${query}` : ''}` })
+  },
+  hideWork: (assetId) => request({ url: `/api/mp/image/works/${encodeURIComponent(assetId)}`, method: 'DELETE' }),
   polish: (data) =>
     firstAvailable([
       () => request({ url: '/api/mp/image/polish', method: 'POST', data, timeout: 120000 }),
@@ -160,4 +162,37 @@ export const mpImageApi = {
           formData: { category: category || 'uncategorized' }
         })
     ])
+}
+
+// Image design is deliberately isolated from the legacy content-image APIs.  Its
+// library owns only references selected for image generation and never changes
+// the source material-library item.
+export const mpImageDesignApi = {
+  drafts: () => request({ url: '/api/mp/image-design/drafts' }),
+  saveDrafts: (drafts) => request({ url: '/api/mp/image-design/drafts', method: 'PUT', data: { drafts } }),
+  library: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    return request({ url: `/api/mp/image-design/library${query ? `?${query}` : ''}` })
+  },
+  addLibraryItem: (data) => request({ url: '/api/mp/image-design/library', method: 'POST', data }),
+  uploadInput: (filePath, role) =>
+    uploadFile({
+      url: '/api/mp/image-design/uploads',
+      filePath,
+      formData: { role }
+    }),
+  polish: (data) => request({ url: '/api/mp/image-design/polish', method: 'POST', data, timeout: 120000 }),
+  createTask: (data) => request({ url: '/api/mp/image-design/tasks', method: 'POST', data, timeout: 180000 }),
+  task: (taskId) => request({ url: `/api/mp/image-design/tasks/${encodeURIComponent(taskId)}` }),
+  retryTask: (taskId) => request({ url: `/api/mp/image-design/tasks/${encodeURIComponent(taskId)}/retry`, method: 'POST' }),
+  results: (params = {}) => {
+    const query = Object.entries(params)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&')
+    return request({ url: `/api/mp/image-design/results${query ? `?${query}` : ''}` })
+  }
 }

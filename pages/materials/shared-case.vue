@@ -13,7 +13,7 @@
           v-if="coverUrl"
           class="cover-image"
           :src="coverUrl"
-          mode="aspectFill"
+          mode="widthFix"
         />
         <view v-else class="cover-placeholder" />
       </view>
@@ -37,7 +37,7 @@
         </view>
         <view v-if="images.length" class="image-list">
           <view v-for="(image, index) in images" :key="image.id || image.displayUrl || index" class="image-item">
-            <image class="case-image" :src="image.displayUrl" mode="aspectFill" lazy-load @click="previewImage(index)" />
+            <image class="case-image" :src="image.displayUrl" mode="widthFix" lazy-load @click="previewImage(index)" />
           </view>
         </view>
         <text v-else class="empty-images">暂无可展示的案例图片</text>
@@ -178,16 +178,15 @@ export default {
   border: 0;
 }
 .hero-wrap {
-  height: 220px;
   background: #e5e2df;
 }
-.cover-image,
-.cover-placeholder {
+.cover-image {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
 }
 .cover-placeholder {
+  height: 220px;
   background: #e5e2df;
 }
 .project-card {
@@ -250,14 +249,12 @@ export default {
   gap: 16px;
 }
 .image-item {
-  height: 205px;
-  overflow: hidden;
   background: #e5e2df;
 }
 .case-image {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
 }
 .empty-images {
   display: block;

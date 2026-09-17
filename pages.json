@@ -15,14 +15,7 @@
 		{
 			"path": "pages/login/login",
 			"style": {
-				"navigationBarTitleText": "密码登录"
-			}
-		},
-		{
-			"path": "pages/login/confirm",
-			"style": {
-				"navigationBarTitleText": "登录确认",
-				"navigationStyle": "custom"
+				"navigationBarTitleText": "登录"
 			}
 		},
 		{
@@ -71,6 +64,18 @@
 			"path": "pages/mine/bio",
 			"style": {
 				"navigationBarTitleText": "简介"
+			}
+		},
+		{
+			"path": "pages/mine/works",
+			"style": {
+				"navigationBarTitleText": "我的作品"
+			}
+		},
+		{
+			"path": "pages/mine/uploads",
+			"style": {
+				"navigationBarTitleText": "我的上传"
 			}
 		},
 		{

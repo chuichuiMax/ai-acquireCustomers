@@ -20,6 +20,18 @@ export const STYLE_OPTIONS = [
   '艺术室界'
 ]
 
+const MATERIAL_LIBRARY_HIDDEN_STYLES = new Set([
+  '东方古雅',
+  '欧式田园',
+  '异域风情',
+  '工业再造',
+  '仿生未来'
+])
+
+export const MATERIAL_LIBRARY_STYLE_OPTIONS = STYLE_OPTIONS.filter(
+  (style) => !MATERIAL_LIBRARY_HIDDEN_STYLES.has(style)
+)
+
 export function galleryStyle(gallery) {
   return gallery?.style || gallery?.style_name || gallery?.design_style || ''
 }

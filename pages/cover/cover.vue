@@ -1,1528 +1,315 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
-    <view class="tabs">
-      <view
-        v-for="item in mainTabs"
-        :key="item.id"
-        class="tab"
-        :class="{ active: mainTab === item.id }"
-        @click="switchMainTab(item.id)"
-      >
-        {{ item.label }}
-      </view>
+    <view class="segments">
+      <view v-for="item in tabs" :key="item.key" class="segment" :class="{ active: activeTab === item.key }" @click="selectTab(item.key)">{{ item.label }}</view>
     </view>
 
-    <view v-if="mainTab === 'workflow'">
-      <view class="card">
-        <view class="card-head">
-          <view class="card-mark" />
-          <text class="card-title">创作工作流</text>
-        </view>
-        <text class="card-desc">
-          上传一张需要换装的原房实拍图，选择换装风格或输入风格提示词，智能体将保留原房结构框架，为你生成全新风格案例图。
-        </text>
-
-        <view class="source-tabs">
-          <text
-            class="source-tab"
-            :class="{ active: sourceTab === 'gallery' }"
-            @click="sourceTab = 'gallery'"
-          >选择图库</text>
-          <text
-            class="source-tab"
-            :class="{ active: sourceTab === 'photo' }"
-            @click="sourceTab = 'photo'"
-          >上传照片</text>
-        </view>
-
-        <view v-if="sourceTab === 'gallery'" class="folders">
-          <view
-            class="folder"
-            :class="{ active: selectedFolderKey === 'case' }"
-            @click="openDesignFolder('case')"
-          >
-            <view class="folder-icon">
-              <image v-if="folderCover(caseGallery)" class="folder-preview" :src="folderCover(caseGallery)" mode="aspectFill" />
-              <view class="folder-flap" />
-              <view v-if="selectedFolderKey === 'case'" class="folder-check" />
-            </view>
-            <text class="folder-name">案例图库</text>
-          </view>
-          <view
-            class="folder"
-            :class="{ active: selectedFolderKey === 'rough' }"
-            @click="openDesignFolder('rough')"
-          >
-            <view class="folder-icon">
-              <image v-if="folderCover(roughGallery)" class="folder-preview" :src="folderCover(roughGallery)" mode="aspectFill" />
-              <view class="folder-flap" />
-              <view v-if="selectedFolderKey === 'rough'" class="folder-check" />
-            </view>
-            <text class="folder-name">毛坯图库</text>
-          </view>
-        </view>
-
-        <view v-else class="upload-box" @click="choosePhoto">
-          <text class="upload-plus">+</text>
-          <text class="upload-text">上传原房实拍图</text>
-        </view>
-
-        <view v-if="selectedImage" class="picked">
-          <image class="picked-image" :src="selectedImage.url" mode="aspectFill" />
-          <view class="picked-meta">
-            <text class="picked-name">{{ selectedImage.name }}</text>
-            <text class="picked-clear" @click="clearSelectedImage">清除</text>
-          </view>
-        </view>
-      </view>
-
-      <view class="card">
-        <text class="section-title"><text class="req">*</text>换装风格选择</text>
-        <text class="section-hint">（选中后，风格详情将与所选图片一起传给生图模型）</text>
-        <view class="style-grid">
-          <view
-            v-for="style in styleChips"
-            :key="style"
-            class="style-chip"
-            :class="{ active: selectedStyle === style }"
-            @click="selectStyle(style)"
-          >
-            {{ style }}
-          </view>
-        </view>
-        <textarea
-          class="prompt-box"
-          :value="stylePrompt"
-          maxlength="800"
-          auto-height
-          @input="onStylePrompt"
-        />
-      </view>
-
-      <view class="card">
-        <text class="section-title"><text class="req">*</text>补充描述</text>
-        <text class="section-hint">（填写后请点下方红色【AI深度润色】）</text>
-        <textarea
-          class="extra-box"
-          :value="extraDesc"
-          maxlength="500"
-          placeholder="描述你对设计效果图的额外要求，填写风格、材质、色调、空间氛围；建议注明哪墙作为电视墙、床头背景墙等重点位置，可结合参考图描述改造需求"
-          placeholder-class="extra-placeholder"
-          @input="onExtraDesc"
-        />
-        <view class="polish-row">
-          <view class="polish-btn" :class="{ disabled: polishing }" @click="runPolish">
-            {{ polishing ? '正在润色…' : 'AI深度润色（必做）' }}
-          </view>
-        </view>
-        <view class="polish-result" :class="{ done: polished }">
-          <text class="polish-title">{{ polished ? 'AI深度润色（必做）--已润色' : 'AI深度润色（必做）--还未润色' }}</text>
-          <text class="polish-body">{{ polished ? polishedPrompt : '请先在上方填写补充描述，再点红色【AI深度润色（必做）】按钮，AI会重新识别图片，汇总你的想法，生成更精准的设计方案并填入描述框，润色后再生成，效果更贴合你的想法。' }}</text>
-        </view>
-      </view>
-
-      <view class="card">
-        <text class="section-title"><text class="req">*</text>图片比例</text>
-        <view
-          v-for="item in ratioOptions"
-          :key="item.id"
-          class="choice-block"
-          :class="{ active: ratioId === item.id }"
-          @click="ratioId = item.id"
-        >
-          <text class="choice-title">{{ item.label }}</text>
-          <text class="choice-sub">{{ item.sizeLabel }}</text>
-        </view>
-      </view>
-
-      <view class="card">
-        <text class="section-title"><text class="req">*</text>生成数量</text>
-        <view class="choice-row">
-          <view
-            v-for="item in countOptions"
-            :key="item"
-            class="choice-half"
-            :class="{ active: count === item }"
-            @click="count = item"
-          >{{ item }}张</view>
-        </view>
-      </view>
-
-      <view class="card">
-        <text class="section-title"><text class="req">*</text>清晰度</text>
-        <view class="choice-row">
-          <view
-            v-for="item in qualityOptions"
-            :key="item.id"
-            class="choice-half"
-            :class="{ active: qualityId === item.id }"
-            @click="qualityId = item.id"
-          >{{ item.label }}</view>
-        </view>
-      </view>
-
-      <view class="card">
-        <text class="section-title"><text class="req">*</text>选择保存路径</text>
-        <picker :range="savePathLabels" @change="onSavePath">
-          <view class="path-picker">
-            <text :class="{ placeholder: !savePathLabel }">{{ savePathLabel || '请选择保存路径' }}</text>
-            <text class="path-arrow">▾</text>
-          </view>
-        </picker>
-      </view>
-
-      <view class="submit" :class="{ disabled: generating }" @click="submitGenerate">
-        {{ generating ? '正在提交…' : '生成图片' }}
-      </view>
-    </view>
-
-    <view v-else-if="mainTab === 'uploads'" class="library-pane">
-      <view class="dropzone" @click="chooseLibraryPhotos">
-        <view class="drop-icon">
-          <view class="drop-tray" />
-          <view class="drop-arrow" />
-        </view>
-        <view class="drop-copy">
-          <text class="drop-title">点击上传文件</text>
-          <text class="drop-sub">支持 jpg、png、webp</text>
-        </view>
-      </view>
-      <view v-if="uploadItems.length" class="upload-grid">
-        <view
-          v-for="item in uploadItems"
-          :key="item.id"
-          class="upload-card"
-          :class="{ active: selectedImage && selectedImage.id === item.id }"
-          @click="useUpload(item)"
-        >
-          <image :src="item.url" mode="aspectFill" lazy-load />
-          <view class="upload-caption">
-            <text class="upload-state">{{ recognitionText(item) }}</text>
-            <text class="upload-date">{{ compactDate(item.createdAt) }}</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <view v-else class="results-pane">
-      <view v-if="jobsLoading && !resultCards.length" class="card"><text class="empty">正在加载生成结果…</text></view>
-      <view v-else-if="!resultCards.length" class="card"><text class="empty">暂无生成结果</text></view>
-      <view v-for="card in resultCards" :key="card.id" class="result-card">
-        <view v-if="card.pending" class="result-pending" @click="loadJobs()">
-          <text>{{ statusLabel(card.status) }}</text>
-        </view>
-        <image v-else class="result-image" :src="card.url" mode="aspectFill" @click="previewResult(card)" />
-        <view class="result-bar">
-          <view class="result-time">
-            <text>{{ resultDate(card).date }}</text>
-            <text>{{ resultDate(card).time }}</text>
-          </view>
-          <view class="result-actions">
-            <view class="dl-btn" @click.stop="saveResult(card)">↓</view>
-            <view class="cmp-btn" @click.stop="openCompare(card)">对比</view>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <view v-if="compareCard" class="compare-mask" @click="closeCompare">
-      <view class="compare-sheet" @click.stop>
-        <view class="compare-head">
-          <text class="compare-title">对比</text>
-          <text class="compare-close" @click="closeCompare">关闭</text>
-        </view>
-        <view class="compare-pair">
-          <view class="compare-col">
-            <image :src="compareCard.sourceUrl" mode="aspectFill" />
-            <text>原图</text>
-          </view>
-          <view class="compare-col">
-            <image :src="compareCard.url" mode="aspectFill" />
-            <text>生成图</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
-    <tab-bar current="cover" />
-
-    <view v-if="galleryOpen" class="gallery-page">
-      <view class="region-crumbs">
-        <view class="region-nav">
-          <text class="crumb" @click="backGallery">图库</text>
-          <text v-if="activeGallery" class="crumb current">{{ activeGallery.name }}</text>
-        </view>
-        <text class="region-close" @click="closeGallery">关闭</text>
-      </view>
-      <scroll-view class="gallery-body" scroll-y>
-        <view class="gallery-inner">
-          <view v-if="galleryParent" class="gallery-back" @click="openGallery(galleryParent.id)">
-            返回 {{ galleryParent.name }}
-          </view>
-          <view v-if="galleryChildren.length" class="gallery-grid">
-            <view
-              v-for="item in galleryChildren"
-              :key="item.id"
-              class="gallery-card"
-              @click="openGallery(item.id)"
-            >
-              <view class="gallery-card-inner">
-                <text class="gallery-name">{{ item.name }}</text>
-                <text class="gallery-count">{{ item.count }}张图片素材</text>
-              </view>
+    <scroll-view class="content" scroll-y>
+      <template v-if="activeTab === 'workflow'">
+        <view class="section workflow-head">
+          <view class="section-title"><view /><text>创作工作流</text></view>
+          <view class="workflow-options">
+            <view v-for="item in workflows" :key="item.key" class="workflow-option" :class="{ active: workflow === item.key }" @click="workflow = item.key">
+              {{ item.label }}<text v-if="workflow === item.key">✓</text>
             </view>
           </view>
-          <view class="photo-grid picker-grid">
-            <view
-              v-for="item in galleryItems"
-              :key="item.id"
-              class="photo-item"
-              :class="{ active: selectedImage && selectedImage.id === item.id }"
-              @click="selectGalleryItem(item)"
-            >
-              <image :src="galleryThumbUrl(item)" mode="aspectFill" lazy-load />
-            </view>
+          <text class="workflow-description">{{ activeWorkflow.description }}</text>
+        </view>
+
+        <view v-if="workflow === 'redesign'" class="section">
+          <view class="field-title"><text>*</text>原房实拍图</view>
+          <view class="source-actions source-actions-three">
+            <view class="source-folder" @click="openPicker('source', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view>
+            <view class="source-folder" @click="openPicker('source', 'rough')"><view class="mini-folder"><view /></view><text>毛坯图库</text></view>
+            <view class="source-upload" @click="chooseUpload('source')"><text>+</text><text>上传照片</text></view>
           </view>
-          <text v-if="!galleryLoading && !galleryItems.length && !galleryChildren.length" class="empty">
-            该图库暂无图片
-          </text>
+          <view v-if="slotImage('source')" class="selected-input" @click="previewImage(slotImage('source'))"><image :src="imageUrl(slotImage('source'))" mode="aspectFill" /><view><text>已选择原房图</text><text>{{ imageSourceLabel(slotImage('source').source_role) }}</text></view><text>更换</text></view>
+        </view>
+
+        <view v-if="workflow === 'adapt'" class="section">
+          <view class="field-title"><text>*</text>参考效果图</view>
+          <view class="source-actions"><view class="source-folder" @click="openPicker('reference', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view><view class="source-upload" @click="chooseUpload('reference')"><text>+</text><text>上传照片</text></view></view>
+          <view v-if="slotImage('reference')" class="selected-input" @click="previewImage(slotImage('reference'))"><image :src="imageUrl(slotImage('reference'))" mode="aspectFill" /><view><text>已选择案例图</text><text>{{ imageSourceLabel(slotImage('reference').source_role) }}</text></view><text>更换</text></view>
+        </view>
+
+        <view v-if="workflow === 'adapt'" class="section">
+          <view class="field-title"><text>*</text>毛坯实拍图</view>
+          <view class="source-actions"><view class="source-folder" @click="openPicker('rough', 'rough')"><view class="mini-folder"><view /></view><text>毛坯图库</text></view><view class="source-upload" @click="chooseUpload('rough')"><text>+</text><text>上传照片</text></view></view>
+          <view v-if="slotImage('rough')" class="selected-input" @click="previewImage(slotImage('rough'))"><image :src="imageUrl(slotImage('rough'))" mode="aspectFill" /><view><text>已选择毛坯图</text><text>{{ imageSourceLabel(slotImage('rough').source_role) }}</text></view><text>更换</text></view>
+        </view>
+
+        <view v-if="workflow === 'transfer'" class="section">
+          <view class="field-title"><text>*</text>参考效果图</view>
+          <view class="source-actions"><view class="source-folder" @click="openPicker('reference', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view><view class="source-upload" @click="chooseUpload('reference')"><text>+</text><text>上传照片</text></view></view>
+          <view v-if="slotImage('reference')" class="selected-input" @click="previewImage(slotImage('reference'))"><image :src="imageUrl(slotImage('reference'))" mode="aspectFill" /><view><text>已选择案例图</text><text>{{ imageSourceLabel(slotImage('reference').source_role) }}</text></view><text>更换</text></view>
+        </view>
+
+        <view v-if="workflow === 'redesign'" class="section">
+          <view class="field-title"><text>*</text>换装风格选择</view>
+          <text class="field-note">选中后，风格详情将与原房图一起传给生图模型。</text>
+          <view class="chip-grid"><view v-for="style in designStyles" :key="style" class="choice-chip" :class="{ active: activeDraft.style === style }" @click="updateDraft({ style })">{{ style }}</view></view>
+        </view>
+
+        <view v-if="workflow === 'transfer'" class="section">
+          <view class="field-title"><text>*</text>目标空间</view>
+          <view class="chip-grid three-column"><view v-for="space in targetSpaces" :key="space" class="choice-chip" :class="{ active: activeDraft.target_space === space }" @click="updateDraft({ target_space: space })">{{ space }}</view></view>
+          <view class="sub-title">布局类型</view>
+          <view class="chip-grid two-column"><view v-for="layout in transferLayouts" :key="layout" class="choice-chip" :class="{ active: activeDraft.layout_type === layout }" @click="updateDraft({ layout_type: layout })">{{ layout }}</view></view>
+          <view class="sub-title">附加元素</view>
+          <view class="chip-grid two-column"><view v-for="element in transferElements" :key="element" class="choice-chip" :class="{ active: activeDraft.extra_element === element }" @click="updateDraft({ extra_element: element })">{{ element }}</view></view>
+        </view>
+
+        <view class="section">
+          <view class="field-title"><text>*</text>补充描述</view>
+          <text class="field-note">填写后点击 AI 深度润色；润色成功后才可生成。</text>
+          <textarea class="description" :value="activeDraft.description" maxlength="500" placeholder="描述风格、材质、色调、空间氛围与重点陈设。" placeholder-class="description-placeholder" @input="updateDescription($event.detail.value)" />
+          <button class="polish-button" :loading="polishing" @click="polishDescription">AI 深度润色</button>
+          <view class="polish-result" :class="{ ready: activeDraft.polished_prompt }"><text>AI 润色结果{{ activeDraft.polished_prompt ? '' : ' · 未生成' }}</text><text>{{ activeDraft.polished_prompt || '请先完成补充描述与 AI 深度润色。' }}</text></view>
+        </view>
+
+        <view class="section">
+          <view class="field-title"><text>*</text>图片比例</view>
+          <view class="option-stack"><view v-for="item in imageRatios" :key="item.key" class="large-choice" :class="{ active: activeDraft.ratio === item.key }" @click="updateDraft({ ratio: item.key })"><text>{{ item.label }}</text><text>{{ item.pixels }}</text></view></view>
+        </view>
+        <view class="section compact"><view class="field-title"><text>*</text>生成数量</view><view class="two-row"><view v-for="count in imageCounts" :key="count" class="large-choice inline" :class="{ active: activeDraft.count === count }" @click="updateDraft({ count })">{{ count }}张</view></view></view>
+        <view class="section compact"><view class="field-title"><text>*</text>清晰度</view><view class="two-row"><view v-for="item in imageQualities" :key="item.key" class="large-choice inline" :class="{ active: activeDraft.quality === item.key }" @click="updateDraft({ quality: item.key })">{{ item.label }}</view></view></view>
+        <view class="section compact"><view class="field-title"><text>*</text>选择保存路径</view><view class="save-target" @click="savePickerVisible = true"><text :class="{ placeholder: !selectedSaveFolder }">{{ selectedSaveFolder ? selectedSaveFolder.name : '请选择保存路径' }}</text><text>⌄</text></view><text v-if="draftSyncIssue" class="sync-note">草稿暂未同步到账号，将在网络恢复后再次保存。</text></view>
+        <button class="generate-button" :loading="generating" :disabled="generating" @click="generateImages">生成图片</button>
+      </template>
+
+      <template v-else-if="activeTab === 'library'">
+        <view class="gallery-heading"><text>我的生图图库</text><text>已保存 {{ designLibrary.length }} 张图片</text></view>
+        <view v-if="libraryLoading" class="state">正在加载图库…</view>
+        <view v-else-if="libraryError" class="state"><text>图库暂时无法加载</text><button class="retry" @click="loadDesignLibrary">重新加载</button></view>
+        <view v-else-if="!designLibrary.length" class="state">从工作流中选择或上传图片后，会保存到这里。</view>
+        <view v-else class="library-grid"><view v-for="item in designLibrary" :key="item.id" class="library-image" @click="previewImage(item)"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ imageSourceLabel(item.source_role) }}</text></view></view>
+      </template>
+
+      <template v-else>
+        <view v-if="taskList.length" class="tasks"><view v-for="task in taskList" :key="task.id" class="task"><view /><text>{{ task.status_text || '正在生成图片…' }}</text><text>{{ task.progress || '' }}</text></view></view>
+        <view v-if="resultsLoading" class="state">正在加载生成结果…</view>
+        <view v-else-if="!results.length && !taskList.length" class="state">还没有生成图片</view>
+        <view v-else class="result-grid"><view v-for="item in results" :key="item.id" class="result-card"><image :src="resultImageUrl(item)" mode="aspectFill" lazy-load @click="previewResult(item)" /><text class="result-time">{{ displayTime(item.created_at) }}</text><view class="result-actions"><view class="download" @click="downloadResult(item)"><text>↓</text><text>下载</text></view><view class="compare" @click="openComparison(item)">对比</view></view><view v-if="item.failed_count || item.can_retry" class="retry-line"><text>{{ item.failed_count ? `${item.failed_count} 张生成失败` : '可补生成失败图片' }}</text><text @click="retryTask(item)">补生成</text></view></view></view>
+      </template>
+      <view class="spacer" />
+    </scroll-view>
+
+    <view v-if="pickerVisible" class="layer">
+      <view class="layer-head"><text class="back" @click="pickerStage === 'images' ? backToFolders() : closePicker()">‹</text><text>{{ pickerStage === 'folders' ? '选择图库' : '选择图片' }}</text><text class="close" @click="closePicker">关闭</text></view>
+      <scroll-view class="layer-body" scroll-y>
+        <view v-if="pickerStage === 'folders'">
+          <view v-if="sourceFoldersLoading" class="state">正在加载图库…</view>
+          <view v-else-if="!sourceFolders.length" class="state">暂无可选择的图库文件夹</view>
+          <view v-else class="folder-grid"><view v-for="folder in sourceFolders" :key="folder.id" class="folder-card" @click="openFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name }}</text></view></view>
+        </view>
+        <view v-else>
+          <text class="breadcrumb">{{ activeFolder ? activeFolder.name : '' }}</text>
+          <view v-if="folderItemsLoading" class="state">正在加载图片…</view>
+          <view v-else-if="!folderItems.length" class="state">该图库暂无图片</view>
+          <view v-else class="picker-grid"><view v-for="item in folderItems" :key="item.id" class="picker-image" :class="{ selected: selectedFolderItem && selectedFolderItem.id === item.id }" @click="selectedFolderItem = item"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ selectedFolderItem && selectedFolderItem.id === item.id ? '✓' : '' }}</text></view></view>
         </view>
       </scroll-view>
+      <button v-if="pickerStage === 'images'" class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
     </view>
+
+    <view v-if="savePickerVisible" class="layer">
+      <view class="layer-head"><text class="back" @click="savePickerVisible = false">‹</text><text>选择保存路径</text><text class="close" @click="savePickerVisible = false">关闭</text></view>
+      <scroll-view class="layer-body" scroll-y><view v-if="!saveFolders.length" class="state">暂无可保存的文件夹</view><view v-else class="save-list"><view v-for="folder in saveFolders" :key="folder.id" class="save-row" :class="{ selected: activeDraft.save_target_id === folder.id }" @click="selectSaveFolder(folder)"><view class="small-folder"><view /></view><view><text>{{ folder.name }}</text><text>{{ isPublicFolder(folder) ? '企业公共库' : '个人素材库' }}</text></view><text>{{ activeDraft.save_target_id === folder.id ? '✓' : '' }}</text></view></view></scroll-view>
+    </view>
+
+    <view v-if="comparisonVisible" class="layer compare-layer"><view class="layer-head"><text class="back" @click="comparisonVisible = false">‹</text><text>对比</text><text class="close" @click="comparisonVisible = false">关闭</text></view><scroll-view class="layer-body" scroll-y><view class="compare-list"><view v-for="item in comparisonImages" :key="item.label"><text>{{ item.label }}</text><image :src="mediaUrl(item.url)" mode="widthFix" /></view></view></scroll-view></view>
+    <tab-bar current="cover" />
   </view>
 </template>
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
-import { mpContentApi, mpImageApi } from '../../apis/mp'
+import { mpContentApi, mpImageDesignApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
-import { galleryCoverPath } from '../../utils/materials-logic.mjs'
+import { STYLE_OPTIONS } from '../../utils/materials-logic.mjs'
 import {
-  COUNT_OPTIONS,
-  DESIGN_STYLE_CHIPS,
-  QUALITY_OPTIONS,
-  RATIO_OPTIONS,
-  SAVE_PATH_OPTIONS,
-  buildPolishedPrompt,
-  extractPolishedPrompt,
-  flattenResultCards,
-  formatCompactDate,
-  formatResultDateTime,
-  isMissingApi,
-  isRunningJob,
-  jobStatusLabel,
-  normalizeJobs,
-  normalizeUploads,
-  promptForStyle,
-  ratioSize,
-  recognitionLabel,
-  resolveDesignFolders
-} from '../../utils/design-image.mjs'
+  IMAGE_COUNTS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
+  buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
+  isPublicSaveFolder, normalizeImageDesignLibraryItem, saveableFolders, uniqueFolders
+} from '../../utils/image-design-logic.mjs'
 
+const DRAFT_CACHE_KEY = 'image-design-drafts-v1'
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-const ALLOWED_UPLOAD_EXTS = ['png', 'jpg', 'jpeg', 'webp']
 
 export default {
   components: { TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
-      mainTabs: [
-        { id: 'workflow', label: '工作流' },
-        { id: 'uploads', label: '上传图库' },
-        { id: 'results', label: '生成结果' }
-      ],
-      mainTab: 'workflow',
-      sourceTab: 'gallery',
-      styleChips: DESIGN_STYLE_CHIPS,
-      ratioOptions: RATIO_OPTIONS,
-      countOptions: COUNT_OPTIONS,
-      qualityOptions: QUALITY_OPTIONS,
-      selectedStyle: '复合写意',
-      stylePrompt: promptForStyle('复合写意'),
-      extraDesc: '',
-      polishedPrompt: '',
-      polished: false,
-      ratioId: 'portrait',
-      count: 2,
-      qualityId: '1k',
-      savePathId: '',
-      galleries: [],
-      selectedFolderKey: 'case',
-      selectedImage: null,
-      galleryOpen: false,
-      galleryId: '',
-      galleryItems: [],
-      galleryLoading: false,
-      uploadedPhotos: [],
-      jobs: [],
-      jobsLoading: false,
-      polishing: false,
-      generating: false,
-      resumeAfterPicker: false,
-      pollTimer: null,
-      compareCard: null
+      tabs: [{ key: 'workflow', label: '工作流' }, { key: 'library', label: '图库' }, { key: 'results', label: '生成结果' }],
+      activeTab: 'workflow', workflow: 'redesign', workflows: IMAGE_DESIGN_WORKFLOWS, imageRatios: IMAGE_RATIOS, imageCounts: IMAGE_COUNTS, imageQualities: IMAGE_QUALITIES,
+      targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
+      sourceFolders: [], sourceFoldersLoading: false, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
+      pickerVisible: false, pickerStage: 'folders', pickerSlot: '', pickerSourceRole: '', activeFolder: null, folderItems: [], folderItemsLoading: false, selectedFolderItem: null, pickerSaving: false,
+      savePickerVisible: false, comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
     }
   },
   computed: {
-    folders() {
-      return resolveDesignFolders(this.galleries)
-    },
-    caseGallery() {
-      return this.folders.caseGallery
-    },
-    roughGallery() {
-      return this.folders.roughGallery
-    },
-    activeGallery() {
-      return (this.galleries || []).find((item) => item.id === this.galleryId) || null
-    },
-    galleryParent() {
-      const current = this.activeGallery
-      if (!current || !current.parent_id) return null
-      return (this.galleries || []).find((item) => item.id === current.parent_id) || null
-    },
-    galleryChildren() {
-      return (this.galleries || []).filter((item) => item.parent_id === this.galleryId)
-    },
-    savePathLabels() {
-      return SAVE_PATH_OPTIONS.map((item) => item.label)
-    },
-    savePathLabel() {
-      const item = SAVE_PATH_OPTIONS.find((option) => option.id === this.savePathId)
-      return item ? item.label : ''
-    },
-    uploadItems() {
-      return this.uploadedPhotos
-    },
-    resultCards() {
-      return flattenResultCards(this.jobs, (path) =>
-        mediaUrl(path, { format: 'webp', width: 1080, quality: 80 })
-      )
-    }
-  },
-  async onLoad(options) {
-    if (!(await this.ensureInternalAccess())) return
-    if (options && (options.tab === 'results' || options.tab === 'uploads')) {
-      this.mainTab = options.tab
-    }
-    await this.bootstrap()
-    if (this.mainTab === 'results') this.loadJobs()
+    activeWorkflow() { return this.workflows.find((item) => item.key === this.workflow) || this.workflows[0] },
+    activeDraft() { return this.drafts[this.workflow] || {} },
+    designStyles() { return STYLE_OPTIONS.filter((item) => item !== '全部') },
+    saveFolders() { return saveableFolders(this.sourceFolders) },
+    selectedSaveFolder() { return this.saveFolders.find((item) => item.id === this.activeDraft.save_target_id) || null },
+    taskList() { return Object.keys(this.tasks).map((id) => this.tasks[id]).filter((item) => item && !this.isTaskDone(item)) }
   },
   async onShow() {
-    await this.ensureInternalAccess()
     if (!(await this.ensureInternalAccess())) return
-    if (this.resumeAfterPicker) {
-      this.resumeAfterPicker = false
-      return
-    }
-    if (this.mainTab === 'results') this.loadJobs()
+    await Promise.all([this.loadSourceFolders(), this.loadRemoteDrafts(), this.loadDesignLibrary(), this.loadResults()])
+    this.startTaskPolling()
   },
-  onHide() {
-    this.stopPolling()
-  },
-  onUnload() {
-    this.stopPolling()
-  },
+  onHide() { this.persistDraftsNow(); this.stopTaskPolling() },
+  onUnload() { this.persistDraftsNow(); this.stopTaskPolling() },
   methods: {
-    galleryThumbUrl,
-    compactDate: formatCompactDate,
-    recognitionText: recognitionLabel,
-    resultDate(card) {
-      return formatResultDateTime(card && card.createdAt)
-    },
-    folderCover(gallery) {
-      return mediaUrl(galleryCoverPath(gallery), { format: 'webp', width: 240, quality: 72 })
-    },
-    statusLabel: jobStatusLabel,
-    async bootstrap() {
+    mediaUrl, imageSourceLabel, isPublicFolder: isPublicSaveFolder,
+    imageUrl(item) { return galleryThumbUrl(item, 720) },
+    resultImageUrl(item) { return mediaUrl(item.image_url || item.file_url || item.url || imageFileUrl(item)) },
+    slotImage(slot) { return this.activeDraft[slot] || null },
+    selectTab(key) { this.activeTab = key; if (key === 'library') this.loadDesignLibrary(); if (key === 'results') this.loadResults() },
+    updateDraft(patch) { this.drafts = { ...this.drafts, [this.workflow]: { ...this.activeDraft, ...patch } }; this.scheduleDraftSave() },
+    updateDescription(description) { this.updateDraft({ description, polished_prompt: '', polished_for: '' }) },
+    async loadSourceFolders() {
+      this.sourceFoldersLoading = true
       try {
-        const data = await mpContentApi.galleries()
-        this.galleries = (data && data.galleries) || []
-      } catch (error) {
-        uni.showToast({ title: errorMessage(error), icon: 'none' })
-      }
-      this.loadUploads()
+        const responses = await Promise.allSettled([mpContentApi.galleries('private'), mpContentApi.galleries('enterprise')])
+        let folders = []
+        responses.forEach((result) => { if (result.status === 'fulfilled') folders = folders.concat(result.value.galleries || []) })
+        if (!folders.length) { const data = await mpContentApi.galleries(); folders = data.galleries || [] }
+        this.sourceFolders = uniqueFolders(folders)
+      } catch (error) { this.sourceFolders = [] } finally { this.sourceFoldersLoading = false }
     },
-    switchMainTab(id) {
-      this.mainTab = id
-      if (id === 'results') this.loadJobs()
-      if (id === 'uploads') this.loadUploads()
+    async loadDesignLibrary() {
+      this.libraryLoading = true; this.libraryError = false
+      try { const data = await mpImageDesignApi.library({ page: 1, page_size: 100 }); const items = data.items || data.library_items || []; this.designLibrary = items.map((item) => normalizeImageDesignLibraryItem(item)).filter((item) => item.id) } catch (error) { this.libraryError = true } finally { this.libraryLoading = false }
     },
-    selectStyle(style) {
-      this.selectedStyle = style
-      this.stylePrompt = promptForStyle(style)
-      this.polished = false
-      this.polishedPrompt = ''
+    async loadRemoteDrafts() {
+      const cached = this.loadCachedDrafts()
+      try { const data = await mpImageDesignApi.drafts(); this.applyDrafts(data.drafts || data); this.draftSyncIssue = false } catch (error) { if (cached) this.applyDrafts(cached); this.draftSyncIssue = true }
     },
-    onStylePrompt(event) {
-      this.stylePrompt = event.detail.value
-      this.polished = false
-      this.polishedPrompt = ''
+    loadCachedDrafts() { try { const raw = uni.getStorageSync(DRAFT_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch (error) { return null } },
+    applyDrafts(received) { if (!received || typeof received !== 'object') return; const initial = createImageDesignDrafts(); const next = {}; Object.keys(initial).forEach((key) => { next[key] = { ...initial[key], ...(received[key] || {}) } }); this.drafts = next },
+    scheduleDraftSave() { if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer); this.draftSaveTimer = setTimeout(() => this.persistDraftsNow(), 700) },
+    async persistDraftsNow() {
+      if (this.draftSaveTimer) { clearTimeout(this.draftSaveTimer); this.draftSaveTimer = null }
+      try { uni.setStorageSync(DRAFT_CACHE_KEY, JSON.stringify(this.drafts)) } catch (error) {}
+      try { await mpImageDesignApi.saveDrafts(this.drafts); this.draftSyncIssue = false } catch (error) { this.draftSyncIssue = true }
     },
-    onExtraDesc(event) {
-      this.extraDesc = event.detail.value
-      this.polished = false
+    openPicker(slot, sourceRole) { this.pickerSlot = slot; this.pickerSourceRole = sourceRole; this.pickerVisible = true; this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null; this.loadSourceFolders() },
+    closePicker() { this.pickerVisible = false; this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null },
+    backToFolders() { this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null },
+    async openFolder(folder) {
+      this.activeFolder = folder; this.pickerStage = 'images'; this.folderItems = []; this.selectedFolderItem = null; this.folderItemsLoading = true
+      try { const data = await mpContentApi.galleryItems(folder.id, folder.visibility || ''); this.folderItems = data.items || [] } catch (error) { uni.showToast({ title: errorMessage(error), icon: 'none' }) } finally { this.folderItemsLoading = false }
     },
-    onSavePath(event) {
-      const item = SAVE_PATH_OPTIONS[Number(event.detail.value)]
-      this.savePathId = item ? item.id : ''
-    },
-    folderByKey(key) {
-      return key === 'rough' ? this.roughGallery : this.caseGallery
-    },
-    openDesignFolder(key) {
-      const gallery = this.folderByKey(key)
-      this.selectedFolderKey = key
-      if (!gallery) {
-        uni.showToast({ title: key === 'rough' ? '暂未配置毛坯图库' : '暂未配置案例图库', icon: 'none' })
-        return
-      }
-      this.openGallery(gallery.id)
-    },
-    async openGallery(galleryId) {
-      this.galleryId = galleryId
-      this.galleryOpen = true
-      this.galleryLoading = true
-      this.galleryItems = []
+    async confirmPicker() {
+      if (!this.selectedFolderItem || this.pickerSaving) return
+      this.pickerSaving = true
       try {
-        const data = await mpContentApi.galleryItems(galleryId)
-        this.galleryItems = data.items || []
-      } catch (error) {
-        uni.showToast({ title: errorMessage(error), icon: 'none' })
-      } finally {
-        this.galleryLoading = false
-      }
+        const response = await mpImageDesignApi.addLibraryItem({ source_library_item_id: this.selectedFolderItem.id, source_role: this.pickerSourceRole, source_gallery_id: this.activeFolder ? this.activeFolder.id : '' })
+        const saved = normalizeImageDesignLibraryItem(response.item || response.library_item || response, { source_item_id: this.selectedFolderItem.id, asset_id: this.selectedFolderItem.asset_id || '', file_url: imageFileUrl(this.selectedFolderItem), thumbnail_file_url: this.selectedFolderItem.thumbnail_file_url || '', file_name: this.selectedFolderItem.file_name || this.selectedFolderItem.name || '', source_role: this.pickerSourceRole })
+        if (!saved.id) throw new Error('图库保存失败，请稍后重试')
+        this.setImageSlot(this.pickerSlot, saved)
+        if (!this.designLibrary.some((item) => item.id === saved.id)) this.designLibrary = [saved, ...this.designLibrary]
+        this.closePicker(); uni.showToast({ title: '已加入图库并填入图片', icon: 'none' })
+      } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.pickerSaving = false }
     },
-    closeGallery() {
-      this.galleryOpen = false
+    chooseUpload(slot) {
+      uni.chooseImage({ count: 1, sizeType: ['compressed'], success: async (response) => {
+        const filePath = (response.tempFilePaths || [])[0]; if (!filePath) return
+        try {
+          await this.assertUploadableImage(filePath); uni.showLoading({ title: '正在上传', mask: true })
+          const upload = await mpImageDesignApi.uploadInput(filePath, slot)
+          const saved = normalizeImageDesignLibraryItem(upload.item || upload.library_item || upload, { source_role: 'upload' })
+          if (!saved.id) throw new Error('上传后未返回图库图片')
+          this.setImageSlot(slot, saved)
+          if (!this.designLibrary.some((item) => item.id === saved.id)) this.designLibrary = [saved, ...this.designLibrary]
+          uni.showToast({ title: '已上传并加入图库', icon: 'none' })
+        } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { uni.hideLoading() }
+      } })
     },
-    backGallery() {
-      if (this.galleryParent) {
-        this.openGallery(this.galleryParent.id)
-        return
-      }
-      this.closeGallery()
-    },
-    selectGalleryItem(item) {
-      this.selectedImage = {
-        id: item.id,
-        assetId: item.asset_id || '',
-        galleryId: this.galleryId,
-        name: item.name || item.file_name || '图库图片',
-        url: mediaUrl(item.file_url || item.url, { format: 'webp', width: 1080, quality: 80 }),
-        source: 'gallery'
-      }
-      this.polished = false
-      this.closeGallery()
-    },
-    clearSelectedImage() {
-      this.selectedImage = null
-    },
-    fileExt(path) {
-      const clean = String(path || '').split('?')[0]
-      const name = clean.split('/').pop() || ''
-      const parts = name.split('.')
-      return parts.length > 1 ? parts.pop().toLowerCase() : ''
-    },
-    async assertUploadableImage(filePath) {
-      const ext = this.fileExt(filePath)
-      if (ext && !ALLOWED_UPLOAD_EXTS.includes(ext) && !['heic', 'heif', 'gif', 'bmp'].includes(ext)) {
-        throw new Error('仅支持 PNG、JPG、WebP 图片')
-      }
-      try {
-        const info = await new Promise((resolve, reject) => {
-          uni.getFileInfo({ filePath, success: resolve, fail: reject })
-        })
-        if ((info && info.size) > MAX_UPLOAD_BYTES) throw new Error('单张图片不能超过 20 MB')
-      } catch (error) {
-        if (error && error.message) throw error
-      }
-    },
-    prepareUploadImage(filePath) {
-      return new Promise((resolve) => {
-        if (typeof uni.compressImage !== 'function') {
-          resolve(filePath)
-          return
-        }
-        uni.compressImage({
-          src: filePath,
-          quality: 80,
-          success: (res) => resolve((res && res.tempFilePath) || filePath),
-          fail: () => resolve(filePath)
-        })
-      })
-    },
-    chooseLibraryPhotos() {
-      this.choosePhoto({ stayOnTab: true, count: 9 })
-    },
-    choosePhoto(options = {}) {
-      const stayOnTab = Boolean(options.stayOnTab)
-      const count = options.count || 1
-      this.resumeAfterPicker = true
-      uni.chooseImage({
-        count,
-        sizeType: ['compressed'],
-        success: async (res) => {
-          const paths = res.tempFilePaths || []
-          try {
-            uni.showLoading({ title: '上传中', mask: true })
-            const photos = []
-            for (const filePath of paths) {
-              photos.push(await this.uploadOnePhoto(filePath))
-            }
-            this.uploadedPhotos = [
-              ...photos,
-              ...this.uploadedPhotos.filter((item) => !photos.some((photo) => photo.id === item.id))
-            ]
-            if (!stayOnTab && photos[0]) {
-              this.selectedImage = photos[0]
-              this.polished = false
-            }
-          } catch (error) {
-            uni.showToast({ title: error.message || errorMessage(error), icon: 'none' })
-          } finally {
-            uni.hideLoading()
-          }
-        },
-        fail: () => {
-          this.resumeAfterPicker = false
-        }
-      })
-    },
-    async uploadOnePhoto(filePath) {
-      await this.assertUploadableImage(filePath)
-      const uploadPath = await this.prepareUploadImage(filePath)
-      const category =
-        (this.roughGallery && this.roughGallery.id) || (this.caseGallery && this.caseGallery.id) || 'uncategorized'
-      const uploaded = await mpImageApi.uploadPhoto(uploadPath, category)
-      const asset = uploaded.asset || uploaded
-      const mapped = normalizeUploads([{ ...uploaded, ...asset, file_url: asset.file_url || filePath }])[0]
-      return {
-        id: mapped?.id || uploaded.library_item_id || asset.id || `local-${Date.now()}`,
-        assetId: mapped?.assetId || asset.id || '',
-        galleryId: mapped?.galleryId || uploaded.category || category,
-        name: mapped?.name || (asset && asset.original_file_name) || '上传图片',
-        url: filePath,
-        source: 'upload',
-        recognized: false,
-        createdAt: mapped?.createdAt || new Date().toISOString()
-      }
-    },
-    useUpload(item) {
-      this.selectedImage = item
-      this.polished = false
-      this.polishedPrompt = ''
-      this.mainTab = 'workflow'
-      this.sourceTab = 'photo'
-    },
-    async loadUploads() {
-      try {
-        const data = await mpImageApi.uploads()
-        const remote = normalizeUploads(data).map((item) => ({
-          ...item,
-          url: mediaUrl(item.url, { format: 'webp', width: 720, quality: 80 })
-        }))
-        const localIds = new Set(this.uploadedPhotos.map((item) => item.id))
-        this.uploadedPhotos = [
-          ...this.uploadedPhotos,
-          ...remote.filter((item) => item.id && !localIds.has(item.id))
-        ]
-      } catch (error) {
-        if (!isMissingApi(error)) {
-          /* 工作流上传仍可继续 */
-        }
-      }
-    },
-    async runPolish() {
-      if (this.polishing) return
-      if (!this.selectedImage) {
-        uni.showToast({ title: '请先选择或上传原房图片', icon: 'none' })
-        return
-      }
-      if (!this.selectedStyle) {
-        uni.showToast({ title: '请选择换装风格', icon: 'none' })
-        return
-      }
+    assertUploadableImage(filePath) { return new Promise((resolve, reject) => uni.getFileInfo({ filePath, success: (info) => info && info.size > MAX_UPLOAD_BYTES ? reject(new Error('单张图片不能超过 20 MB')) : resolve(), fail: () => resolve() })) },
+    setImageSlot(slot, image) { this.updateDraft({ [slot]: image }) },
+    previewImage(item) { const url = this.imageUrl(item); if (url) uni.previewImage({ current: url, urls: [url] }) },
+    requiredRoles() { return this.workflow === 'adapt' ? ['reference', 'rough'] : this.workflow === 'transfer' ? ['reference'] : ['source'] },
+    requiredRoleMissing() { return this.requiredRoles().find((role) => !this.activeDraft[role]) || '' },
+    roleLabel(role) { return { source: '原房实拍图', reference: '参考效果图', rough: '毛坯实拍图' }[role] || '图片' },
+    async polishDescription() {
+      const description = String(this.activeDraft.description || '').trim()
+      if (!description) { uni.showToast({ title: '请先填写补充描述', icon: 'none' }); return }
+      const missing = this.requiredRoleMissing(); if (missing) { uni.showToast({ title: `请先选择${this.roleLabel(missing)}`, icon: 'none' }); return }
+      if (this.workflow === 'redesign' && !this.activeDraft.style) { uni.showToast({ title: '请选择换装风格', icon: 'none' }); return }
       this.polishing = true
-      const fallback = buildPolishedPrompt({ style: this.selectedStyle, extra: this.extraDesc })
       try {
-        const data = await mpImageApi.polish({
-          style: this.selectedStyle,
-          style_prompt: this.stylePrompt,
-          extra_description: this.extraDesc,
-          source_item_id: this.selectedImage.id,
-          source_asset_id: this.selectedImage.assetId,
-          source_url: this.selectedImage.url
-        })
-        this.polishedPrompt = extractPolishedPrompt(data, fallback)
-        this.polished = true
-        this.markRecognized(this.selectedImage.id)
-      } catch (error) {
-        if (isMissingApi(error)) {
-          this.polishedPrompt = fallback
-          this.polished = true
-          this.markRecognized(this.selectedImage.id)
-        } else {
-          uni.showToast({ title: errorMessage(error), icon: 'none' })
-        }
-      } finally {
-        this.polishing = false
-      }
+        const images = this.requiredRoles().map((role) => ({ role, library_item_id: this.activeDraft[role].id }))
+        const data = await mpImageDesignApi.polish({ workflow: this.workflow, description, style: this.activeDraft.style || undefined, images, target_space: this.activeDraft.target_space || undefined, layout_type: this.activeDraft.layout_type || undefined, extra_element: this.activeDraft.extra_element || undefined })
+        const polished = data.polished_prompt || data.prompt || data.result || ''; if (!polished) throw new Error('AI 未返回润色结果，请重试')
+        this.updateDraft({ polished_prompt: polished, polished_for: description })
+      } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.polishing = false }
     },
-    markRecognized(id) {
-      if (!id) return
-      this.uploadedPhotos = this.uploadedPhotos.map((item) =>
-        item.id === id ? { ...item, recognized: true } : item
-      )
-      if (this.selectedImage && this.selectedImage.id === id) {
-        this.selectedImage = { ...this.selectedImage, recognized: true }
-      }
+    async selectSaveFolder(folder) {
+      const drafts = {}
+      Object.keys(this.drafts).forEach((key) => { drafts[key] = { ...this.drafts[key], save_target_id: folder.id } })
+      this.drafts = drafts
+      this.savePickerVisible = false
+      await this.persistDraftsNow()
     },
-    async submitGenerate() {
-      if (this.generating) return
-      if (!this.selectedImage) {
-        uni.showToast({ title: '请选择或上传原房图片', icon: 'none' })
-        return
-      }
-      if (!this.selectedStyle) {
-        uni.showToast({ title: '请选择换装风格', icon: 'none' })
-        return
-      }
-      if (!this.polished || !this.polishedPrompt) {
-        uni.showToast({ title: '请先完成 AI 深度润色', icon: 'none' })
-        return
-      }
-      if (!this.savePathId) {
-        uni.showToast({ title: '请选择保存路径', icon: 'none' })
-        return
-      }
+    validateGeneration() {
+      const missing = this.requiredRoleMissing(); if (missing) return `请选择${this.roleLabel(missing)}`
+      if (this.workflow === 'redesign' && !this.activeDraft.style) return '请选择换装风格'
+      if (!String(this.activeDraft.description || '').trim()) return '请填写补充描述'
+      if (!this.activeDraft.polished_prompt || this.activeDraft.polished_for !== this.activeDraft.description) return '请先完成 AI 深度润色'
+      return this.activeDraft.save_target_id ? '' : '请选择保存路径'
+    },
+    async generateImages() {
+      const validation = this.validateGeneration(); if (validation) { uni.showToast({ title: validation, icon: 'none' }); return }
+      if (!draftCanGenerate(this.workflow, this.activeDraft)) { uni.showToast({ title: '生成参数尚未填写完整', icon: 'none' }); return }
       this.generating = true
       try {
-        const data = await mpImageApi.generate({
-          style: this.selectedStyle,
-          prompt: this.polishedPrompt,
-          extra_description: this.extraDesc,
-          size: ratioSize(this.ratioId),
-          n: this.count,
-          quality: this.qualityId,
-          save_target: this.savePathId,
-          source_item_id: this.selectedImage.id,
-          source_asset_id: this.selectedImage.assetId,
-          source_url: this.selectedImage.url,
-          gallery_id: this.selectedImage.galleryId
-        })
-        const jobs = normalizeJobs(data).map((job) => ({
-          ...job,
-          sourceUrl: job.sourceUrl || this.selectedImage.url,
-          createdAt: job.createdAt || new Date().toISOString()
-        }))
-        if (jobs.length) this.jobs = [...jobs, ...this.jobs.filter((item) => item.id !== jobs[0].id)]
-        this.mainTab = 'results'
-        uni.showToast({ title: '已提交生图任务', icon: 'none' })
-        this.loadJobs()
-      } catch (error) {
-        uni.showToast({ title: errorMessage(error), icon: 'none' })
-      } finally {
-        this.generating = false
-      }
+        await this.persistDraftsNow(); const data = await mpImageDesignApi.createTask(buildImageDesignPayload(this.workflow, this.activeDraft)); const task = data.task || data; const id = task.id || task.task_id || task.job_id
+        if (id) this.tasks = { ...this.tasks, [id]: { ...task, id, status_text: task.status_text || '正在生成图片…' } }
+        this.activeTab = 'results'; await this.loadResults(); this.startTaskPolling()
+      } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.generating = false }
     },
-    async loadJobs(silent = false) {
-      if (!silent) this.jobsLoading = true
-      try {
-        const data = await mpImageApi.jobs()
-        const previous = new Map(this.jobs.map((job) => [job.id, job]))
-        this.jobs = normalizeJobs(data).map((job) => {
-          const last = previous.get(job.id)
-          return {
-            ...job,
-            sourceUrl: job.sourceUrl || (last && last.sourceUrl) || ''
-          }
-        })
-        this.syncPolling()
-      } catch (error) {
-        if (!isMissingApi(error)) uni.showToast({ title: errorMessage(error), icon: 'none' })
-      } finally {
-        if (!silent) this.jobsLoading = false
-      }
+    async loadResults() { this.resultsLoading = true; try { const data = await mpImageDesignApi.results({ page: 1, page_size: 100 }); this.results = data.items || data.results || [] } catch (error) { this.results = [] } finally { this.resultsLoading = false } },
+    startTaskPolling() { if (this.taskPollTimer || !Object.keys(this.tasks).length) return; this.taskPollTimer = setInterval(() => this.refreshTasks(), 4000); this.refreshTasks() },
+    stopTaskPolling() { if (this.taskPollTimer) clearInterval(this.taskPollTimer); this.taskPollTimer = null },
+    isTaskDone(task) { return ['completed', 'succeeded', 'failed', 'cancelled'].includes(String(task.status || '').toLowerCase()) },
+    async refreshTasks() {
+      const ids = Object.keys(this.tasks).filter((id) => !this.isTaskDone(this.tasks[id])); if (!ids.length) { this.stopTaskPolling(); return }
+      const next = { ...this.tasks }
+      await Promise.all(ids.map(async (id) => { try { const data = await mpImageDesignApi.task(id); next[id] = { ...next[id], ...(data.task || data), id } } catch (error) {} }))
+      this.tasks = next; if (Object.keys(next).some((id) => this.isTaskDone(next[id]))) this.loadResults(); if (!Object.keys(next).some((id) => !this.isTaskDone(next[id]))) this.stopTaskPolling()
     },
-    syncPolling() {
-      const running = this.jobs.some((job) => isRunningJob(job.status))
-      if (running) this.startPolling()
-      else this.stopPolling()
+    async retryTask(item) { const id = item.task_id || item.job_id || item.id; if (!id) return; try { const data = await mpImageDesignApi.retryTask(id); const task = data.task || data; const taskId = task.id || task.task_id || id; this.tasks = { ...this.tasks, [taskId]: { ...task, id: taskId, status_text: '正在补生成图片…' } }; this.startTaskPolling() } catch (error) { uni.showToast({ title: errorMessage(error), icon: 'none' }) } },
+    openComparison(item) { this.comparisonImages = comparisonSources(item).filter((image) => image.url); if (!this.comparisonImages.length) { uni.showToast({ title: '暂无法获取对比图片', icon: 'none' }); return }; this.comparisonVisible = true },
+    previewResult(item) { const url = this.resultImageUrl(item); if (url) uni.previewImage({ current: url, urls: [url] }) },
+    downloadResult(item) {
+      const url = this.resultImageUrl(item); if (!url) return; uni.showLoading({ title: '正在下载', mask: true })
+      uni.downloadFile({ url, success: (response) => {
+        if (response.statusCode !== 200 || !response.tempFilePath) { uni.hideLoading(); uni.showToast({ title: '图片下载失败', icon: 'none' }); return }
+        uni.saveImageToPhotosAlbum({ filePath: response.tempFilePath, success: () => { uni.hideLoading(); uni.showToast({ title: '已保存到相册', icon: 'none' }) }, fail: () => { uni.hideLoading(); uni.showModal({ title: '需要相册权限', content: '请允许保存图片到相册后重试。', confirmText: '去设置', success: ({ confirm }) => { if (confirm && typeof uni.openSetting === 'function') uni.openSetting({}) } }) } })
+      }, fail: () => { uni.hideLoading(); uni.showToast({ title: '图片下载失败', icon: 'none' }) } })
     },
-    startPolling() {
-      if (this.pollTimer) return
-      this.pollTimer = setInterval(() => {
-        if (this.mainTab === 'results') this.loadJobs(true)
-      }, 4000)
-    },
-    stopPolling() {
-      if (this.pollTimer) {
-        clearInterval(this.pollTimer)
-        this.pollTimer = null
-      }
-    },
-    previewResult(card) {
-      if (!card || !card.url) return
-      uni.previewImage({ urls: [card.url], current: card.url })
-    },
-    saveResult(card) {
-      if (!card || !card.url) {
-        uni.showToast({ title: '暂无可保存图片', icon: 'none' })
-        return
-      }
-      const save = (filePath) => {
-        uni.saveImageToPhotosAlbum({
-          filePath,
-          success: () => uni.showToast({ title: '已保存到相册', icon: 'none' }),
-          fail: () => uni.showToast({ title: '保存失败，请检查相册权限', icon: 'none' })
-        })
-      }
-      if (/^(wxfile:|file:|http:\/\/tmp\/|https:\/\/tmp\/)/i.test(card.url)) {
-        save(card.url)
-        return
-      }
-      uni.downloadFile({
-        url: card.url,
-        success: (res) => save(res.tempFilePath),
-        fail: () => uni.showToast({ title: '下载失败', icon: 'none' })
-      })
-    },
-    openCompare(card) {
-      if (!card || !card.sourceUrl) {
-        uni.showToast({ title: '暂无原图可对比', icon: 'none' })
-        return
-      }
-      this.compareCard = card
-    },
-    closeCompare() {
-      this.compareCard = null
-    }
+    displayTime(value) { return value ? String(value).replace('T', ' ').slice(0, 16) : '' }
   }
 }
 </script>
 
 <style scoped>
-.page {
-  min-height: 100vh;
-  background: #f4f1ee;
-  padding: 12px 12px 110px;
-}
-.tabs {
-  display: flex;
-  margin-bottom: 12px;
-  overflow: hidden;
-  border: 1px solid #be2d22;
-  border-radius: 8px;
-  background: #fff;
-}
-.tab {
-  flex: 1;
-  height: 42px;
-  color: #2b2422;
-  font-size: 15px;
-  line-height: 42px;
-  text-align: center;
-}
-.tab.active {
-  color: #fff;
-  background: #be2d22;
-}
-.card {
-  margin-bottom: 12px;
-  padding: 16px 14px;
-  border-radius: 12px;
-  background: #fff;
-}
-.card-head {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.card-mark {
-  width: 4px;
-  height: 16px;
-  margin-right: 8px;
-  border-radius: 2px;
-  background: #be2d22;
-}
-.card-title {
-  color: #2b2422;
-  font-size: 16px;
-  font-weight: 700;
-}
-.card-desc {
-  display: block;
-  color: #5c5652;
-  font-size: 13px;
-  line-height: 1.7;
-}
-.source-tabs {
-  display: flex;
-  gap: 28px;
-  margin: 18px 0 16px;
-}
-.source-tab {
-  color: #8a817c;
-  font-size: 15px;
-}
-.source-tab.active {
-  color: #2b2422;
-  font-weight: 600;
-  border-bottom: 2px solid #2b2422;
-  padding-bottom: 4px;
-}
-.folders {
-  display: flex;
-  justify-content: space-around;
-  padding: 18px 0 4px;
-}
-.folder {
-  width: 46%;
-  text-align: center;
-}
-.folder-icon {
-  position: relative;
-  width: 106px;
-  height: 82px;
-  margin: 0 auto 10px;
-  overflow: visible;
-  --folder-back-color: #ffc238;
-  border-radius: 0 8px 10px 10px;
-  background: var(--folder-back-color);
-  box-shadow: 0 2px 5px rgba(177, 120, 8, 0.18);
-}
-.folder-icon::before {
-  position: absolute;
-  z-index: 0;
-  top: -9px;
-  left: 0;
-  width: 50px;
-  height: 18px;
-  border-radius: 7px 0 0 0;
-  background: var(--folder-back-color);
-  clip-path: polygon(0 0, 70% 0, 100% 100%, 0 100%);
-  content: '';
-}
-.folder-preview {
-  position: absolute;
-  z-index: 1;
-  top: 7px;
-  left: 4px;
-  width: 98px;
-  height: 58px;
-  border-radius: 4px 4px 6px 6px;
-  background: #f3eee5;
-}
-.folder-flap {
-  position: absolute;
-  z-index: 2;
-  top: 44px;
-  right: 0;
-  left: 0;
-  height: 38px;
-  border-radius: 7px 8px 9px 9px;
-  background: linear-gradient(180deg, #ffe9a3 0%, #ffdc79 55%, #ffd15a 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 249, 220, 0.85),
-    inset 0 -2px 0 rgba(235, 168, 28, 0.22),
-    0 2px 4px rgba(177, 120, 8, 0.14);
-}
-.folder-check {
-  position: absolute;
-  z-index: 3;
-  top: 16px;
-  right: 14px;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #be2d22;
-  border-radius: 8px;
-  background: #fff;
-}
-.folder-check::after {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
-  background: #be2d22;
-  content: '';
-}
-.folder-name {
-  overflow: hidden;
-  color: #292624;
-  font-size: 12px;
-  line-height: 1.4;
-}
-.upload-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 120px;
-  border: 1px dashed #cfc6c0;
-  border-radius: 12px;
-  background: #faf8f6;
-}
-.upload-plus {
-  color: #be2d22;
-  font-size: 28px;
-  line-height: 32px;
-}
-.upload-text {
-  margin-top: 6px;
-  color: #8a817c;
-  font-size: 13px;
-}
-.picked {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-top: 14px;
-}
-.picked-image {
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
-  background: #f7f4f2;
-}
-.picked-meta {
-  flex: 1;
-  min-width: 0;
-}
-.picked-name,
-.picked-clear {
-  display: block;
-}
-.picked-name {
-  overflow: hidden;
-  color: #2b2422;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.picked-clear {
-  margin-top: 6px;
-  color: #be2d22;
-  font-size: 12px;
-}
-.section-title {
-  display: block;
-  color: #2b2422;
-  font-size: 16px;
-  font-weight: 700;
-}
-.req {
-  margin-right: 2px;
-  color: #be2d22;
-}
-.section-hint {
-  display: block;
-  margin: 6px 0 12px;
-  color: #8a817c;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.style-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-.style-chip {
-  width: 31%;
-  box-sizing: border-box;
-  height: 38px;
-  margin-bottom: 10px;
-  border: 1px solid #ddd6d1;
-  border-radius: 8px;
-  color: #2b2422;
-  font-size: 13px;
-  line-height: 36px;
-  text-align: center;
-}
-.style-chip.active {
-  color: #fff;
-  background: #be2d22;
-  border-color: #be2d22;
-}
-.prompt-box,
-.extra-box,
-.polish-result {
-  width: 100%;
-  box-sizing: border-box;
-  padding-bottom: 90px;
-  min-height: 110px;
-  padding: 12px;
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.prompt-box {
-  margin-top: 6px;
-  border: 1px solid #8aa4e8;
-  color: #4b63c7;
-  background: #f3f6ff;
-}
-.extra-box,
-.polish-result {
-  border: 1px dashed #8aa4e8;
-  background: #f7f9ff;
-}
-.extra-placeholder {
-  color: #b8b4d6;
-  font-size: 12px;
-  line-height: 1.6;
-}
-.polish-row {
-  display: flex;
-  justify-content: flex-end;
-  margin: 12px 0;
-}
-.polish-btn {
-  padding: 0 16px;
-  border-radius: 20px;
-  color: #fff;
-  font-size: 13px;
-  line-height: 36px;
-  background: #be2d22;
-}
-.polish-btn.disabled {
-  opacity: 0.65;
-}
-.polish-result {
-  min-height: 96px;
-}
-.polish-result.done {
-  border-style: solid;
-}
-.polish-title,
-.polish-body {
-  display: block;
-}
-.polish-title {
-  margin-bottom: 8px;
-  color: #be2d22;
-  font-size: 13px;
-}
-.polish-body {
-  color: #9a9590;
-  font-size: 12px;
-  line-height: 1.7;
-}
-.polish-result.done .polish-body {
-  color: #4b63c7;
-}
-.choice-block,
-.choice-half,
-.path-picker {
-  border: 1px solid #ddd6d1;
-  border-radius: 10px;
-  background: #fff;
-}
-.choice-block {
-  margin-top: 10px;
-  padding: 12px 14px;
-}
-.choice-block.active,
-.choice-half.active {
-  color: #fff;
-  background: #be2d22;
-  border-color: #be2d22;
-}
-.choice-title,
-.choice-sub {
-  display: block;
-}
-.choice-title {
-  font-size: 15px;
-  font-weight: 600;
-}
-.choice-sub {
-  margin-top: 4px;
-  font-size: 12px;
-  opacity: 0.9;
-}
-.choice-row {
-  display: flex;
-  gap: 12px;
-  margin-top: 10px;
-}
-.choice-half {
-  flex: 1;
-  height: 44px;
-  font-size: 15px;
-  line-height: 44px;
-  text-align: center;
-}
-.path-picker {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 10px;
-  padding: 0 14px;
-  height: 44px;
-  color: #2b2422;
-}
-.path-picker .placeholder {
-  color: #b8b0aa;
-}
-.path-arrow {
-  color: #9a908a;
-}
-.submit {
-  height: 48px;
-  margin-top: 4px;
-  border-radius: 10px;
-  color: #fff;
-  font-size: 17px;
-  line-height: 48px;
-  text-align: center;
-  background: #be2d22;
-}
-.submit.disabled {
-  opacity: 0.7;
-}
-.empty {
-  display: block;
-  padding: 28px 0;
-  color: #8a817c;
-  font-size: 13px;
-  text-align: center;
-}
-.empty.small {
-  padding: 12px 0 0;
-}
-.library-pane,
-.results-pane {
-  min-height: 40vh;
-}
-.dropzone {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
-  padding: 18px 16px;
-  border: 1px dashed #c9c4bf;
-  border-radius: 16px;
-  background: #fff;
-}
-.drop-icon {
-  position: relative;
-  width: 42px;
-  height: 42px;
-  flex-shrink: 0;
-}
-.drop-tray {
-  position: absolute;
-  left: 6px;
-  right: 6px;
-  bottom: 4px;
-  height: 18px;
-  border: 2px solid #8b949e;
-  border-top: 0;
-  border-radius: 0 0 6px 6px;
-}
-.drop-arrow {
-  position: absolute;
-  top: 2px;
-  left: 50%;
-  width: 2px;
-  height: 18px;
-  background: #8b949e;
-  transform: translateX(-50%);
-}
-.drop-arrow::before {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 10px;
-  height: 10px;
-  border-top: 2px solid #8b949e;
-  border-right: 2px solid #8b949e;
-  transform: translate(-50%, 2px) rotate(-45deg);
-  content: '';
-}
-.drop-copy {
-  flex: 1;
-  min-width: 0;
-}
-.drop-title,
-.drop-sub {
-  display: block;
-}
-.drop-title {
-  color: #2b2422;
-  font-size: 15px;
-  line-height: 1.4;
-}
-.drop-sub {
-  margin-top: 4px;
-  color: #8a817c;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.upload-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-.upload-card {
-  position: relative;
-  width: 48.5%;
-  margin-bottom: 10px;
-  overflow: hidden;
-  border-radius: 4px;
-  background: #ece8e4;
-}
-.upload-card.active {
-  outline: 2px solid #be2d22;
-}
-.upload-card image {
-  display: block;
-  width: 100%;
-  height: 210px;
-}
-.upload-caption {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  padding: 28px 8px 8px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.55) 100%);
-}
-.upload-state,
-.upload-date {
-  display: block;
-  color: #fff;
-  font-size: 12px;
-  line-height: 1.4;
-  text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-}
-.result-card {
-  overflow: hidden;
-  margin: 0 auto 16px;
-  max-width: 320px;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(43, 36, 34, 0.06);
-}
-.result-image,
-.result-pending {
-  display: block;
-  width: 100%;
-  height: 420px;
-  background: #ece8e4;
-}
-.result-pending {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #8a817c;
-  font-size: 14px;
-}
-.result-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: #fff;
-}
-.result-time text {
-  display: block;
-  color: #2b2422;
-  font-size: 13px;
-  line-height: 1.35;
-}
-.result-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.dl-btn,
-.cmp-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.dl-btn {
-  width: 32px;
-  height: 32px;
-  color: #4d6bff;
-  font-size: 20px;
-  line-height: 32px;
-}
-.cmp-btn {
-  min-width: 52px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  color: #fff;
-  font-size: 13px;
-  line-height: 28px;
-  background: #4d6bff;
-}
-.compare-mask {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 30;
-  display: flex;
-  align-items: flex-end;
-  background: rgba(0, 0, 0, 0.45);
-}
-.compare-sheet {
-  width: 100%;
-  padding: 16px 16px calc(20px + env(safe-area-inset-bottom));
-  border-radius: 16px 16px 0 0;
-  background: #fff;
-}
-.compare-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.compare-title {
-  color: #2b2422;
-  font-size: 16px;
-  font-weight: 700;
-}
-.compare-close {
-  color: #8a817c;
-  font-size: 13px;
-}
-.compare-pair {
-  display: flex;
-  gap: 10px;
-}
-.compare-col {
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-}
-.compare-col image {
-  width: 100%;
-  height: 240px;
-  border-radius: 8px;
-  background: #f4f1ee;
-}
-.compare-col text {
-  display: block;
-  margin-top: 8px;
-  color: #6f6763;
-  font-size: 13px;
-}
-.photo-grid {
-  display: flex;
-  flex-wrap: wrap;
-}
-.photo-item {
-  width: 210rpx;
-  height: 210rpx;
-  margin-right: 12rpx;
-  margin-bottom: 12rpx;
-  overflow: hidden;
-  border-radius: 10px;
-  background: #f7f4f2;
-}
-.photo-item.active {
-  outline: 2px solid #be2d22;
-}
-.photo-item image {
-  width: 100%;
-  height: 100%;
-}
-.gallery-page {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 20;
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-}
-.region-crumbs {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px 0;
-}
-.region-nav {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.crumb {
-  color: #2b2422;
-  font-size: 15px;
-}
-.crumb.current {
-  color: #be2d22;
-}
-.region-close {
-  color: #8a817c;
-  font-size: 13px;
-}
-.gallery-body {
-  flex: 1;
-  height: 0;
-  overflow: hidden;
-}
-.gallery-inner {
-  padding: 12px 16px 24px;
-  box-sizing: border-box;
-}
-.gallery-back {
-  margin-bottom: 12px;
-  color: #be2d22;
-}
-.gallery-grid {
-  display: flex;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.gallery-card {
-  flex: 0 0 50%;
-  max-width: 50%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 0 8px 8px 0;
-}
-.gallery-card:nth-child(even) {
-  padding-right: 0;
-  padding-left: 8px;
-}
-.gallery-card-inner {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: #f7f4f2;
-}
-.gallery-name {
-  display: block;
-  overflow: hidden;
-  color: #2b2422;
-  font-weight: 600;
-  line-height: 1.4;
-  word-break: break-all;
-}
-.gallery-count {
-  display: block;
-  margin-top: 4px;
-  overflow: hidden;
-  color: #8a817c;
-  font-size: 12px;
-}
-.picker-grid {
-  margin-top: 8px;
-}
+.page { min-height: 100vh; box-sizing: border-box; padding-bottom: calc(52px + env(safe-area-inset-bottom)); background: #f4f1ee; color: #282421; }
+.segments { display: flex; height: 48px; margin: 14px 14px 0; overflow: hidden; border: 1px solid #be2d22; border-radius: 5px; background: #fff; }.segment { flex: 1; display: flex; align-items: center; justify-content: center; border-right: 1px solid #be2d22; color: #6e6761; font-size: 15px; }.segment:last-child { border: 0; }.segment.active { color: #fff; font-weight: 700; background: #be2d22; }.content { height: calc(100vh - 114px - env(safe-area-inset-bottom)); }
+.section { margin-top: 12px; padding: 20px 18px; border-top: 1px solid #ede8e4; border-bottom: 1px solid #ede8e4; background: #fff; }.section-title { display: flex; align-items: center; color: #231f1d; font-size: 18px; font-weight: 700; }.section-title view { width: 4px; height: 23px; margin-right: 9px; background: #be2d22; }.workflow-options { display: flex; gap: 8px; margin-top: 17px; }.workflow-option { flex: 1; min-width: 0; min-height: 45px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; position: relative; border: 1px solid #8e8985; border-radius: 6px; color: #625c57; font-size: 14px; }.workflow-option.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.workflow-option text { position: absolute; right: 6px; bottom: 3px; font-size: 12px; }.workflow-description { display: block; margin-top: 12px; color: #5f5853; font-size: 13px; line-height: 1.6; }
+.field-title { color: #201d1a; font-size: 17px; font-weight: 700; }.field-title > text { margin-right: 3px; color: #be2d22; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 1px solid #f0d6b1; background: #fff7e8; }.source-upload { border: 1px dashed #cfc5bd; background: #fbfaf9; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
+.selected-input { min-height: 66px; margin-top: 13px; padding: 7px 10px; box-sizing: border-box; display: flex; align-items: center; background: #f8f6f4; }.selected-input image { width: 52px; height: 52px; margin-right: 11px; background: #e5ddd7; }.selected-input view text { display: block; color: #38322e; font-size: 13px; font-weight: 700; }.selected-input view text + text { margin-top: 4px; color: #918780; font-size: 11px; font-weight: 400; }.selected-input > text { margin-left: auto; color: #be2d22; font-size: 13px; }
+.chip-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }.choice-chip { min-height: 40px; padding: 0 13px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #98918b; border-radius: 5px; color: #625c57; font-size: 13px; line-height: 1.25; text-align: center; }.choice-chip.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.three-column .choice-chip { width: calc((100% - 20px) / 3); padding: 0 4px; }.two-column .choice-chip { width: calc((100% - 10px) / 2); padding: 0 5px; }.sub-title { margin-top: 21px; color: #292421; font-size: 16px; font-weight: 700; }
+.description { width: 100%; height: 138px; margin-top: 16px; padding: 12px; box-sizing: border-box; border: 1px dashed #4f84ff; border-radius: 8px; color: #38322e; font-size: 14px; line-height: 1.55; background: #fafcff; }.description-placeholder { color: #ada9a5; }.polish-button { float: right; height: 39px; margin: 13px 0 12px; padding: 0 16px; border-radius: 20px; color: #fff; font-size: 14px; line-height: 39px; background: #be2d22; }.polish-button::after, .generate-button::after, .picker-confirm::after, .retry::after { border: 0; }.polish-result { clear: both; min-height: 87px; padding: 13px; box-sizing: border-box; border: 1px dashed #a9a29c; border-radius: 7px; background: #fafafa; }.polish-result.ready { border-color: #4f84ff; background: #f9fbff; }.polish-result text { display: block; color: #77706a; font-size: 13px; font-weight: 700; }.polish-result text + text { margin-top: 7px; color: #88817b; font-size: 12px; font-weight: 400; line-height: 1.6; white-space: pre-wrap; }.polish-result.ready text:first-child { color: #be2d22; }
+.option-stack { margin-top: 14px; }.large-choice { min-height: 64px; margin-top: 12px; padding: 9px 16px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; border: 1px solid #8f8984; border-radius: 7px; color: #6a635e; font-size: 18px; line-height: 1.35; }.large-choice text + text { margin-top: 3px; font-size: 15px; }.large-choice.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.compact { padding-top: 18px; padding-bottom: 18px; }.two-row { display: flex; gap: 16px; margin-top: 14px; }.large-choice.inline { flex: 1; min-height: 51px; margin: 0; padding: 0 10px; align-items: center; text-align: center; }.save-target { min-height: 50px; margin-top: 14px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #b9b2ac; border-radius: 7px; color: #342e2a; font-size: 16px; background: #fff; }.save-target .placeholder { color: #8b837c; }.sync-note { display: block; margin-top: 8px; color: #aa6c34; font-size: 11px; }.generate-button { width: calc(100% - 36px); height: 55px; margin: 24px 18px 0; border-radius: 7px; color: #fff; font-size: 20px; line-height: 55px; background: #be2d22; }.generate-button[disabled] { opacity: .55; }
+.gallery-heading { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 18px 15px; background: #fff; }.gallery-heading text:first-child { color: #25211e; font-size: 19px; font-weight: 700; }.gallery-heading text:last-child { color: #8f867f; font-size: 12px; }.state { padding: 74px 22px; color: #8b837d; font-size: 14px; text-align: center; }.state text { display: block; }.retry { display: inline-block; margin-top: 10px; padding: 0; color: #be2d22; font-size: 14px; background: transparent; }.library-grid, .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }.library-image { position: relative; height: 195px; overflow: hidden; background: #e5ddd7; }.library-image image { width: 100%; height: 100%; display: block; }.library-image text { position: absolute; top: 8px; left: 8px; padding: 3px 6px; border-radius: 3px; color: #fff; font-size: 10px; background: rgba(38, 33, 30, .72); }.tasks { padding: 10px 14px 0; }.task { min-height: 45px; padding: 0 12px; display: flex; align-items: center; gap: 8px; color: #796f67; font-size: 13px; background: #fff7e8; }.task view { width: 8px; height: 8px; border-radius: 50%; background: #be2d22; animation: pulse 1.2s infinite; }.task text:last-child { margin-left: auto; color: #be2d22; }.result-card { overflow: hidden; border: 1px solid #e8e1dc; background: #fff; }.result-card image { width: 100%; height: 205px; display: block; background: #e5ddd7; }.result-time { display: block; min-height: 30px; padding: 6px 8px 0; color: #77706b; font-size: 11px; }.result-actions { min-height: 42px; padding: 0 8px 8px; display: flex; align-items: center; justify-content: space-between; }.download { display: flex; align-items: center; color: #347bf1; font-size: 12px; }.download text:first-child { margin-right: 2px; font-size: 25px; line-height: 20px; }.compare { min-width: 42px; min-height: 29px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #fff; font-size: 12px; background: #347bf1; }.retry-line { padding: 0 8px 8px; display: flex; justify-content: space-between; color: #aa6c34; font-size: 11px; }.retry-line text:last-child { color: #be2d22; }.spacer { height: 24px; }
+.layer { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); background: #f4f1ee; }.layer-head { position: relative; min-height: 58px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #ece6e1; color: #201c1a; font-size: 18px; font-weight: 700; background: #fff; }.back, .close { position: absolute; top: 0; min-height: 58px; display: flex; align-items: center; }.back { left: 17px; font-size: 37px; font-weight: 400; }.close { right: 16px; color: #766e68; font-size: 13px; font-weight: 400; }.layer-body { flex: 1; min-height: 0; }.folder-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 25px 13px; padding: 28px 18px; }.folder-card { min-width: 0; color: #38322e; font-size: 12px; text-align: center; }.folder-card text { display: block; overflow: hidden; margin-top: 10px; text-overflow: ellipsis; white-space: nowrap; }.folder-icon { position: relative; width: 78px; height: 57px; margin: 0 auto; border-radius: 4px 7px 8px 8px; background: #ffc238; }.folder-icon view { position: absolute; top: -8px; left: 0; width: 37px; height: 14px; border-radius: 5px 5px 0 0; background: #ffc238; }.breadcrumb { display: block; padding: 15px 17px 0; color: #756d67; font-size: 13px; }.picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 18px 15px 92px; }.picker-image { position: relative; height: 145px; border: 2px solid transparent; background: #e5ddd7; }.picker-image.selected { border-color: #347bf1; }.picker-image image { width: 100%; height: 100%; display: block; }.picker-image text { position: absolute; top: 6px; right: 6px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; color: #fff; font-size: 15px; line-height: 21px; text-align: center; background: rgba(0, 0, 0, .17); }.picker-image.selected text { border-color: #347bf1; background: #347bf1; }.picker-confirm { position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 18px; height: 54px; border-radius: 27px; color: #fff; font-size: 18px; line-height: 54px; background: #be2d22; }.picker-confirm[disabled] { opacity: .5; }
+.save-list { padding: 12px 15px; }.save-row { min-height: 70px; margin-bottom: 10px; padding: 10px 12px; box-sizing: border-box; display: flex; align-items: center; border: 1px solid #e2dcd7; background: #fff; }.save-row.selected { border-color: #be2d22; background: #fffaf9; }.small-folder { position: relative; width: 45px; height: 34px; margin-right: 12px; border-radius: 4px 5px 5px 5px; background: #ffc238; }.small-folder view { position: absolute; top: -5px; left: 0; width: 21px; height: 7px; border-radius: 3px 3px 0 0; background: #ffc238; }.save-row > view + view text { display: block; color: #38322e; font-size: 14px; }.save-row > view + view text + text { margin-top: 5px; color: #908781; font-size: 11px; }.save-row > text { margin-left: auto; color: #fff; font-size: 14px; }.save-row.selected > text { width: 21px; height: 21px; border-radius: 50%; line-height: 21px; text-align: center; background: #be2d22; }.compare-layer { background: #f5f2ef; }.compare-list { padding: 14px; }.compare-list > view { margin-bottom: 19px; background: #fff; }.compare-list text { display: block; padding: 14px 14px 9px; color: #25211f; font-size: 16px; font-weight: 700; }.compare-list image { width: 100%; display: block; background: #e5ddd7; } @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 </style>

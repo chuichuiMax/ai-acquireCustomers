@@ -5,6 +5,7 @@ import * as materialsLogic from '../utils/materials-logic.mjs'
 
 const {
   STYLE_OPTIONS,
+  MATERIAL_LIBRARY_STYLE_OPTIONS,
   filterGalleriesByStyle,
   galleryCoverPath,
   createSelectionState,
@@ -36,6 +37,31 @@ test('style options keep the agreed fixed order', () => {
     '复古风潮',
     '艺术室界'
   ])
+})
+
+test('material library omits retired design-style choices', () => {
+  assert.deepEqual(MATERIAL_LIBRARY_STYLE_OPTIONS, [
+    '全部',
+    '复合写意',
+    '写意木构',
+    '江南印象',
+    '轻欧简美',
+    '欧美香颂',
+    '新装饰主义',
+    '北欧之光',
+    '意境东方',
+    '雅致现代',
+    '优雅缤纷',
+    '极简侘寂',
+    '复古风潮',
+    '艺术室界'
+  ])
+})
+
+test('image-design style choices retain the full shared catalog', () => {
+  for (const style of ['东方古雅', '欧式田园', '异域风情', '工业再造', '仿生未来']) {
+    assert.ok(STYLE_OPTIONS.includes(style))
+  }
 })
 
 test('gallery filtering only returns secondary galleries for one style', () => {

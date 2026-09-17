@@ -312,6 +312,33 @@ const REVIEW_NOTES_TYPE = {
   variables: []
 }
 
+const DEFAULT_DECORATION_CONTENT_TYPES = Object.freeze([
+  { id: 'default-NRLX0001', type_code: 'NRLX0001', name: '工艺施工展示' },
+  { id: 'default-NRLX0002', type_code: 'NRLX0002', name: '装修报价清单' },
+  { id: 'default-NRLX0003', type_code: 'NRLX0003', name: '装修避坑分享' },
+  { id: 'default-NRLX0004', type_code: 'NRLX0004', name: '装修省钱攻略' },
+  { id: 'default-NRLX0006', type_code: 'NRLX0006', name: '装修知识科普' },
+  { id: 'default-NRLX0007', type_code: 'NRLX0007', name: '人设自荐' }
+])
+
+function createInitialSchema() {
+  return {
+    content_types: DEFAULT_DECORATION_CONTENT_TYPES,
+    variables: [],
+    frame_areas: [],
+    design_styles: [],
+    project_stages: [],
+    target_audiences: [],
+    resident_populations: [],
+    process_types: [],
+    process_names_by_type: {},
+    regions: [],
+    region_tree: [],
+    cover_templates: [],
+    hycanvas_templates: []
+  }
+}
+
 const CONTENT_TYPE_DESC = {
   工艺施工展示: '水电泥木油各阶段，AI自动生成专业话术',
   装修报价清单: '把复杂的报价变成客户能看懂的小红书图文，信任度直接拉满',
@@ -334,21 +361,7 @@ export default {
         { value: '装修家居', label: '装修家居' },
         { value: '好评笔记', label: '好评笔记' }
       ],
-      schema: {
-        content_types: [],
-        variables: [],
-        frame_areas: [],
-        design_styles: [],
-        project_stages: [],
-        target_audiences: [],
-        resident_populations: [],
-        process_types: [],
-        process_names_by_type: {},
-        regions: [],
-        region_tree: [],
-        cover_templates: [],
-        hycanvas_templates: []
-      },
+      schema: createInitialSchema(),
       regionOpen: false,
       regionLevel: 'city',
       regionCity: '',
@@ -493,7 +506,6 @@ export default {
   },
   async onLoad() {
     if (!(await this.ensureInternalAccess())) return
-    this.loadSchema()
   },
   async onShow() {
     if (!(await this.ensureInternalAccess())) return
@@ -501,9 +513,6 @@ export default {
     if (this.resumeAfterPicker) {
       this.resumeAfterPicker = false
       return
-    }
-    if (!this.schemaLoaded) {
-      this.loadSchema()
     }
   },
   watch: {
@@ -543,9 +552,14 @@ export default {
         this._typeSelectTimer = null
       }
       // 先高亮卡片，再进入业务变量步骤
-      this._typeSelectTimer = setTimeout(() => {
-        this.typeStepDone = true
-        this.loadGalleries()
+      this._typeSelectTimer = setTimeout(async () => {
+        const schemaLoaded = await this.loadSchema()
+        if (schemaLoaded && this.contentTypes.some((item) => item.type_code === this.contentTypeCode)) {
+          this.typeStepDone = true
+        } else if (schemaLoaded) {
+          this.contentTypeCode = ''
+          uni.showToast({ title: '该内容类型已停用，请重新选择', icon: 'none' })
+        }
         this._typeSelectTimer = null
       }, 220)
     },
@@ -657,7 +671,7 @@ export default {
       }
       this.formValues = next
     },
-    async switchEntry(value) {
+    switchEntry(value) {
       if (this._typeSelectTimer) {
         clearTimeout(this._typeSelectTimer)
         this._typeSelectTimer = null
@@ -674,11 +688,11 @@ export default {
       this.clearCover()
       this.closeGallery()
       this.closeRegion()
+      this.schema = createInitialSchema()
       this.schemaLoaded = false
-      await this.loadSchema()
     },
     async loadSchema() {
-      if (this.schemaLoading) return
+      if (this.schemaLoading) return false
       this.schemaLoading = true
       try {
         const data = await mpContentApi.formSchema(this.serviceEntry)
@@ -696,8 +710,10 @@ export default {
         }
         await this.loadGalleries()
         this.ensureUploadCategory()
+        return true
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
+        return false
       } finally {
         this.schemaLoading = false
       }
@@ -1103,32 +1119,6 @@ export default {
   background: #fff;
   text-align: center;
 }
-.type-card::after {
-  content: '';
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 6px;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    rgba(222, 180, 108, 0.08) 0%,
-    rgba(222, 180, 108, 0.45) 20%,
-    rgba(222, 180, 108, 0.72) 50%,
-    rgba(222, 180, 108, 0.45) 80%,
-    rgba(222, 180, 108, 0.08) 100%
-  );
-  box-shadow:
-    0 3px 8px rgba(210, 158, 78, 0.22),
-    0 0 5px rgba(255, 226, 174, 0.28);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 60ms linear;
-}
-.type-card.active::after {
-  opacity: 0.86;
-}
 .type-grid-home .type-card {
   display: flex;
   flex-direction: column;
@@ -1141,32 +1131,28 @@ export default {
 }
 .type-card.active {
   border-color: #BE2D22;
-  background: #fbf4f2;
 }
 .type-icon-wrap {
   width: 36px;
   height: 36px;
   margin: 0 auto 8px;
   border-radius: 10px;
-  background: #f0ebe8;
+  background: #E8E8E8;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .type-card.active .type-icon-wrap {
-  background: #f0d9d4;
+  background: #BE2D22;
 }
 .type-icon-image {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
 }
 .type-icon-text {
   color: #9a918c;
   font-size: 22px;
   line-height: 1;
-}
-.type-card.active .type-icon-text {
-  color: #BE2D22;
 }
 .type-name {
   display: block;
@@ -1177,9 +1163,6 @@ export default {
   white-space: normal;
   word-break: break-all;
 }
-.type-card.active .type-name {
-  color: #BE2D22;
-}
 .type-desc {
   display: block;
   margin-top: 6px;
@@ -1188,9 +1171,6 @@ export default {
   line-height: 16px;
   white-space: pre-line;
   word-break: break-all;
-}
-.type-card.active .type-desc {
-  color: #8a817c;
 }
 .selected-type-bar {
   display: flex;
