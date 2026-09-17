@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
+function pngDimensions(filePath) {
+  const buffer = readFileSync(filePath)
+  assert.deepEqual([...buffer.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) }
+}
 
 test('materials page exposes WeChat native-share lifecycle instead of an H5 web view', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
@@ -42,6 +48,33 @@ test('WeChat prepares a mini-program card and enterprise WeChat keeps a safe fal
   assert.match(page, /shareToWorkWechat/)
   assert.match(page, /:open-type="isWorkWechatHost\(\) \? 'share' : ''"/)
   assert.match(page, /this\.shareSnapshot\?\.shareUrl/)
+})
+
+test('materials share controls use the supplied bundled image assets', () => {
+  const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
+  const expectedAssets = [
+    { path: '/static/share-icons/case-share.png', dimensions: { width: 200, height: 200 } },
+    { path: '/static/share-icons/wechat.png', dimensions: { width: 202, height: 200 } },
+    { path: '/static/share-icons/wecom.png', dimensions: { width: 240, height: 200 } }
+  ]
+
+  for (const asset of expectedAssets) {
+    assert.match(page, new RegExp(asset.path.replaceAll('.', '\\.'), 'u'))
+    const filePath = resolve(import.meta.dirname, '..', `.${asset.path}`)
+    assert.equal(existsSync(filePath), true, `${asset.path} is missing`)
+    assert.deepEqual(pngDimensions(filePath), asset.dimensions)
+  }
+})
+
+test('materials share fab renders only the supplied icon', () => {
+  const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
+
+  assert.match(
+    page,
+    /<view v-if="selectedIds\.length" class="share-fab" @click="openShareSheet">\s*<image class="share-fab-icon" src="\/static\/share-icons\/case-share\.png" mode="aspectFit" \/>\s*<\/view>/
+  )
+  assert.doesNotMatch(page, /<text class="share-label">分享<\/text>/)
+  assert.doesNotMatch(page, /\.share-label\s*\{/)
 })
 
 test('share channels use the prepared native card without a second send button', () => {

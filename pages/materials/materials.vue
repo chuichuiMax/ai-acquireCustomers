@@ -81,8 +81,7 @@
       </view>
 
       <view v-if="selectedIds.length" class="share-fab" @click="openShareSheet">
-        <text class="share-icon">↗</text>
-        <text class="share-label">分享</text>
+        <image class="share-fab-icon" src="/static/share-icons/case-share.png" mode="aspectFit" />
       </view>
     </view>
 
@@ -92,7 +91,7 @@
         <text class="sheet-title">分享案例</text>
         <view class="share-options">
           <button class="share-option native-share-option" open-type="share">
-            <view class="wechat-mark">微</view>
+            <image class="share-channel-icon" src="/static/share-icons/wechat.png" mode="aspectFit" />
             <text>微信</text>
           </button>
           <button
@@ -100,7 +99,7 @@
             :open-type="isWorkWechatHost() ? 'share' : ''"
             @click="shareToWorkWechat"
           >
-            <view class="work-wechat-mark">企</view>
+            <image class="share-channel-icon" src="/static/share-icons/wecom.png" mode="aspectFit" />
             <text>企业微信</text>
           </button>
         </view>
@@ -116,7 +115,7 @@ import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import {
-  STYLE_OPTIONS,
+  MATERIAL_LIBRARY_STYLE_OPTIONS,
   galleryStyle,
   galleryCoverPath,
   groupGalleryItemsIntoRows,
@@ -132,7 +131,7 @@ export default {
   mixins: [internalPageMixin],
   data() {
     return {
-      styleOptions: STYLE_OPTIONS,
+      styleOptions: MATERIAL_LIBRARY_STYLE_OPTIONS,
       selectedStyle: '全部',
       galleries: [],
       galleriesError: false,
@@ -364,8 +363,7 @@ export default {
 .detail-gallery-name,
 .gallery-name,
 .photo-name,
-.sheet-title,
-.share-label {
+.sheet-title {
   display: block;
 }
 .title {
@@ -616,21 +614,15 @@ export default {
   height: 68px;
   border-radius: 50%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: #287cf0;
   box-shadow: 0 8px 18px rgba(40, 124, 240, 0.28);
 }
-.share-icon {
-  color: #fff;
-  font-size: 27px;
-  line-height: 25px;
-}
-.share-label {
-  margin-top: 2px;
-  color: #fff;
-  font-size: 12px;
+.share-fab-icon {
+  width: 38px;
+  height: 38px;
+  display: block;
 }
 .share-mask {
   position: fixed;
@@ -684,23 +676,10 @@ export default {
   display: block;
   margin-top: 8px;
 }
-.wechat-mark,
-.work-wechat-mark {
-  width: 54px;
+.share-channel-icon {
+  width: 60px;
   height: 54px;
   margin: 0 auto;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 20px;
-  font-weight: 700;
-}
-.wechat-mark {
-  background: #39bd67;
-}
-.work-wechat-mark {
-  background: #317cf3;
+  display: block;
 }
 </style>
