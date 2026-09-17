@@ -37,24 +37,44 @@ test('home decor cards form two columns and three equal rows', () => {
   assert.match(cardRule, /justify-content:\s*center/)
 })
 
-test('selected content card shows a soft immediate bottom glow before advancing', () => {
+test('selected content card changes only its border and icon frame before advancing', () => {
   const cardRule = rule('.type-card')
   assert.match(cardRule, /position:\s*relative/)
+  assert.match(cardRule, /border:\s*1px\s+solid\s+#e5e0dc/)
+  assert.match(cardRule, /background:\s*#fff/)
 
-  const glowRule = rule('.type-card::after')
-  assert.match(glowRule, /content:\s*['"]{2}/)
-  assert.match(glowRule, /height:\s*3px/)
-  assert.match(glowRule, /background:\s*linear-gradient/)
-  assert.match(glowRule, /rgba\(222,\s*180,\s*108,\s*0\.72\)\s*50%/)
-  assert.doesNotMatch(glowRule, /rgba\(255,\s*239,\s*207/)
-  assert.match(glowRule, /box-shadow:/)
-  assert.match(glowRule, /rgba\(210,\s*158,\s*78,\s*0\.22\)/)
-  assert.match(glowRule, /opacity:\s*0/)
-  assert.doesNotMatch(glowRule, /transform:/)
-  assert.match(glowRule, /transition:\s*opacity\s+60ms\s+linear/)
+  const activeCardRule = rule('.type-card.active')
+  assert.match(activeCardRule, /border-color:\s*#BE2D22/)
+  assert.doesNotMatch(activeCardRule, /background:/)
 
-  const activeGlowRule = rule('.type-card.active::after')
-  assert.match(activeGlowRule, /opacity:\s*0\.86/)
-  assert.doesNotMatch(activeGlowRule, /transform:/)
+  const iconFrameRule = rule('.type-icon-wrap')
+  assert.match(iconFrameRule, /width:\s*36px/)
+  assert.match(iconFrameRule, /height:\s*36px/)
+  assert.match(iconFrameRule, /background:\s*#E8E8E8/)
+
+  const activeIconFrameRule = rule('.type-card.active .type-icon-wrap')
+  assert.match(activeIconFrameRule, /background:\s*#BE2D22/)
+
+  const iconRule = rule('.type-icon-image')
+  assert.match(iconRule, /width:\s*26px/)
+  assert.match(iconRule, /height:\s*26px/)
+
+  assert.equal(rule('.type-card::after'), '')
+  assert.equal(rule('.type-card.active::after'), '')
+  assert.equal(rule('.type-card.active .type-name'), '')
+  assert.equal(rule('.type-card.active .type-desc'), '')
+  assert.equal(rule('.type-card.active .type-icon-text'), '')
   assert.match(page, /this\._typeSelectTimer\s*=\s*setTimeout\([\s\S]*?},\s*220\)/)
+})
+
+test('content type cards have a local default before the schema request', () => {
+  assert.match(page, /const DEFAULT_DECORATION_CONTENT_TYPES\s*=\s*Object\.freeze\(/)
+  assert.match(page, /content_types:\s*DEFAULT_DECORATION_CONTENT_TYPES/)
+
+  const onLoad = page.match(/async onLoad\(\) \{([\s\S]*?)\r?\n  \},\r?\n  async onShow/)
+  const selectContentType = page.match(/selectContentType\(typeCode\) \{([\s\S]*?)\r?\n    \},\r?\n    backToTypeStep/)
+  assert.ok(onLoad)
+  assert.ok(selectContentType)
+  assert.doesNotMatch(onLoad[1], /loadSchema\(/)
+  assert.match(selectContentType[1], /await this\.loadSchema\(\)/)
 })
