@@ -155,7 +155,7 @@ export default {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; box-sizing: border-box; padding: 16px 16px 148px; background: #f4f1ee; }
+.page { min-height: 100vh; box-sizing: border-box; padding: 16px 16px calc(148px + env(safe-area-inset-bottom)); background: #f4f1ee; }
 .folder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 18px; }
 .folder { min-width: 0; text-align: center; color: #3b312d; font-size: 14px; }
 .folder-icon { position: relative; width: 90px; height: 64px; margin: 0 auto 8px; border-radius: 4px 8px 8px 8px; background: #deb44a; }
@@ -170,7 +170,7 @@ export default {
 .check { position: absolute; top: 9px; right: 9px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 4px; color: #fff; text-align: center; line-height: 21px; background: rgba(0, 0, 0, .2); }
 .check.selected { border-color: #be2d22; background: #be2d22; }
 .empty { display: block; padding-top: 72px; text-align: center; color: #928781; }
-.actions { position: fixed; z-index: 21; right: 12px; bottom: 66px; left: 12px; display: flex; gap: 10px; padding: 10px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(54, 39, 32, .08); }
+.actions { position: fixed; z-index: 21; right: 12px; bottom: calc(66px + env(safe-area-inset-bottom)); left: 12px; display: flex; gap: 10px; padding: 10px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(54, 39, 32, .08); }
 .button { flex: 1; height: 40px; line-height: 40px; border-radius: 7px; font-size: 14px; }
 .ghost { color: #be2d22; background: #fff; border: 1px solid #be2d22; }
 .primary, .danger { color: #fff; background: #be2d22; }
