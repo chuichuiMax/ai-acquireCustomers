@@ -11,7 +11,6 @@ const internalPages = [
   'pages/cover/cover.vue',
   'pages/materials/materials.vue',
   'pages/mine/mine.vue',
-  'pages/mine/bio.vue',
   'pages/home/home.vue'
 ]
 
