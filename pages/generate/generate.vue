@@ -221,36 +221,38 @@
         <text class="region-close" @click="closeGallery">关闭</text>
       </view>
       <scroll-view class="gallery-body" scroll-y>
-        <view v-if="galleryParent" class="gallery-back" @click="openGallery(galleryParent.id)">
-          返回 {{ galleryParent.name }}
-        </view>
-        <view v-if="galleryChildren.length" class="gallery-grid inner">
-          <view
-            v-for="item in galleryChildren"
-            :key="item.id"
-            class="gallery-card"
-            :class="{ active: coverGalleryId === item.id }"
-            @click="openGallery(item.id)"
-          >
-            <text class="gallery-name">{{ item.name }}</text>
-            <text class="gallery-count">{{ item.count }}张图片素材</text>
+        <view class="gallery-body-inner">
+          <view v-if="galleryParent" class="gallery-back" @click="openGallery(galleryParent.id)">
+            返回 {{ galleryParent.name }}
           </view>
-        </view>
-        <view class="photo-grid">
-          <view
-            v-for="item in galleryItems"
-            :key="item.id"
-            class="photo-item"
-            :class="{ active: imageItemId === item.id && !isGalleryImageUsed(item), used: isGalleryImageUsed(item) }"
-            @click="selectGalleryItem(item)"
-          >
-            <image :src="galleryThumbUrl(item)" mode="aspectFill" lazy-load />
-            <text v-if="isGalleryImageUsed(item)" class="used-badge">已使用</text>
+          <view v-if="galleryChildren.length" class="gallery-grid inner">
+            <view
+              v-for="item in galleryChildren"
+              :key="item.id"
+              class="gallery-card"
+              :class="{ active: coverGalleryId === item.id }"
+              @click="openGallery(item.id)"
+            >
+              <text class="gallery-name">{{ item.name }}</text>
+              <text class="gallery-count">{{ item.count }}张图片素材</text>
+            </view>
           </view>
+          <view class="photo-grid">
+            <view
+              v-for="item in galleryItems"
+              :key="item.id"
+              class="photo-item"
+              :class="{ active: imageItemId === item.id && !isGalleryImageUsed(item), used: isGalleryImageUsed(item) }"
+              @click="selectGalleryItem(item)"
+            >
+              <image :src="galleryThumbUrl(item)" mode="aspectFill" lazy-load />
+              <text v-if="isGalleryImageUsed(item)" class="used-badge">已使用</text>
+            </view>
+          </view>
+          <text v-if="!galleryLoading && !galleryItems.length && !galleryChildren.length" class="empty">
+            该图库暂无图片，可返回后点上传图片
+          </text>
         </view>
-        <text v-if="!galleryLoading && !galleryItems.length && !galleryChildren.length" class="empty">
-          该图库暂无图片，可返回后点上传图片
-        </text>
       </scroll-view>
     </view>
   </view>
@@ -263,6 +265,7 @@ import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/r
 import { internalPageMixin } from '../../utils/internal-access'
 import { contentTypeIcon } from '../../utils/generate-content-type-icons'
 import { resolveTemplateOverlay } from '../../utils/cover-overlay.mjs'
+import { isGalleryItemUsed, loadAllGalleryItems } from '../../utils/gallery-items.mjs'
 
 const REGION_INITIAL = {
   芙: 'F', 天: 'T', 岳: 'Y', 开: 'K', 雨: 'Y', 望: 'W', 长: 'C', 浏: 'L', 宁: 'N',
@@ -828,7 +831,7 @@ export default {
       this.galleryOpen = false
     },
     isGalleryImageUsed(item) {
-      return Boolean(item && item.in_use)
+      return isGalleryItemUsed(item)
     },
     backGallery() {
       if (this.galleryParent) {
@@ -843,8 +846,9 @@ export default {
       this.galleryLoading = true
       this.galleryItems = []
       try {
-        const data = await mpContentApi.galleryItems(galleryId)
-        this.galleryItems = data.items || []
+        this.galleryItems = await loadAllGalleryItems((params) =>
+          mpContentApi.galleryItems(galleryId, '', params)
+        )
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       } finally {
@@ -1399,13 +1403,19 @@ export default {
   right: 0;
   top: 0;
   bottom: 0;
+  height: 100%;
   background: #fff;
   z-index: 20;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .gallery-body {
   flex: 1;
+  height: 0;
+  min-height: 0;
+}
+.gallery-body-inner {
   padding: 12px 16px 24px;
 }
 .gallery-back {

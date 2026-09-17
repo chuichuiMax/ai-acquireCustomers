@@ -66,9 +66,13 @@ export const mpContentApi = {
     }),
   galleries: (scope = '') =>
     request({ url: `/api/mp/content/galleries${scope ? `?scope=${encodeURIComponent(scope)}` : ''}` }),
-  galleryItems: (category, scope = '') => {
+  galleryItems: (category, scope = '', extra = {}) => {
     const query = [`category=${encodeURIComponent(category)}`]
     if (scope) query.push(`scope=${encodeURIComponent(scope)}`)
+    const page = extra.page || 1
+    const pageSize = extra.page_size || extra.pageSize || 100
+    query.push(`page=${encodeURIComponent(page)}`)
+    query.push(`page_size=${encodeURIComponent(pageSize)}`)
     return request({ url: `/api/mp/content/gallery-items?${query.join('&')}` })
   },
   deleteGalleryItem: (itemId) => request({ url: `/api/mp/content/gallery-items/${encodeURIComponent(itemId)}`, method: 'DELETE' }),
