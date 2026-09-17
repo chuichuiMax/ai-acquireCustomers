@@ -10,6 +10,7 @@ const {
   galleryCoverPath,
   createSelectionState,
   toggleSelection,
+  shareSelectionKey,
   buildShareSnapshot,
   buildWechatSharePayload,
   buildSharedCaseImages
@@ -85,6 +86,13 @@ test('selection numbers follow click order and are limited to one gallery', () =
     () => toggleSelection(selection, { id: 'img-3', galleryId: 'case-2' }),
     /同一个二级图库/
   )
+})
+
+test('share selection keys preserve order and invalidate empty selections', () => {
+  assert.equal(shareSelectionKey('case-1', ['img-2', 'img-1']), 'case-1:img-2,img-1')
+  assert.equal(shareSelectionKey('case-1', ['img-1', 'img-2']), 'case-1:img-1,img-2')
+  assert.equal(shareSelectionKey('case-1', []), '')
+  assert.equal(shareSelectionKey('', ['img-1']), '')
 })
 
 test('gallery images are grouped into complete two-item rows without losing the final item', () => {
