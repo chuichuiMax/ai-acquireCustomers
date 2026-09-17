@@ -46,8 +46,8 @@
 
         <view v-if="workflow === 'redesign'" class="section">
           <view class="field-title"><text>*</text>换装风格选择</view>
-          <text class="field-note">选中后，风格详情将与原房图一起传给生图模型。</text>
-          <view class="chip-grid"><view v-for="style in designStyles" :key="style" class="choice-chip" :class="{ active: activeDraft.style === style }" @click="updateDraft({ style })">{{ style }}</view></view>
+          <text class="field-note">选中后，预设风格或补充描述将与原房图一起传给生图模型。</text>
+          <view class="chip-grid"><view v-for="style in designStyles" :key="style.value" class="choice-chip" :class="{ active: activeDraft.style === style.value }" @click="selectDesignStyle(style.value)">{{ style.label }}</view></view>
         </view>
 
         <view v-if="workflow === 'transfer'" class="section">
@@ -127,11 +127,11 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi, mpImageDesignApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
-import { STYLE_OPTIONS } from '../../utils/materials-logic.mjs'
 import {
-  IMAGE_COUNTS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
+  IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
   buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
-  isPublicSaveFolder, normalizeImageDesignLibraryItem, saveableFolders, uniqueFolders
+  imageDesignStyleForPayload, isPublicSaveFolder, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
+  normalizeImageDesignLibraryItem, saveableFolders, uniqueFolders, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
 const DRAFT_CACHE_KEY = 'image-design-drafts-v1'
@@ -144,7 +144,7 @@ export default {
     return {
       tabs: [{ key: 'workflow', label: '工作流' }, { key: 'library', label: '图库' }, { key: 'results', label: '生成结果' }],
       activeTab: 'workflow', workflow: 'redesign', workflows: IMAGE_DESIGN_WORKFLOWS, imageRatios: IMAGE_RATIOS, imageCounts: IMAGE_COUNTS, imageQualities: IMAGE_QUALITIES,
-      targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
+      designStyles: IMAGE_DESIGN_STYLE_OPTIONS, targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
       sourceFolders: [], sourceFoldersLoading: false, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
       pickerVisible: false, pickerStage: 'folders', pickerSlot: '', pickerSourceRole: '', activeFolder: null, folderItems: [], folderItemsLoading: false, selectedFolderItem: null, pickerSaving: false,
       savePickerVisible: false, comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
@@ -153,7 +153,6 @@ export default {
   computed: {
     activeWorkflow() { return this.workflows.find((item) => item.key === this.workflow) || this.workflows[0] },
     activeDraft() { return this.drafts[this.workflow] || {} },
-    designStyles() { return STYLE_OPTIONS.filter((item) => item !== '全部') },
     saveFolders() { return saveableFolders(this.sourceFolders) },
     selectedSaveFolder() { return this.saveFolders.find((item) => item.id === this.activeDraft.save_target_id) || null },
     taskList() { return Object.keys(this.tasks).map((id) => this.tasks[id]).filter((item) => item && !this.isTaskDone(item)) }
@@ -172,6 +171,7 @@ export default {
     slotImage(slot) { return this.activeDraft[slot] || null },
     selectTab(key) { this.activeTab = key; if (key === 'library') this.loadDesignLibrary(); if (key === 'results') this.loadResults() },
     updateDraft(patch) { this.drafts = { ...this.drafts, [this.workflow]: { ...this.activeDraft, ...patch } }; this.scheduleDraftSave() },
+    selectDesignStyle(style) { this.drafts = { ...this.drafts, [this.workflow]: updateImageDesignDraftStyle(this.activeDraft, style) }; this.scheduleDraftSave() },
     updateDescription(description) { this.updateDraft({ description, polished_prompt: '', polished_for: '' }) },
     async loadSourceFolders() {
       this.sourceFoldersLoading = true
@@ -192,7 +192,7 @@ export default {
       try { const data = await mpImageDesignApi.drafts(); this.applyDrafts(data.drafts || data); this.draftSyncIssue = false } catch (error) { if (cached) this.applyDrafts(cached); this.draftSyncIssue = true }
     },
     loadCachedDrafts() { try { const raw = uni.getStorageSync(DRAFT_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch (error) { return null } },
-    applyDrafts(received) { if (!received || typeof received !== 'object') return; const initial = createImageDesignDrafts(); const next = {}; Object.keys(initial).forEach((key) => { next[key] = { ...initial[key], ...(received[key] || {}) } }); this.drafts = next },
+    applyDrafts(received) { if (!received || typeof received !== 'object') return; this.drafts = normalizeImageDesignDrafts(received) },
     scheduleDraftSave() { if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer); this.draftSaveTimer = setTimeout(() => this.persistDraftsNow(), 700) },
     async persistDraftsNow() {
       if (this.draftSaveTimer) { clearTimeout(this.draftSaveTimer); this.draftSaveTimer = null }
@@ -242,11 +242,11 @@ export default {
       const description = String(this.activeDraft.description || '').trim()
       if (!description) { uni.showToast({ title: '请先填写补充描述', icon: 'none' }); return }
       const missing = this.requiredRoleMissing(); if (missing) { uni.showToast({ title: `请先选择${this.roleLabel(missing)}`, icon: 'none' }); return }
-      if (this.workflow === 'redesign' && !this.activeDraft.style) { uni.showToast({ title: '请选择换装风格', icon: 'none' }); return }
+      if (this.workflow === 'redesign' && !isSupportedImageDesignStyle(this.activeDraft.style)) { uni.showToast({ title: '请选择换装风格', icon: 'none' }); return }
       this.polishing = true
       try {
         const images = this.requiredRoles().map((role) => ({ role, library_item_id: this.activeDraft[role].id }))
-        const data = await mpImageDesignApi.polish({ workflow: this.workflow, description, style: this.activeDraft.style || undefined, images, target_space: this.activeDraft.target_space || undefined, layout_type: this.activeDraft.layout_type || undefined, extra_element: this.activeDraft.extra_element || undefined })
+        const data = await mpImageDesignApi.polish({ workflow: this.workflow, description, style: imageDesignStyleForPayload(this.activeDraft.style), images, target_space: this.activeDraft.target_space || undefined, layout_type: this.activeDraft.layout_type || undefined, extra_element: this.activeDraft.extra_element || undefined })
         const polished = data.polished_prompt || data.prompt || data.result || ''; if (!polished) throw new Error('AI 未返回润色结果，请重试')
         this.updateDraft({ polished_prompt: polished, polished_for: description })
       } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.polishing = false }
@@ -260,7 +260,7 @@ export default {
     },
     validateGeneration() {
       const missing = this.requiredRoleMissing(); if (missing) return `请选择${this.roleLabel(missing)}`
-      if (this.workflow === 'redesign' && !this.activeDraft.style) return '请选择换装风格'
+      if (this.workflow === 'redesign' && !isSupportedImageDesignStyle(this.activeDraft.style)) return '请选择换装风格'
       if (!String(this.activeDraft.description || '').trim()) return '请填写补充描述'
       if (!this.activeDraft.polished_prompt || this.activeDraft.polished_for !== this.activeDraft.description) return '请先完成 AI 深度润色'
       return this.activeDraft.save_target_id ? '' : '请选择保存路径'

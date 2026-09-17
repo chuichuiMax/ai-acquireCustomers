@@ -58,12 +58,6 @@ test('material library omits retired design-style choices', () => {
   ])
 })
 
-test('image-design style choices retain the full shared catalog', () => {
-  for (const style of ['东方古雅', '欧式田园', '异域风情', '工业再造', '仿生未来']) {
-    assert.ok(STYLE_OPTIONS.includes(style))
-  }
-})
-
 test('gallery filtering only returns secondary galleries for one style', () => {
   const galleries = [
     { id: 'style-1', style: '复古风潮', parent_id: null },

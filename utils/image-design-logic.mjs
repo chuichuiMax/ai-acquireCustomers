@@ -16,6 +16,21 @@ export const IMAGE_QUALITIES = Object.freeze([
   Object.freeze({ key: '2k', label: '2K 高清' })
 ])
 
+export const DESCRIPTION_STYLE_VALUE = 'description_prompt'
+export const IMAGE_DESIGN_STYLE_OPTIONS = Object.freeze([
+  Object.freeze({ value: '现代轻奢', label: '现代轻奢' }),
+  Object.freeze({ value: '意式极简', label: '意式极简' }),
+  Object.freeze({ value: '新中式', label: '新中式' }),
+  Object.freeze({ value: '现代法式', label: '现代法式' }),
+  Object.freeze({ value: '极简奶油风', label: '极简奶油风' }),
+  Object.freeze({ value: '现代简约', label: '现代简约' }),
+  Object.freeze({ value: '侘寂风', label: '侘寂风' }),
+  Object.freeze({ value: '南洋复古风', label: '南洋复古风' }),
+  Object.freeze({ value: '美式现代', label: '美式现代' }),
+  Object.freeze({ value: '日式极简禅风', label: '日式极简禅风' }),
+  Object.freeze({ value: DESCRIPTION_STYLE_VALUE, label: '使用补充描述作为风格提示词' })
+])
+
 export const TARGET_SPACES = Object.freeze([
   '客厅', '餐厅', '厨房', '主卧', '次卧/儿童房', '书房', '主卫', '公卫',
   '阳台', '玄关', '衣帽间', '茶室', '影音室', '酒窖', '健身房', '长辈房', '客房'
@@ -56,6 +71,33 @@ function createDraft() {
   }
 }
 
+export function isSupportedImageDesignStyle(style) {
+  return IMAGE_DESIGN_STYLE_OPTIONS.some((option) => option.value === style)
+}
+
+export function imageDesignStyleForPayload(style) {
+  if (style === DESCRIPTION_STYLE_VALUE) return undefined
+  return isSupportedImageDesignStyle(style) ? style : undefined
+}
+
+export function updateImageDesignDraftStyle(draft = {}, style) {
+  const nextStyle = isSupportedImageDesignStyle(style) ? style : ''
+  if (draft.style === nextStyle) return draft
+  return { ...draft, style: nextStyle, polished_prompt: '', polished_for: '' }
+}
+
+export function normalizeImageDesignDrafts(received) {
+  const initial = createImageDesignDrafts()
+  const next = {}
+  Object.keys(initial).forEach((key) => {
+    next[key] = { ...initial[key], ...((received && received[key]) || {}) }
+  })
+  if (!isSupportedImageDesignStyle(next.redesign.style)) {
+    next.redesign = { ...next.redesign, style: '', polished_prompt: '', polished_for: '' }
+  }
+  return next
+}
+
 export function requiredImageRoles(workflow) {
   if (workflow === 'adapt') return ['reference', 'rough']
   if (workflow === 'transfer') return ['reference']
@@ -67,7 +109,7 @@ export function draftCanGenerate(workflow, draft) {
   if (!String(draft.polished_prompt || '').trim()) return false
   if (String(draft.polished_for || '') !== String(draft.description || '')) return false
   if (!draft.save_target_id || !draft.ratio || !draft.count || !draft.quality) return false
-  if (workflow === 'redesign' && !draft.style) return false
+  if (workflow === 'redesign' && !isSupportedImageDesignStyle(draft.style)) return false
   return requiredImageRoles(workflow).every((role) => Boolean(draft[role]))
 }
 
@@ -137,7 +179,7 @@ export function buildImageDesignPayload(workflow, draft) {
   return {
     workflow,
     images,
-    style: draft.style || undefined,
+    style: imageDesignStyleForPayload(draft.style),
     description: String(draft.description || '').trim(),
     polished_prompt: String(draft.polished_prompt || '').trim(),
     ratio: draft.ratio,
