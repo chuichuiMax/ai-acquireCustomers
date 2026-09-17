@@ -61,12 +61,6 @@
 			}
 		},
 		{
-			"path": "pages/mine/bio",
-			"style": {
-				"navigationBarTitleText": "简介"
-			}
-		},
-		{
 			"path": "pages/mine/works",
 			"style": {
 				"navigationBarTitleText": "我的作品"

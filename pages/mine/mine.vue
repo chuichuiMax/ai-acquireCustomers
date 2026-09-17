@@ -8,10 +8,6 @@
         <text class="login">最近登录 {{ employee.last_login_at || '-' }}</text>
       </view>
     </view>
-    <view class="card" @click="goBio">
-      <text class="label">简介</text>
-      <text class="bio">{{ employee.bio || '点击填写简介' }}</text>
-    </view>
     <view class="card menu-card">
       <view class="menu-row" @click="goWorks">
         <text>我的作品</text>
@@ -21,9 +17,6 @@
         <text>我的上传</text>
         <text class="arrow">›</text>
       </view>
-    </view>
-    <view class="banner">
-      <image class="banner-logo" src="/static/hirun-logo.png" mode="aspectFit" />
     </view>
     <button class="logout" @click="logout">退出登录</button>
     <tab-bar current="mine" />
@@ -59,9 +52,6 @@ export default {
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
-    },
-    goBio() {
-      uni.navigateTo({ url: '/pages/mine/bio' })
     },
     goWorks() {
       uni.navigateTo({ url: '/pages/mine/works' })
@@ -114,22 +104,11 @@ export default {
   color: #8a817c;
   font-size: 12px;
 }
-.card,
-.banner {
+.card {
   background: #fff;
   border-radius: 14px;
   padding: 16px;
   margin-bottom: 12px;
-}
-.label {
-  display: block;
-  color: #8a817c;
-  font-size: 12px;
-}
-.bio {
-  display: block;
-  margin-top: 8px;
-  color: #2b2422;
 }
 .menu-card {
   padding: 0 16px;
@@ -148,20 +127,6 @@ export default {
 .arrow {
   color: #a49a94;
   font-size: 22px;
-}
-.banner {
-  background: #fff;
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 88px;
-}
-.banner-logo {
-  width: 180px;
-  height: 72px;
 }
 .logout {
   height: 44px;

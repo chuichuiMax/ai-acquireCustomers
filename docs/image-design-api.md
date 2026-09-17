@@ -83,7 +83,7 @@
 {
   "workflow": "redesign",
   "description": "暖色木质与阅读角",
-  "style": "雅致现代",
+  "style": "现代轻奢",
   "images": [{ "role": "source", "library_item_id": "design-library-item-id" }],
   "target_space": "客厅",
   "layout_type": "一字型沙发墙",
@@ -91,13 +91,15 @@
 }
 ```
 
-返回 `{ "polished_prompt": "..." }`。前端将结果只读展示；用户修改描述后会使该结果失效，必须重新调用此接口。
+返回 `{ "polished_prompt": "..." }`。前端将结果只读展示；用户修改描述后会使该结果失效，必须重新调用此接口。原房换装选择“使用补充描述作为风格提示词”时，同样省略 `style`。
 
 ## 异步生成
 
 ### `POST /api/mp/image-design/tasks`
 
-请求中包含 `workflow`、角色化 `images`、`style`、原始 `description`、`polished_prompt`、`ratio`、`count`（2 或 4）、`quality`（`1k` 或 `2k`）、`save_target_id`，跨空间迁移还包括三个单选参数。
+请求中包含 `workflow`、角色化 `images`、原始 `description`、`polished_prompt`、`ratio`、`count`（2 或 4）、`quality`（`1k` 或 `2k`）、`save_target_id`，跨空间迁移还包括三个单选参数。
+
+原房换装使用以下预设风格：`现代轻奢`、`意式极简`、`新中式`、`现代法式`、`极简奶油风`、`现代简约`、`侘寂风`、`南洋复古风`、`美式现代`、`日式极简禅风`。若用户选择“使用补充描述作为风格提示词”，前端会省略 `style`，服务端应以 `description` 与 `polished_prompt` 作为风格指令，不得将该展示文案当作风格值校验。
 
 服务端必须验证：图片属于当前账号或当前企业可见范围；保存路径属于当前账号，或为企业允许写入的公共库；`save_target_id` 不得由客户端绕过权限写入任意企业文件夹。成功返回：
 

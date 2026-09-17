@@ -34,16 +34,17 @@ test('materials views share the space above the tab bar', () => {
 
 test('WeChat prepares a mini-program card and enterprise WeChat keeps a safe fallback', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
-  const wechatMethod = page.match(/async prepareWechatShare\(\) \{([\s\S]*?)\r?\n    \},\r?\n    async shareToWorkWechat/)
+  const prepareMethod = page.match(/async prepareShareForSheet\(\) \{([\s\S]*?)\r?\n    \},\r?\n    async prepareWechatShare/)
+  const wechatMethod = page.match(/async prepareWechatShare\(selectionKey\) \{([\s\S]*?)\r?\n    \},\r?\n    downloadWechatShareCover/)
 
   assert.match(page, /prepareWechatShare/)
+  assert.ok(prepareMethod)
   assert.ok(wechatMethod)
   assert.doesNotMatch(wechatMethod[1], /setClipboardData/)
   assert.match(wechatMethod[1], /share\.card_cover_url/)
   assert.match(wechatMethod[1], /downloadWechatShareCover/)
-  const hideShareOffset = wechatMethod[1].indexOf('this.hideWechatShareMenu()')
-  const downloadCoverOffset = wechatMethod[1].indexOf('downloadWechatShareCover')
-  assert.ok(hideShareOffset >= 0 && hideShareOffset < downloadCoverOffset)
+  assert.match(prepareMethod[1], /this\.shareSnapshot = null/)
+  assert.match(prepareMethod[1], /this\.hideWechatShareMenu\(\)/)
   assert.match(page, /uni\.downloadFile/)
   assert.match(page, /shareToWorkWechat/)
   assert.match(page, /:open-type="isWorkWechatHost\(\) \? 'share' : ''"/)
@@ -66,23 +67,28 @@ test('materials share controls use the supplied bundled image assets', () => {
   }
 })
 
-test('materials share fab renders only the supplied icon', () => {
+test('materials share fab keeps a generous hit area while centering a smaller icon and label', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
 
   assert.match(
     page,
-    /<view v-if="selectedIds\.length" class="share-fab" @click="openShareSheet">\s*<image class="share-fab-icon" src="\/static\/share-icons\/case-share\.png" mode="aspectFit" \/>\s*<\/view>/
+    /<view v-if="selectedIds\.length" class="share-fab" @click="openShareSheet">\s*<image class="share-fab-icon" src="\/static\/share-icons\/case-share\.png" mode="aspectFit" \/>\s*<text class="share-label">分享<\/text>\s*<\/view>/
   )
-  assert.doesNotMatch(page, /<text class="share-label">分享<\/text>/)
-  assert.doesNotMatch(page, /\.share-label\s*\{/)
+  assert.match(page, /\.share-fab \{[\s\S]*?width: 68px;[\s\S]*?height: 68px;[\s\S]*?flex-direction: column;/)
+  assert.match(page, /\.share-fab-icon \{\s+width: 30px;\s+height: 30px;/)
+  assert.match(page, /\.share-label \{\s+margin-top: 2px;[\s\S]*?font-size: 11px;/)
 })
 
-test('share channels use the prepared native card without a second send button', () => {
+test('share sheet gives immediate preparation feedback and exposes native channels only after the card is ready', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
   const openSheet = page.match(/async openShareSheet\(\) \{([\s\S]*?)\r?\n    \},\r?\n    closeShareSheet/)
 
   assert.ok(openSheet)
-  assert.match(openSheet[1], /await this\.prepareWechatShare\(\)/)
+  assert.match(openSheet[1], /this\.shareSheetVisible = true/)
+  assert.match(openSheet[1], /await this\.prepareShareForSheet\(\)/)
+  assert.ok(openSheet[1].indexOf('this.shareSheetVisible = true') < openSheet[1].indexOf('await this.prepareShareForSheet()'))
+  assert.match(page, /v-if="sharePreparing" class="share-preparing"/)
+  assert.match(page, /v-else-if="shareSnapshot" class="share-options"/)
   assert.match(page, /<button\s+class="share-option native-share-option"\s+open-type="share"/)
   assert.doesNotMatch(page, />发送到微信<\/button>/)
   assert.doesNotMatch(page, /native-share-button/)

@@ -14,8 +14,10 @@
       :class="{ active: current === item.key }"
       @click="go(item.path)"
     >
-      <image class="icon" :src="resolveTabIcon(item, current)" mode="aspectFit" />
-      <text class="label">{{ item.label }}</text>
+      <view class="tab-content">
+        <image class="icon" :src="resolveTabIcon(item, current)" mode="aspectFit" />
+        <text class="label">{{ item.label }}</text>
+      </view>
     </view>
   </view>
 </template>
@@ -73,6 +75,12 @@ export default {
 }
 .tab-item.active {
   color: var(--tab-active-color);
+}
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(5px);
 }
 .icon {
   width: 24px;

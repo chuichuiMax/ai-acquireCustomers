@@ -82,6 +82,7 @@
 
       <view v-if="selectedIds.length" class="share-fab" @click="openShareSheet">
         <image class="share-fab-icon" src="/static/share-icons/case-share.png" mode="aspectFit" />
+        <text class="share-label">分享</text>
       </view>
     </view>
 
@@ -89,7 +90,11 @@
       <view class="share-sheet" @click.stop>
         <view class="sheet-close" @click="closeShareSheet">×</view>
         <text class="sheet-title">分享案例</text>
-        <view class="share-options">
+        <view v-if="sharePreparing" class="share-preparing">
+          <view class="share-preparing-spinner" />
+          <text>正在准备分享…</text>
+        </view>
+        <view v-else-if="shareSnapshot" class="share-options">
           <button class="share-option native-share-option" open-type="share">
             <image class="share-channel-icon" src="/static/share-icons/wechat.png" mode="aspectFit" />
             <text>微信</text>
@@ -102,6 +107,10 @@
             <image class="share-channel-icon" src="/static/share-icons/wecom.png" mode="aspectFit" />
             <text>企业微信</text>
           </button>
+        </view>
+        <view v-else class="share-prepare-error">
+          <text>分享准备失败，请重试</text>
+          <button class="share-retry" @click="prepareShareForSheet">重新准备</button>
         </view>
       </view>
     </view>
@@ -121,6 +130,7 @@ import {
   groupGalleryItemsIntoRows,
   createSelectionState,
   toggleSelection,
+  shareSelectionKey,
   buildShareSnapshot,
   buildWechatSharePayload
 } from '../../utils/materials-logic.mjs'
@@ -212,8 +222,7 @@ export default {
       this.activeGalleryId = galleryId
       this.items = []
       this.selection = createSelectionState(galleryId)
-      this.shareSnapshot = null
-      this.hideWechatShareMenu()
+      this.invalidateShareSnapshot()
       this.loadingItems = true
       try {
         const data = await mpContentApi.galleryItems(galleryId)
@@ -228,9 +237,8 @@ export default {
       this.activeGalleryId = ''
       this.items = []
       this.selection = createSelectionState()
-      this.shareSnapshot = null
+      this.invalidateShareSnapshot()
       this.shareSheetVisible = false
-      this.hideWechatShareMenu()
     },
     previewItem(item) {
       const current = galleryThumbUrl(item, 1080)
@@ -248,16 +256,33 @@ export default {
     toggleItem(item) {
       try {
         this.selection = toggleSelection(this.selection, item)
-        this.hideWechatShareMenu()
+        this.invalidateShareSnapshot()
       } catch (error) {
         uni.showToast({ title: error.message, icon: 'none' })
       }
     },
     async openShareSheet() {
       if (!this.selectedIds.length || !this.activeGallery || this.sharePreparing) return
+      this.shareSheetVisible = true
+      await this.prepareShareForSheet()
+    },
+    currentShareSelectionKey() {
+      return shareSelectionKey(this.activeGalleryId, this.selectedIds)
+    },
+    invalidateShareSnapshot() {
+      this.shareSnapshot = null
+      this.hideWechatShareMenu()
+    },
+    async prepareShareForSheet() {
+      if (!this.selectedIds.length || !this.activeGallery || this.sharePreparing) return false
+      const selectionKey = this.currentShareSelectionKey()
+      if (this.shareSnapshot?.selectionKey === selectionKey) return true
+
       this.sharePreparing = true
+      this.shareSnapshot = null
+      this.hideWechatShareMenu()
       try {
-        if (await this.prepareWechatShare()) this.shareSheetVisible = true
+        return await this.prepareWechatShare(selectionKey)
       } finally {
         this.sharePreparing = false
       }
@@ -270,12 +295,13 @@ export default {
       const host = uni.getAppBaseInfo()?.host || {}
       return /wecom|wework|wxwork|企业微信/i.test(`${host.env || ''} ${host.name || ''}`)
     },
-    async prepareWechatShare() {
-      if (!this.selectedIds.length || !this.activeGallery) return
-      this.hideWechatShareMenu()
+    async prepareWechatShare(selectionKey) {
+      const gallery = this.activeGallery
+      const selectedIds = [...this.selectedIds]
+      if (!selectionKey || !gallery || !selectedIds.length) return false
       try {
-        const localSnapshot = buildShareSnapshot(this.activeGallery, this.items, this.selectedIds)
-        const response = await mpContentApi.createShare(this.selectedIds)
+        const localSnapshot = buildShareSnapshot(gallery, this.items, selectedIds)
+        const response = await mpContentApi.createShare(selectedIds)
         const share = response.share || response
         const shareId = share.share_id || share.id || share.token
         if (!shareId) throw new Error('服务端未返回分享快照 ID')
@@ -283,8 +309,10 @@ export default {
           share.card_cover_url || share.image_url || share.cover_url || share.cover_file_url || ''
         )
         const coverLocalPath = await this.downloadWechatShareCover(cardCoverUrl)
+        if (selectionKey !== this.currentShareSelectionKey()) return false
         this.shareSnapshot = {
           ...localSnapshot,
+          selectionKey,
           shareId,
           title: share.title || '',
           shareUrl: share.page_url || share.pageUrl || share.url || share.share_url || '',
@@ -608,21 +636,29 @@ export default {
 .share-fab {
   position: fixed;
   right: 22px;
-  bottom: 84px;
-  z-index: 15;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 21;
   width: 68px;
   height: 68px;
   border-radius: 50%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: #287cf0;
   box-shadow: 0 8px 18px rgba(40, 124, 240, 0.28);
 }
 .share-fab-icon {
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   display: block;
+}
+.share-label {
+  margin-top: 2px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
 }
 .share-mask {
   position: fixed;
@@ -668,6 +704,46 @@ export default {
   color: #332e2a;
   font-size: 13px;
   text-align: center;
+}
+.share-preparing,
+.share-prepare-error {
+  min-height: 96px;
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #756d67;
+  font-size: 13px;
+}
+.share-preparing-spinner {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 10px;
+  border: 3px solid #d9e7fb;
+  border-top-color: #287cf0;
+  border-radius: 50%;
+  box-sizing: border-box;
+  animation: share-preparing-spin 0.8s linear infinite;
+}
+.share-retry {
+  min-width: 100px;
+  margin-top: 12px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 18px;
+  color: #287cf0;
+  font-size: 13px;
+  line-height: 34px;
+  background: #edf5ff;
+}
+.share-retry::after {
+  border: 0;
+}
+@keyframes share-preparing-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .share-option::after {
   border: 0;

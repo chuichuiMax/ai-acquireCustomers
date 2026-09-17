@@ -46,8 +46,8 @@
 
         <view v-if="workflow === 'redesign'" class="section">
           <view class="field-title"><text>*</text>换装风格选择</view>
-          <text class="field-note">选中后，风格详情将与原房图一起传给生图模型。</text>
-          <view class="chip-grid"><view v-for="style in designStyles" :key="style" class="choice-chip" :class="{ active: activeDraft.style === style }" @click="updateDraft({ style })">{{ style }}</view></view>
+          <text class="field-note">选中后，预设风格或补充描述将与原房图一起传给生图模型。</text>
+          <view class="chip-grid"><view v-for="style in designStyles" :key="style.value" class="choice-chip" :class="{ active: activeDraft.style === style.value }" @click="selectDesignStyle(style.value)">{{ style.label }}</view></view>
         </view>
 
         <view v-if="workflow === 'transfer'" class="section">
@@ -127,11 +127,11 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi, mpImageDesignApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
-import { STYLE_OPTIONS } from '../../utils/materials-logic.mjs'
 import {
-  IMAGE_COUNTS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
+  IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
   buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
-  isPublicSaveFolder, normalizeImageDesignLibraryItem, saveableFolders, uniqueFolders
+  imageDesignStyleForPayload, isPublicSaveFolder, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
+  normalizeImageDesignLibraryItem, saveableFolders, uniqueFolders, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
 const DRAFT_CACHE_KEY = 'image-design-drafts-v1'
@@ -144,7 +144,7 @@ export default {
     return {
       tabs: [{ key: 'workflow', label: '工作流' }, { key: 'library', label: '图库' }, { key: 'results', label: '生成结果' }],
       activeTab: 'workflow', workflow: 'redesign', workflows: IMAGE_DESIGN_WORKFLOWS, imageRatios: IMAGE_RATIOS, imageCounts: IMAGE_COUNTS, imageQualities: IMAGE_QUALITIES,
-      targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
+      designStyles: IMAGE_DESIGN_STYLE_OPTIONS, targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
       sourceFolders: [], sourceFoldersLoading: false, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
       pickerVisible: false, pickerStage: 'folders', pickerSlot: '', pickerSourceRole: '', activeFolder: null, folderItems: [], folderItemsLoading: false, selectedFolderItem: null, pickerSaving: false,
       savePickerVisible: false, comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
@@ -153,7 +153,6 @@ export default {
   computed: {
     activeWorkflow() { return this.workflows.find((item) => item.key === this.workflow) || this.workflows[0] },
     activeDraft() { return this.drafts[this.workflow] || {} },
-    designStyles() { return STYLE_OPTIONS.filter((item) => item !== '全部') },
     saveFolders() { return saveableFolders(this.sourceFolders) },
     selectedSaveFolder() { return this.saveFolders.find((item) => item.id === this.activeDraft.save_target_id) || null },
     taskList() { return Object.keys(this.tasks).map((id) => this.tasks[id]).filter((item) => item && !this.isTaskDone(item)) }
@@ -172,6 +171,7 @@ export default {
     slotImage(slot) { return this.activeDraft[slot] || null },
     selectTab(key) { this.activeTab = key; if (key === 'library') this.loadDesignLibrary(); if (key === 'results') this.loadResults() },
     updateDraft(patch) { this.drafts = { ...this.drafts, [this.workflow]: { ...this.activeDraft, ...patch } }; this.scheduleDraftSave() },
+    selectDesignStyle(style) { this.drafts = { ...this.drafts, [this.workflow]: updateImageDesignDraftStyle(this.activeDraft, style) }; this.scheduleDraftSave() },
     updateDescription(description) { this.updateDraft({ description, polished_prompt: '', polished_for: '' }) },
     async loadSourceFolders() {
       this.sourceFoldersLoading = true
@@ -192,7 +192,7 @@ export default {
       try { const data = await mpImageDesignApi.drafts(); this.applyDrafts(data.drafts || data); this.draftSyncIssue = false } catch (error) { if (cached) this.applyDrafts(cached); this.draftSyncIssue = true }
     },
     loadCachedDrafts() { try { const raw = uni.getStorageSync(DRAFT_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch (error) { return null } },
-    applyDrafts(received) { if (!received || typeof received !== 'object') return; const initial = createImageDesignDrafts(); const next = {}; Object.keys(initial).forEach((key) => { next[key] = { ...initial[key], ...(received[key] || {}) } }); this.drafts = next },
+    applyDrafts(received) { if (!received || typeof received !== 'object') return; this.drafts = normalizeImageDesignDrafts(received) },
     scheduleDraftSave() { if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer); this.draftSaveTimer = setTimeout(() => this.persistDraftsNow(), 700) },
     async persistDraftsNow() {
       if (this.draftSaveTimer) { clearTimeout(this.draftSaveTimer); this.draftSaveTimer = null }
@@ -242,11 +242,11 @@ export default {
       const description = String(this.activeDraft.description || '').trim()
       if (!description) { uni.showToast({ title: '请先填写补充描述', icon: 'none' }); return }
       const missing = this.requiredRoleMissing(); if (missing) { uni.showToast({ title: `请先选择${this.roleLabel(missing)}`, icon: 'none' }); return }
-      if (this.workflow === 'redesign' && !this.activeDraft.style) { uni.showToast({ title: '请选择换装风格', icon: 'none' }); return }
+      if (this.workflow === 'redesign' && !isSupportedImageDesignStyle(this.activeDraft.style)) { uni.showToast({ title: '请选择换装风格', icon: 'none' }); return }
       this.polishing = true
       try {
         const images = this.requiredRoles().map((role) => ({ role, library_item_id: this.activeDraft[role].id }))
-        const data = await mpImageDesignApi.polish({ workflow: this.workflow, description, style: this.activeDraft.style || undefined, images, target_space: this.activeDraft.target_space || undefined, layout_type: this.activeDraft.layout_type || undefined, extra_element: this.activeDraft.extra_element || undefined })
+        const data = await mpImageDesignApi.polish({ workflow: this.workflow, description, style: imageDesignStyleForPayload(this.activeDraft.style), images, target_space: this.activeDraft.target_space || undefined, layout_type: this.activeDraft.layout_type || undefined, extra_element: this.activeDraft.extra_element || undefined })
         const polished = data.polished_prompt || data.prompt || data.result || ''; if (!polished) throw new Error('AI 未返回润色结果，请重试')
         this.updateDraft({ polished_prompt: polished, polished_for: description })
       } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.polishing = false }
@@ -260,7 +260,7 @@ export default {
     },
     validateGeneration() {
       const missing = this.requiredRoleMissing(); if (missing) return `请选择${this.roleLabel(missing)}`
-      if (this.workflow === 'redesign' && !this.activeDraft.style) return '请选择换装风格'
+      if (this.workflow === 'redesign' && !isSupportedImageDesignStyle(this.activeDraft.style)) return '请选择换装风格'
       if (!String(this.activeDraft.description || '').trim()) return '请填写补充描述'
       if (!this.activeDraft.polished_prompt || this.activeDraft.polished_for !== this.activeDraft.description) return '请先完成 AI 深度润色'
       return this.activeDraft.save_target_id ? '' : '请选择保存路径'
@@ -304,7 +304,7 @@ export default {
 .page { min-height: 100vh; box-sizing: border-box; padding-bottom: calc(52px + env(safe-area-inset-bottom)); background: #f4f1ee; color: #282421; }
 .segments { display: flex; height: 48px; margin: 14px 14px 0; overflow: hidden; border: 1px solid #be2d22; border-radius: 5px; background: #fff; }.segment { flex: 1; display: flex; align-items: center; justify-content: center; border-right: 1px solid #be2d22; color: #6e6761; font-size: 15px; }.segment:last-child { border: 0; }.segment.active { color: #fff; font-weight: 700; background: #be2d22; }.content { height: calc(100vh - 114px - env(safe-area-inset-bottom)); }
 .section { margin-top: 12px; padding: 20px 18px; border-top: 1px solid #ede8e4; border-bottom: 1px solid #ede8e4; background: #fff; }.section-title { display: flex; align-items: center; color: #231f1d; font-size: 18px; font-weight: 700; }.section-title view { width: 4px; height: 23px; margin-right: 9px; background: #be2d22; }.workflow-options { display: flex; gap: 8px; margin-top: 17px; }.workflow-option { flex: 1; min-width: 0; min-height: 45px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; position: relative; border: 1px solid #8e8985; border-radius: 6px; color: #625c57; font-size: 14px; }.workflow-option.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.workflow-option text { position: absolute; right: 6px; bottom: 3px; font-size: 12px; }.workflow-description { display: block; margin-top: 12px; color: #5f5853; font-size: 13px; line-height: 1.6; }
-.field-title { color: #201d1a; font-size: 17px; font-weight: 700; }.field-title > text { margin-right: 3px; color: #be2d22; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 1px solid #f0d6b1; background: #fff7e8; }.source-upload { border: 1px dashed #cfc5bd; background: #fbfaf9; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
+.field-title { color: #201d1a; font-size: 17px; font-weight: 700; }.field-title > text { margin-right: 3px; color: #be2d22; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 0; background: transparent; }.source-upload { border: 0; background: transparent; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
 .selected-input { min-height: 66px; margin-top: 13px; padding: 7px 10px; box-sizing: border-box; display: flex; align-items: center; background: #f8f6f4; }.selected-input image { width: 52px; height: 52px; margin-right: 11px; background: #e5ddd7; }.selected-input view text { display: block; color: #38322e; font-size: 13px; font-weight: 700; }.selected-input view text + text { margin-top: 4px; color: #918780; font-size: 11px; font-weight: 400; }.selected-input > text { margin-left: auto; color: #be2d22; font-size: 13px; }
 .chip-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }.choice-chip { min-height: 40px; padding: 0 13px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #98918b; border-radius: 5px; color: #625c57; font-size: 13px; line-height: 1.25; text-align: center; }.choice-chip.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.three-column .choice-chip { width: calc((100% - 20px) / 3); padding: 0 4px; }.two-column .choice-chip { width: calc((100% - 10px) / 2); padding: 0 5px; }.sub-title { margin-top: 21px; color: #292421; font-size: 16px; font-weight: 700; }
 .description { width: 100%; height: 138px; margin-top: 16px; padding: 12px; box-sizing: border-box; border: 1px dashed #4f84ff; border-radius: 8px; color: #38322e; font-size: 14px; line-height: 1.55; background: #fafcff; }.description-placeholder { color: #ada9a5; }.polish-button { float: right; height: 39px; margin: 13px 0 12px; padding: 0 16px; border-radius: 20px; color: #fff; font-size: 14px; line-height: 39px; background: #be2d22; }.polish-button::after, .generate-button::after, .picker-confirm::after, .retry::after { border: 0; }.polish-result { clear: both; min-height: 87px; padding: 13px; box-sizing: border-box; border: 1px dashed #a9a29c; border-radius: 7px; background: #fafafa; }.polish-result.ready { border-color: #4f84ff; background: #f9fbff; }.polish-result text { display: block; color: #77706a; font-size: 13px; font-weight: 700; }.polish-result text + text { margin-top: 7px; color: #88817b; font-size: 12px; font-weight: 400; line-height: 1.6; white-space: pre-wrap; }.polish-result.ready text:first-child { color: #be2d22; }

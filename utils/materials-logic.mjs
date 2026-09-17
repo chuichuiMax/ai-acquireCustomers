@@ -82,6 +82,11 @@ export function toggleSelection(state, item) {
   }
 }
 
+export function shareSelectionKey(galleryId, orderedIds = []) {
+  if (!galleryId || !Array.isArray(orderedIds) || !orderedIds.length) return ''
+  return `${galleryId}:${orderedIds.join(',')}`
+}
+
 export function buildShareSnapshot(gallery, items, orderedIds) {
   const itemMap = new Map(items.map((item) => [item.id, item]))
   return {

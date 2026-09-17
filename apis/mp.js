@@ -48,8 +48,7 @@ export const mpAuthApi = {
 }
 
 export const mpMeApi = {
-  get: () => request({ url: '/api/mp/me' }),
-  update: (data) => request({ url: '/api/mp/me', method: 'PATCH', data })
+  get: () => request({ url: '/api/mp/me' })
 }
 
 export const mpContentApi = {
