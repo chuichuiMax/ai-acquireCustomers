@@ -154,7 +154,11 @@
             <view class="xhs-card">
               <view class="xhs-preview-frame">
                 <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
-                <view v-if="templateOverlaySrc" class="xhs-preview-overlay-wrap">
+                <view
+                  v-if="templateOverlaySrc"
+                  class="xhs-preview-overlay-wrap"
+                  :class="{ multiply: overlayUsesMultiply }"
+                >
                   <image class="xhs-preview-overlay" :src="templateOverlaySrc" mode="scaleToFill" />
                 </view>
               </view>
@@ -258,7 +262,7 @@ import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { contentTypeIcon } from '../../utils/generate-content-type-icons'
-import { templateOverlayPath } from '../../utils/cover-overlay.mjs'
+import { resolveTemplateOverlay } from '../../utils/cover-overlay.mjs'
 
 const REGION_INITIAL = {
   芙: 'F', 天: 'T', 岳: 'Y', 开: 'K', 雨: 'Y', 望: 'W', 长: 'C', 浏: 'L', 宁: 'N',
@@ -499,9 +503,15 @@ export default {
     coverPhotoSrc() {
       return this.coverLocal || ''
     },
+    templateOverlay() {
+      return resolveTemplateOverlay(this.selectedTemplate)
+    },
     templateOverlaySrc() {
-      const path = templateOverlayPath(this.selectedTemplate)
+      const path = this.templateOverlay.path
       return path ? this.mediaUrl(path, { width: 1080 }) : ''
+    },
+    overlayUsesMultiply() {
+      return this.templateOverlay.multiply
     }
   },
   async onLoad() {
@@ -1334,11 +1344,12 @@ export default {
 }
 .xhs-preview-frame {
   position: relative;
+  isolation: isolate;
   width: 100%;
   padding-top: 133.33%;
   overflow: hidden;
   border-radius: 12px;
-  background: #f7f4f2;
+  background: #fff;
 }
 .xhs-preview-image,
 .xhs-preview-overlay,
@@ -1352,6 +1363,9 @@ export default {
 }
 .xhs-preview-overlay {
   background: transparent;
+}
+.xhs-preview-overlay-wrap.multiply {
+  mix-blend-mode: multiply;
 }
 .xhs-card-label {
   display: block;
