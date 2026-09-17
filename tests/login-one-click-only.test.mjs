@@ -19,6 +19,17 @@ test('login page exposes one-click login without SMS login entry points', () => 
   assert.match(pagesConfig, /"navigationBarTitleText": "登录"/)
 })
 
+test('WeChat mini-program login presents no manual phone entry or fallback', () => {
+  assert.match(loginPage, /open-type="getPhoneNumber"/)
+  assert.match(loginPage, /@getphonenumber="onGetPhoneNumber"/)
+  assert.doesNotMatch(loginPage, /<input\b/)
+  assert.doesNotMatch(loginPage, /请输入手机号码/)
+  assert.doesNotMatch(loginPage, /phoneOk/)
+  assert.doesNotMatch(loginPage, /wechatPhoneFrom/)
+  assert.doesNotMatch(loginPage, /loginByPhoneFallback/)
+  assert.doesNotMatch(loginPage, /#ifndef MP-WEIXIN/)
+})
+
 test('one-click login confirms the bound session directly without a confirmation page', () => {
   assert.match(loginPage, /mpAuthApi\.confirmLogin\(\{\s*session_id: session\.session_id/)
   assert.match(loginPage, /setToken\(data\.access_token\)/)
