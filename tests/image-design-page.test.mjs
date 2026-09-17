@@ -13,7 +13,7 @@ test('image design keeps the confirmed three-stage top navigation', () => {
 })
 
 test('folder selection saves a generation-library reference before filling its slot', () => {
-  const method = page.match(/async confirmPicker\(\) \{([\s\S]*?)\n    \},\n    chooseUpload/)
+  const method = page.match(/async confirmPicker\(\) \{([\s\S]*?)\r?\n    \},\r?\n    chooseUpload/)
   assert.ok(method)
   assert.match(method[1], /mpImageDesignApi\.addLibraryItem/)
   assert.match(method[1], /this\.setImageSlot\(this\.pickerSlot, saved\)/)
@@ -40,7 +40,7 @@ test('drafts, jobs, result comparison, and photo-album download use the image-de
 })
 
 test('the latest save path becomes the default for all workflow drafts', () => {
-  const method = page.match(/async selectSaveFolder\(folder\) \{([\s\S]*?)\n    \},\n    validateGeneration/)
+  const method = page.match(/async selectSaveFolder\(folder\) \{([\s\S]*?)\r?\n    \},\r?\n    validateGeneration/)
   assert.ok(method)
   assert.match(method[1], /Object\.keys\(this\.drafts\)/)
   assert.match(method[1], /save_target_id: folder\.id/)
