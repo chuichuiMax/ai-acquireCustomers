@@ -155,12 +155,12 @@
               <view class="xhs-preview-frame">
                 <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
                 <view
-                  v-if="templateOverlaySrc"
-                  class="xhs-preview-overlay-wrap"
-                  :class="{ multiply: overlayUsesMultiply }"
+                  v-if="compositeFallback && templateOverlaySrc"
+                  class="xhs-preview-overlay-wrap multiply"
                 >
                   <image class="xhs-preview-overlay" :src="templateOverlaySrc" mode="scaleToFill" />
                 </view>
+                <canvas type="2d" id="xhsCompositeCanvas" class="xhs-preview-canvas" :class="{ hidden: compositeFallback }"></canvas>
               </view>
               <text class="xhs-card-label">模板叠加效果</text>
               <text v-if="selectedTemplateTitle" class="xhs-card-sub">{{ selectedTemplateTitle }}</text>
@@ -264,7 +264,7 @@ import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { contentTypeIcon } from '../../utils/generate-content-type-icons'
-import { resolveTemplateOverlay } from '../../utils/cover-overlay.mjs'
+import { extraTemplateList, mergeCoverTemplates, preserveOverlayAlpha, resolveTemplateOverlay, aspectFillSourceRect, knockoutWhiteBackground, overlayLooksOpaqueWhite, sampleOverlayCorners, sourceOver } from '../../utils/cover-overlay.mjs'
 import { isGalleryItemUsed, loadAllGalleryItems } from '../../utils/gallery-items.mjs'
 
 const REGION_INITIAL = {
@@ -392,7 +392,9 @@ export default {
       submitting: false,
       schemaLoaded: false,
       schemaLoading: false,
-      resumeAfterPicker: false
+      resumeAfterPicker: false,
+      compositeFallback: false,
+      compositeToken: 0
     }
   },
   computed: {
@@ -510,8 +512,8 @@ export default {
       return resolveTemplateOverlay(this.selectedTemplate)
     },
     templateOverlaySrc() {
-      const path = this.templateOverlay.path
-      return path ? this.mediaUrl(path, { width: 1080 }) : ''
+      const path = preserveOverlayAlpha(this.templateOverlay.path)
+      return path ? this.mediaUrl(path) : ''
     },
     overlayUsesMultiply() {
       return this.templateOverlay.multiply
@@ -537,12 +539,131 @@ export default {
         if (name && next[name] === undefined) next[name] = ''
       }
       this.formValues = next
+    },
+    coverPhotoSrc() {
+      this.queueCoverComposite()
+    },
+    templateOverlaySrc() {
+      this.queueCoverComposite()
     }
   },
   methods: {
     mediaUrl,
     thumbUrl,
     galleryThumbUrl,
+    queueCoverComposite() {
+      if (!this.coverPhotoSrc) return
+      const token = this.compositeToken + 1
+      this.compositeToken = token
+      this.compositeFallback = false
+      this.$nextTick(() => {
+        this.drawCoverComposite(token)
+      })
+    },
+    loadLocalImage(src) {
+      return new Promise((resolve, reject) => {
+        if (!src) {
+          reject(new Error('missing image'))
+          return
+        }
+        if (/^(wxfile:|file:|http:\/\/tmp\/|https:\/\/tmp\/)/i.test(src)) {
+          resolve(src)
+          return
+        }
+        uni.getImageInfo({
+          src,
+          success: (info) => resolve((info && info.path) || src),
+          fail: () => {
+            uni.downloadFile({
+              url: src,
+              success: (res) => {
+                if (res.statusCode === 200 && res.tempFilePath) resolve(res.tempFilePath)
+                else reject(new Error('download failed'))
+              },
+              fail: reject
+            })
+          }
+        })
+      })
+    },
+    loadCanvasImage(canvas, src) {
+      return this.loadLocalImage(src).then(
+        (path) =>
+          new Promise((resolve, reject) => {
+            const image = canvas.createImage()
+            image.onload = () => resolve(image)
+            image.onerror = () => reject(new Error('image load failed'))
+            image.src = path
+          })
+      )
+    },
+    async drawCoverComposite(token, attempt) {
+      const photoSrc = this.coverPhotoSrc
+      const overlaySrc = this.templateOverlaySrc
+      const round = attempt || 0
+      if (!photoSrc || token !== this.compositeToken) return
+      const query = uni.createSelectorQuery().in(this)
+      query
+        .select('#xhsCompositeCanvas')
+        .fields({ node: true, size: true })
+        .exec(async (res) => {
+          const target = res && res[0]
+          const canvas = target && target.node
+          const cssWidth = target && target.width
+          const cssHeight = target && target.height
+          if (!canvas || !cssWidth || !cssHeight) {
+            if (round < 5 && token === this.compositeToken) {
+              setTimeout(() => this.drawCoverComposite(token, round + 1), 80)
+            } else if (token === this.compositeToken) {
+              this.compositeFallback = true
+            }
+            return
+          }
+          try {
+            const ctx = canvas.getContext('2d')
+            const width = 1080
+            const height = 1440
+            canvas.width = width
+            canvas.height = height
+            ctx.setTransform(1, 0, 0, 1, 0, 0)
+            const photo = await this.loadCanvasImage(canvas, photoSrc)
+            if (token !== this.compositeToken) return
+            let overlayImage = null
+            if (overlaySrc) overlayImage = await this.loadCanvasImage(canvas, overlaySrc)
+            if (token !== this.compositeToken) return
+            let overlayData = null
+            if (overlayImage) {
+              ctx.clearRect(0, 0, width, height)
+              ctx.globalCompositeOperation = 'source-over'
+              ctx.drawImage(overlayImage, 0, 0, width, height)
+              try {
+                overlayData = ctx.getImageData(0, 0, width, height)
+                if (overlayLooksOpaqueWhite(sampleOverlayCorners(overlayData.data, width, height))) {
+                  knockoutWhiteBackground(overlayData.data)
+                }
+              } catch (error) {
+                overlayData = null
+              }
+            }
+            ctx.clearRect(0, 0, width, height)
+            ctx.globalCompositeOperation = 'source-over'
+            const rect = aspectFillSourceRect(photo.width, photo.height, width, height)
+            ctx.drawImage(photo, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, width, height)
+            if (overlayData) {
+              const photoData = ctx.getImageData(0, 0, width, height)
+              sourceOver(photoData.data, overlayData.data)
+              ctx.putImageData(photoData, 0, 0)
+              this.compositeFallback = false
+            } else if (overlayImage) {
+              this.compositeFallback = true
+            } else {
+              this.compositeFallback = false
+            }
+          } catch (error) {
+            if (token === this.compositeToken) this.compositeFallback = true
+          }
+        })
+    },
     shortTypeName(name) {
       return String(name || '')
         .replace(/^装修/, '')
@@ -718,8 +839,18 @@ export default {
         }
         this.formValues = next
         const templates = data.hycanvas_templates || []
-        if (!this.coverTemplateId || !templates.some((item) => item.id === this.coverTemplateId)) {
-          this.coverTemplateId = templates.length ? templates[0].id : ''
+        try {
+          const extra = extraTemplateList(await mpContentApi.coverTemplates())
+          if (extra.length) {
+            this.schema = {
+              ...this.schema,
+              hycanvas_templates: mergeCoverTemplates(templates, extra)
+            }
+          }
+        } catch (error) {}
+        const mergedTemplates = this.schema.hycanvas_templates || []
+        if (!this.coverTemplateId || !mergedTemplates.some((item) => item.id === this.coverTemplateId)) {
+          this.coverTemplateId = mergedTemplates.length ? mergedTemplates[0].id : ''
         }
         await this.loadGalleries()
         this.ensureUploadCategory()
@@ -1348,7 +1479,6 @@ export default {
 }
 .xhs-preview-frame {
   position: relative;
-  isolation: isolate;
   width: 100%;
   padding-top: 133.33%;
   overflow: hidden;
@@ -1357,7 +1487,8 @@ export default {
 }
 .xhs-preview-image,
 .xhs-preview-overlay,
-.xhs-preview-overlay-wrap {
+.xhs-preview-overlay-wrap,
+.xhs-preview-canvas {
   position: absolute;
   left: 0;
   top: 0;
@@ -1370,6 +1501,9 @@ export default {
 }
 .xhs-preview-overlay-wrap.multiply {
   mix-blend-mode: multiply;
+}
+.xhs-preview-canvas.hidden {
+  opacity: 0;
 }
 .xhs-card-label {
   display: block;
