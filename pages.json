@@ -15,14 +15,7 @@
 		{
 			"path": "pages/login/login",
 			"style": {
-				"navigationBarTitleText": "密码登录"
-			}
-		},
-		{
-			"path": "pages/login/confirm",
-			"style": {
-				"navigationBarTitleText": "登录确认",
-				"navigationStyle": "custom"
+				"navigationBarTitleText": "登录"
 			}
 		},
 		{

@@ -36,10 +36,6 @@ async function firstAvailable(fns) {
 }
 
 export const mpAuthApi = {
-  sendSms: (data) =>
-    request({ url: '/api/mp/auth/sms/send', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
-  loginBySms: (data) =>
-    request({ url: '/api/mp/auth/sms/login', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
   loginByWechat: (data) =>
     request({ url: '/api/mp/auth/wechat/code', method: 'POST', data, requiresAuth: false, timeout: 90000 }),
   bindWechatPhone: (data) =>
