@@ -15,7 +15,7 @@ test('gallery request errors are distinct from an empty gallery list', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
 
   assert.match(page, /v-else-if="galleriesError"/)
-  assert.match(page, /素材库加载失败/)
+  assert.match(page, /案例加载失败/)
 })
 
 test('materials views share the space above the tab bar', () => {
@@ -33,6 +33,12 @@ test('WeChat prepares a mini-program card while enterprise WeChat keeps its link
   assert.match(page, /prepareWechatShare/)
   assert.ok(wechatMethod)
   assert.doesNotMatch(wechatMethod[1], /setClipboardData/)
+  assert.match(wechatMethod[1], /share\.card_cover_url/)
+  assert.match(wechatMethod[1], /downloadWechatShareCover/)
+  const disableShareOffset = wechatMethod[1].indexOf('this.wechatShareReady = false')
+  const downloadCoverOffset = wechatMethod[1].indexOf('downloadWechatShareCover')
+  assert.ok(disableShareOffset >= 0 && disableShareOffset < downloadCoverOffset)
+  assert.match(page, /uni\.downloadFile/)
   assert.match(page, /shareToWorkWechat/)
 })
 

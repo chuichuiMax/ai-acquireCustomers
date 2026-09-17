@@ -271,20 +271,27 @@ export default {
     },
     async prepareWechatShare() {
       if (!this.selectedIds.length || !this.activeGallery) return
+      this.wechatShareReady = false
+      this.hideWechatShareMenu()
       try {
         const localSnapshot = buildShareSnapshot(this.activeGallery, this.items, this.selectedIds)
         const response = await mpContentApi.createShare(this.selectedIds)
         const share = response.share || response
         const shareId = share.share_id || share.id || share.token
         if (!shareId) throw new Error('服务端未返回分享快照 ID')
+        const cardCoverUrl = publicMediaUrl(
+          share.card_cover_url || share.image_url || share.cover_url || share.cover_file_url || ''
+        )
+        const coverLocalPath = await this.downloadWechatShareCover(cardCoverUrl)
         this.shareSnapshot = {
           ...localSnapshot,
           shareId,
           title: share.title || '',
-          coverUrl: publicMediaUrl(share.cover_url || share.cover_file_url || ''),
+          coverUrl: cardCoverUrl,
+          coverLocalPath,
           images: localSnapshot.images.map((item, index) => ({
             ...item,
-            public_url: index === 0 ? publicMediaUrl(share.cover_url || share.cover_file_url || '') : ''
+            public_url: index === 0 ? cardCoverUrl : ''
           }))
         }
         this.shareSheetVisible = false
@@ -294,6 +301,22 @@ export default {
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
+    },
+    downloadWechatShareCover(url) {
+      if (!url) return Promise.reject(new Error('服务端未返回分享封面'))
+      return new Promise((resolve, reject) => {
+        uni.downloadFile({
+          url,
+          success: (response) => {
+            if (response.statusCode === 200 && response.tempFilePath) {
+              resolve(response.tempFilePath)
+              return
+            }
+            reject(new Error('分享封面下载失败'))
+          },
+          fail: () => reject(new Error('分享封面下载失败，请检查网络或小程序下载合法域名'))
+        })
+      })
     },
     async shareToWorkWechat() {
       if (!this.selectedIds.length || !this.activeGallery) return

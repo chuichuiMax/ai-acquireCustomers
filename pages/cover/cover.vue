@@ -411,6 +411,7 @@ export default {
     if (this.mainTab === 'results') this.loadJobs()
   },
   async onShow() {
+    await this.ensureInternalAccess()
     if (!(await this.ensureInternalAccess())) return
     if (this.resumeAfterPicker) {
       this.resumeAfterPicker = false
@@ -1052,6 +1053,7 @@ export default {
 .polish-result {
   width: 100%;
   box-sizing: border-box;
+  padding-bottom: 90px;
   min-height: 110px;
   padding: 12px;
   border-radius: 12px;

@@ -36,8 +36,8 @@
           <text>实景案例</text>
         </view>
         <view v-if="images.length" class="image-list">
-          <view v-for="(image, index) in images" :key="image.id || image.url || index" class="image-item">
-            <image class="case-image" :src="image.url" mode="aspectFill" @click="previewImage(index)" />
+          <view v-for="(image, index) in images" :key="image.id || image.displayUrl || index" class="image-item">
+            <image class="case-image" :src="image.displayUrl" mode="aspectFill" lazy-load @click="previewImage(index)" />
           </view>
         </view>
         <text v-else class="empty-images">暂无可展示的案例图片</text>
@@ -48,7 +48,7 @@
 
 <script>
 import { mpContentApi } from '../../apis/mp'
-import { formatArea } from '../../utils/materials-logic.mjs'
+import { buildSharedCaseImages, formatArea } from '../../utils/materials-logic.mjs'
 import { errorMessage, publicMediaUrl } from '../../utils/request'
 
 export default {
@@ -64,6 +64,8 @@ export default {
         style: ''
       },
       coverUrl: '',
+      coverPreviewUrl: '',
+      shareCardCoverUrl: '',
       images: []
     }
   },
@@ -91,7 +93,7 @@ export default {
   onShareAppMessage() {
     return {
       title: this.caseInfo.title,
-      imageUrl: this.coverUrl,
+      imageUrl: this.shareCardCoverUrl || this.coverPreviewUrl || this.coverUrl,
       path: `/pages/materials/shared-case?shareId=${encodeURIComponent(this.shareId)}`
     }
   },
@@ -110,16 +112,14 @@ export default {
         const share = response.share || response
         const gallery = share.gallery || share.case || {}
         const rawImages = share.images || share.items || share.image_list || []
-        this.images = rawImages
-          .map((image) => ({
-            id: image.id,
-            name: image.file_name || image.filename || image.name || '',
-            url: publicMediaUrl(image.url || image.file_url || image.public_url || image.path || '')
-          }))
-          .filter((image) => Boolean(image.url))
+        this.images = buildSharedCaseImages(rawImages, publicMediaUrl)
         this.coverUrl = publicMediaUrl(
-          share.cover_url || share.cover_file_url || this.images[0]?.url || ''
+          share.cover_webp_url || share.cover_url || share.cover_file_url || this.images[0]?.displayUrl || ''
         )
+        this.coverPreviewUrl = publicMediaUrl(
+          share.cover_url || share.cover_file_url || this.images[0]?.previewUrl || ''
+        )
+        this.shareCardCoverUrl = publicMediaUrl(share.card_cover_url || '')
         this.caseInfo = {
           title: share.title || share.gallery_name || gallery.name || '案例分享',
           building: share.building_name || share.building || gallery.building_name || gallery.building || '',
@@ -135,7 +135,7 @@ export default {
       }
     },
     previewImage(index) {
-      const urls = this.images.map((image) => image.url)
+      const urls = this.images.map((image) => image.previewUrl)
       if (!urls.length) return
       uni.previewImage({ current: urls[index], urls })
     }
