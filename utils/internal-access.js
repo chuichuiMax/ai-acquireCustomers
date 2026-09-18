@@ -1,9 +1,11 @@
 import { mpMeApi } from '../apis/mp'
 import { getToken, setToken } from './request'
-import { evaluateInternalAccess } from './internal-access-policy.mjs'
+import { createCachedInternalAccessEvaluator, evaluateInternalAccess } from './internal-access-policy.mjs'
 
 export const INTERNAL_HOME_PATH = '/pages/generate/generate'
 export const LOGIN_PATH = '/pages/login/login'
+
+const accessEvaluator = createCachedInternalAccessEvaluator(evaluateInternalAccess)
 
 function currentRoute() {
   try {
@@ -20,12 +22,12 @@ function redirectToLogin() {
 }
 
 export async function requireInternalAccess({ redirect = true } = {}) {
-  const decision = await evaluateInternalAccess({
-    token: getToken(),
-    getMe: () => mpMeApi.get()
-  })
+  const decision = await accessEvaluator.evaluate(getToken(), () => mpMeApi.get())
 
-  if (decision.clearToken) setToken('')
+  if (decision.clearToken) {
+    setToken('')
+    accessEvaluator.clear()
+  }
   if (!decision.allowed && redirect) redirectToLogin()
   return decision.allowed
 }
