@@ -73,7 +73,7 @@
         </view>
         <view class="section compact"><view class="field-title"><text>*</text>生成数量</view><view class="two-row"><view v-for="count in imageCounts" :key="count" class="large-choice inline" :class="{ active: activeDraft.count === count }" @click="updateDraft({ count })">{{ count }}张</view></view></view>
         <view class="section compact"><view class="field-title"><text>*</text>清晰度</view><view class="two-row"><view v-for="item in imageQualities" :key="item.key" class="large-choice inline" :class="{ active: activeDraft.quality === item.key }" @click="updateDraft({ quality: item.key })">{{ item.label }}</view></view></view>
-        <view class="section compact"><view class="field-title"><text>*</text>选择保存路径</view><view class="save-target" @click="savePickerVisible = true"><text :class="{ placeholder: !selectedSaveFolder }">{{ selectedSaveFolder ? selectedSaveFolder.name : '请选择保存路径' }}</text><text>⌄</text></view><text v-if="draftSyncIssue" class="sync-note">草稿暂未同步到账号，将在网络恢复后再次保存。</text></view>
+        <view class="section compact"><view class="field-title"><text>*</text>选择保存路径</view><picker mode="selector" :range="savePathLabels" :disabled="!savePathOptions.length" @change="selectSavePathByIndex"><view class="save-target"><text :class="{ placeholder: !selectedSaveFolder }">{{ selectedSaveFolder ? selectedSaveFolder.label : '请选择保存路径' }}</text><text>⌄</text></view></picker><text v-if="draftSyncIssue" class="sync-note">草稿暂未同步到账号，将在网络恢复后再次保存。</text></view>
         <button class="generate-button" :loading="generating" :disabled="generating" @click="generateImages">生成图片</button>
       </template>
 
@@ -112,11 +112,6 @@
       <button v-if="pickerStage === 'images'" class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
     </view>
 
-    <view v-if="savePickerVisible" class="layer">
-      <view class="layer-head"><text class="back" @click="savePickerVisible = false">‹</text><text>选择保存路径</text><text class="close" @click="savePickerVisible = false">关闭</text></view>
-      <scroll-view class="layer-body" scroll-y><view v-if="!saveFolders.length" class="state">暂无可保存的文件夹</view><view v-else class="save-list"><view v-for="folder in saveFolders" :key="folder.id" class="save-row" :class="{ selected: activeDraft.save_target_id === folder.id }" @click="selectSaveFolder(folder)"><view class="small-folder"><view /></view><view><text>{{ folder.name }}</text><text>{{ isPublicFolder(folder) ? '企业公共库' : '个人素材库' }}</text></view><text>{{ activeDraft.save_target_id === folder.id ? '✓' : '' }}</text></view></view></scroll-view>
-    </view>
-
     <view v-if="comparisonVisible" class="layer compare-layer"><view class="layer-head"><text class="back" @click="comparisonVisible = false">‹</text><text>对比</text><text class="close" @click="comparisonVisible = false">关闭</text></view><scroll-view class="layer-body" scroll-y><view class="compare-list"><view v-for="item in comparisonImages" :key="item.label"><text>{{ item.label }}</text><image :src="mediaUrl(item.url)" mode="widthFix" /></view></view></scroll-view></view>
     <tab-bar current="cover" />
   </view>
@@ -130,8 +125,8 @@ import { internalPageMixin } from '../../utils/internal-access'
 import {
   IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
   buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
-  imageDesignStyleForPayload, isPublicSaveFolder, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
-  normalizeImageDesignLibraryItem, saveableFolders, uniqueFolders, updateImageDesignDraftStyle
+  imageDesignStyleForPayload, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
+  normalizeImageDesignLibraryItem, savePathOptions, uniqueFolders, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
 const DRAFT_CACHE_KEY = 'image-design-drafts-v1'
@@ -147,14 +142,15 @@ export default {
       designStyles: IMAGE_DESIGN_STYLE_OPTIONS, targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
       sourceFolders: [], sourceFoldersLoading: false, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
       pickerVisible: false, pickerStage: 'folders', pickerSlot: '', pickerSourceRole: '', activeFolder: null, folderItems: [], folderItemsLoading: false, selectedFolderItem: null, pickerSaving: false,
-      savePickerVisible: false, comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
+      comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
     }
   },
   computed: {
     activeWorkflow() { return this.workflows.find((item) => item.key === this.workflow) || this.workflows[0] },
     activeDraft() { return this.drafts[this.workflow] || {} },
-    saveFolders() { return saveableFolders(this.sourceFolders) },
-    selectedSaveFolder() { return this.saveFolders.find((item) => item.id === this.activeDraft.save_target_id) || null },
+    savePathOptions() { return savePathOptions(this.sourceFolders) },
+    savePathLabels() { return this.savePathOptions.map((item) => item.label) },
+    selectedSaveFolder() { return this.savePathOptions.find((item) => item.id === this.activeDraft.save_target_id) || null },
     taskList() { return Object.keys(this.tasks).map((id) => this.tasks[id]).filter((item) => item && !this.isTaskDone(item)) }
   },
   async onShow() {
@@ -165,7 +161,7 @@ export default {
   onHide() { this.persistDraftsNow(); this.stopTaskPolling() },
   onUnload() { this.persistDraftsNow(); this.stopTaskPolling() },
   methods: {
-    mediaUrl, imageSourceLabel, isPublicFolder: isPublicSaveFolder,
+    mediaUrl, imageSourceLabel,
     imageUrl(item) { return galleryThumbUrl(item, 720) },
     resultImageUrl(item) { return mediaUrl(item.image_url || item.file_url || item.url || imageFileUrl(item)) },
     slotImage(slot) { return this.activeDraft[slot] || null },
@@ -255,8 +251,11 @@ export default {
       const drafts = {}
       Object.keys(this.drafts).forEach((key) => { drafts[key] = { ...this.drafts[key], save_target_id: folder.id } })
       this.drafts = drafts
-      this.savePickerVisible = false
       await this.persistDraftsNow()
+    },
+    selectSavePathByIndex(event) {
+      const folder = this.savePathOptions[Number(event && event.detail && event.detail.value)]
+      if (folder) return this.selectSaveFolder(folder)
     },
     validateGeneration() {
       const missing = this.requiredRoleMissing(); if (missing) return `请选择${this.roleLabel(missing)}`
@@ -311,5 +310,5 @@ export default {
 .option-stack { margin-top: 14px; }.large-choice { min-height: 64px; margin-top: 12px; padding: 9px 16px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; border: 1px solid #8f8984; border-radius: 7px; color: #6a635e; font-size: 18px; line-height: 1.35; }.large-choice text + text { margin-top: 3px; font-size: 15px; }.large-choice.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.compact { padding-top: 18px; padding-bottom: 18px; }.two-row { display: flex; gap: 16px; margin-top: 14px; }.large-choice.inline { flex: 1; min-height: 51px; margin: 0; padding: 0 10px; align-items: center; text-align: center; }.save-target { min-height: 50px; margin-top: 14px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #b9b2ac; border-radius: 7px; color: #342e2a; font-size: 16px; background: #fff; }.save-target .placeholder { color: #8b837c; }.sync-note { display: block; margin-top: 8px; color: #aa6c34; font-size: 11px; }.generate-button { width: calc(100% - 36px); height: 55px; margin: 24px 18px 0; border-radius: 7px; color: #fff; font-size: 20px; line-height: 55px; background: #be2d22; }.generate-button[disabled] { opacity: .55; }
 .gallery-heading { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 18px 15px; background: #fff; }.gallery-heading text:first-child { color: #25211e; font-size: 19px; font-weight: 700; }.gallery-heading text:last-child { color: #8f867f; font-size: 12px; }.state { padding: 74px 22px; color: #8b837d; font-size: 14px; text-align: center; }.state text { display: block; }.retry { display: inline-block; margin-top: 10px; padding: 0; color: #be2d22; font-size: 14px; background: transparent; }.library-grid, .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }.library-image { position: relative; height: 195px; overflow: hidden; background: #e5ddd7; }.library-image image { width: 100%; height: 100%; display: block; }.library-image text { position: absolute; top: 8px; left: 8px; padding: 3px 6px; border-radius: 3px; color: #fff; font-size: 10px; background: rgba(38, 33, 30, .72); }.tasks { padding: 10px 14px 0; }.task { min-height: 45px; padding: 0 12px; display: flex; align-items: center; gap: 8px; color: #796f67; font-size: 13px; background: #fff7e8; }.task view { width: 8px; height: 8px; border-radius: 50%; background: #be2d22; animation: pulse 1.2s infinite; }.task text:last-child { margin-left: auto; color: #be2d22; }.result-card { overflow: hidden; border: 1px solid #e8e1dc; background: #fff; }.result-card image { width: 100%; height: 205px; display: block; background: #e5ddd7; }.result-time { display: block; min-height: 30px; padding: 6px 8px 0; color: #77706b; font-size: 11px; }.result-actions { min-height: 42px; padding: 0 8px 8px; display: flex; align-items: center; justify-content: space-between; }.download { display: flex; align-items: center; color: #347bf1; font-size: 12px; }.download text:first-child { margin-right: 2px; font-size: 25px; line-height: 20px; }.compare { min-width: 42px; min-height: 29px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #fff; font-size: 12px; background: #347bf1; }.retry-line { padding: 0 8px 8px; display: flex; justify-content: space-between; color: #aa6c34; font-size: 11px; }.retry-line text:last-child { color: #be2d22; }.spacer { height: 24px; }
 .layer { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); background: #f4f1ee; }.layer-head { position: relative; min-height: 58px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #ece6e1; color: #201c1a; font-size: 18px; font-weight: 700; background: #fff; }.back, .close { position: absolute; top: 0; min-height: 58px; display: flex; align-items: center; }.back { left: 17px; font-size: 37px; font-weight: 400; }.close { right: 16px; color: #766e68; font-size: 13px; font-weight: 400; }.layer-body { flex: 1; min-height: 0; }.folder-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 25px 13px; padding: 28px 18px; }.folder-card { min-width: 0; color: #38322e; font-size: 12px; text-align: center; }.folder-card text { display: block; overflow: hidden; margin-top: 10px; text-overflow: ellipsis; white-space: nowrap; }.folder-icon { position: relative; width: 78px; height: 57px; margin: 0 auto; border-radius: 4px 7px 8px 8px; background: #ffc238; }.folder-icon view { position: absolute; top: -8px; left: 0; width: 37px; height: 14px; border-radius: 5px 5px 0 0; background: #ffc238; }.breadcrumb { display: block; padding: 15px 17px 0; color: #756d67; font-size: 13px; }.picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 18px 15px 92px; }.picker-image { position: relative; height: 145px; border: 2px solid transparent; background: #e5ddd7; }.picker-image.selected { border-color: #347bf1; }.picker-image image { width: 100%; height: 100%; display: block; }.picker-image text { position: absolute; top: 6px; right: 6px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; color: #fff; font-size: 15px; line-height: 21px; text-align: center; background: rgba(0, 0, 0, .17); }.picker-image.selected text { border-color: #347bf1; background: #347bf1; }.picker-confirm { position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 18px; height: 54px; border-radius: 27px; color: #fff; font-size: 18px; line-height: 54px; background: #be2d22; }.picker-confirm[disabled] { opacity: .5; }
-.save-list { padding: 12px 15px; }.save-row { min-height: 70px; margin-bottom: 10px; padding: 10px 12px; box-sizing: border-box; display: flex; align-items: center; border: 1px solid #e2dcd7; background: #fff; }.save-row.selected { border-color: #be2d22; background: #fffaf9; }.small-folder { position: relative; width: 45px; height: 34px; margin-right: 12px; border-radius: 4px 5px 5px 5px; background: #ffc238; }.small-folder view { position: absolute; top: -5px; left: 0; width: 21px; height: 7px; border-radius: 3px 3px 0 0; background: #ffc238; }.save-row > view + view text { display: block; color: #38322e; font-size: 14px; }.save-row > view + view text + text { margin-top: 5px; color: #908781; font-size: 11px; }.save-row > text { margin-left: auto; color: #fff; font-size: 14px; }.save-row.selected > text { width: 21px; height: 21px; border-radius: 50%; line-height: 21px; text-align: center; background: #be2d22; }.compare-layer { background: #f5f2ef; }.compare-list { padding: 14px; }.compare-list > view { margin-bottom: 19px; background: #fff; }.compare-list text { display: block; padding: 14px 14px 9px; color: #25211f; font-size: 16px; font-weight: 700; }.compare-list image { width: 100%; display: block; background: #e5ddd7; } @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.compare-layer { background: #f5f2ef; }.compare-list { padding: 14px; }.compare-list > view { margin-bottom: 19px; background: #fff; }.compare-list text { display: block; padding: 14px 14px 9px; color: #25211f; font-size: 16px; font-weight: 700; }.compare-list image { width: 100%; display: block; background: #e5ddd7; } @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 </style>
