@@ -18,29 +18,25 @@
 
         <view v-if="workflow === 'redesign'" class="section">
           <view class="field-title"><text>*</text>原房实拍图</view>
-          <view class="source-actions source-actions-three">
-            <view class="source-folder" @click="openPicker('source', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view>
-            <view class="source-folder" @click="openPicker('source', 'rough')"><view class="mini-folder"><view /></view><text>毛坯图库</text></view>
-            <view class="source-upload" @click="chooseUpload('source')"><text>+</text><text>上传照片</text></view>
-          </view>
+          <image-source-selector :entries="sourceEntries('source')" :loading="sourceFoldersLoading" @select-gallery="openPicker('source', $event)" @upload="chooseUpload('source')" />
           <view v-if="slotImage('source')" class="selected-input" @click="previewImage(slotImage('source'))"><image :src="imageUrl(slotImage('source'))" mode="aspectFill" /><view><text>已选择原房图</text><text>{{ imageSourceLabel(slotImage('source').source_role) }}</text></view><text>更换</text></view>
         </view>
 
         <view v-if="workflow === 'adapt'" class="section">
           <view class="field-title"><text>*</text>参考效果图</view>
-          <view class="source-actions"><view class="source-folder" @click="openPicker('reference', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view><view class="source-upload" @click="chooseUpload('reference')"><text>+</text><text>上传照片</text></view></view>
+          <image-source-selector :entries="sourceEntries('reference')" :loading="sourceFoldersLoading" @select-gallery="openPicker('reference', $event)" @upload="chooseUpload('reference')" />
           <view v-if="slotImage('reference')" class="selected-input" @click="previewImage(slotImage('reference'))"><image :src="imageUrl(slotImage('reference'))" mode="aspectFill" /><view><text>已选择案例图</text><text>{{ imageSourceLabel(slotImage('reference').source_role) }}</text></view><text>更换</text></view>
         </view>
 
         <view v-if="workflow === 'adapt'" class="section">
           <view class="field-title"><text>*</text>毛坯实拍图</view>
-          <view class="source-actions"><view class="source-folder" @click="openPicker('rough', 'rough')"><view class="mini-folder"><view /></view><text>毛坯图库</text></view><view class="source-upload" @click="chooseUpload('rough')"><text>+</text><text>上传照片</text></view></view>
+          <image-source-selector :entries="sourceEntries('rough')" :loading="sourceFoldersLoading" @select-gallery="openPicker('rough', $event)" @upload="chooseUpload('rough')" />
           <view v-if="slotImage('rough')" class="selected-input" @click="previewImage(slotImage('rough'))"><image :src="imageUrl(slotImage('rough'))" mode="aspectFill" /><view><text>已选择毛坯图</text><text>{{ imageSourceLabel(slotImage('rough').source_role) }}</text></view><text>更换</text></view>
         </view>
 
         <view v-if="workflow === 'transfer'" class="section">
           <view class="field-title"><text>*</text>参考效果图</view>
-          <view class="source-actions"><view class="source-folder" @click="openPicker('reference', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view><view class="source-upload" @click="chooseUpload('reference')"><text>+</text><text>上传照片</text></view></view>
+          <image-source-selector :entries="sourceEntries('reference')" :loading="sourceFoldersLoading" @select-gallery="openPicker('reference', $event)" @upload="chooseUpload('reference')" />
           <view v-if="slotImage('reference')" class="selected-input" @click="previewImage(slotImage('reference'))"><image :src="imageUrl(slotImage('reference'))" mode="aspectFill" /><view><text>已选择案例图</text><text>{{ imageSourceLabel(slotImage('reference').source_role) }}</text></view><text>更换</text></view>
         </view>
 
@@ -61,9 +57,9 @@
 
         <view class="section">
           <view class="field-title"><text>*</text>补充描述</view>
-          <text class="field-note">填写后点击 AI 深度润色；润色成功后才可生成。</text>
+          <text class="field-note">填写后点击 AI深度润色（必做）；润色成功后才可生成。</text>
           <textarea class="description" :value="activeDraft.description" maxlength="500" placeholder="描述风格、材质、色调、空间氛围与重点陈设。" placeholder-class="description-placeholder" @input="updateDescription($event.detail.value)" />
-          <button class="polish-button" :loading="polishing" @click="polishDescription">AI 深度润色</button>
+          <button class="polish-button" :loading="polishing" @click="polishDescription">AI深度润色（必做）</button>
           <view class="polish-result" :class="{ ready: activeDraft.polished_prompt }"><text>AI 润色结果{{ activeDraft.polished_prompt ? '' : ' · 未生成' }}</text><text>{{ activeDraft.polished_prompt || '请先完成补充描述与 AI 深度润色。' }}</text></view>
         </view>
 
@@ -95,21 +91,21 @@
     </scroll-view>
 
     <view v-if="pickerVisible" class="layer">
-      <view class="layer-head"><text class="back" @click="pickerStage === 'images' ? backToFolders() : closePicker()">‹</text><text>{{ pickerStage === 'folders' ? '选择图库' : '选择图片' }}</text><text class="close" @click="closePicker">关闭</text></view>
-      <scroll-view class="layer-body" scroll-y>
-        <view v-if="pickerStage === 'folders'">
-          <view v-if="sourceFoldersLoading" class="state">正在加载图库…</view>
-          <view v-else-if="!sourceFolders.length" class="state">暂无可选择的图库文件夹</view>
-          <view v-else class="folder-grid"><view v-for="folder in sourceFolders" :key="folder.id" class="folder-card" @click="openFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name }}</text></view></view>
-        </view>
-        <view v-else>
-          <text class="breadcrumb">{{ activeFolder ? activeFolder.name : '' }}</text>
+      <view class="layer-head"><text class="back" @click="backPicker">‹</text><text>{{ pickerMode === 'personal-folders' ? '我的素材' : '选择图片' }}</text><text class="close" @click="closePicker">关闭</text></view>
+      <scroll-view class="layer-body" scroll-y :lower-threshold="80" @scrolltolower="loadMoreFolderItems">
+        <text class="breadcrumb">{{ pickerTitle }}</text>
+        <template v-if="pickerMode === 'personal-folders'">
+          <view v-if="!pickerPersonalFolders.length" class="state">暂无个人素材图库</view>
+          <view v-else class="folder-grid"><view v-for="folder in pickerPersonalFolders" :key="folder.id" class="folder-card" @click="selectPersonalFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name || '未分类' }}</text></view></view>
+        </template>
+        <template v-else>
           <view v-if="folderItemsLoading" class="state">正在加载图片…</view>
           <view v-else-if="!folderItems.length" class="state">该图库暂无图片</view>
           <view v-else class="picker-grid"><view v-for="item in folderItems" :key="item.id" class="picker-image" :class="{ selected: selectedFolderItem && selectedFolderItem.id === item.id }" @click="selectedFolderItem = item"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ selectedFolderItem && selectedFolderItem.id === item.id ? '✓' : '' }}</text></view></view>
-        </view>
+          <view v-if="folderItemsLoadingMore" class="load-more">正在加载更多…</view>
+        </template>
       </scroll-view>
-      <button v-if="pickerStage === 'images'" class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
+      <button v-if="pickerMode !== 'personal-folders'" class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
     </view>
 
     <view v-if="comparisonVisible" class="layer compare-layer"><view class="layer-head"><text class="back" @click="comparisonVisible = false">‹</text><text>对比</text><text class="close" @click="comparisonVisible = false">关闭</text></view><scroll-view class="layer-body" scroll-y><view class="compare-list"><view v-for="item in comparisonImages" :key="item.label"><text>{{ item.label }}</text><image :src="mediaUrl(item.url)" mode="widthFix" /></view></view></scroll-view></view>
@@ -119,6 +115,7 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
+import ImageSourceSelector from '../../components/image-source-selector.vue'
 import { mpContentApi, mpImageDesignApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
@@ -126,14 +123,14 @@ import {
   IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
   buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
   imageDesignStyleForPayload, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
-  normalizeImageDesignLibraryItem, savePathOptions, uniqueFolders, updateImageDesignDraftStyle
+  imageSourceEntries, mergeGalleryItems, normalizeImageDesignLibraryItem, savePathOptions, uniqueFolders, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
 const DRAFT_CACHE_KEY = 'image-design-drafts-v1'
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 export default {
-  components: { TabBar },
+  components: { ImageSourceSelector, TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
@@ -141,7 +138,8 @@ export default {
       activeTab: 'workflow', workflow: 'redesign', workflows: IMAGE_DESIGN_WORKFLOWS, imageRatios: IMAGE_RATIOS, imageCounts: IMAGE_COUNTS, imageQualities: IMAGE_QUALITIES,
       designStyles: IMAGE_DESIGN_STYLE_OPTIONS, targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
       sourceFolders: [], sourceFoldersLoading: false, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
-      pickerVisible: false, pickerStage: 'folders', pickerSlot: '', pickerSourceRole: '', activeFolder: null, folderItems: [], folderItemsLoading: false, selectedFolderItem: null, pickerSaving: false,
+      pickerVisible: false, pickerMode: '', pickerPersonalFolders: [], pickerSlot: '', pickerSourceRole: '', pickerTitle: '', pickerIncludeDescendants: false, activeFolder: null,
+      folderItems: [], folderItemsPage: 0, folderItemsTotal: 0, folderItemsHasMore: false, folderItemsLoading: false, folderItemsLoadingMore: false, selectedFolderItem: null, pickerSaving: false,
       comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
     }
   },
@@ -162,6 +160,7 @@ export default {
   onUnload() { this.persistDraftsNow(); this.stopTaskPolling() },
   methods: {
     mediaUrl, imageSourceLabel,
+    sourceEntries(slot) { return imageSourceEntries(slot, this.sourceFolders) },
     imageUrl(item) { return galleryThumbUrl(item, 720) },
     resultImageUrl(item) { return mediaUrl(item.image_url || item.file_url || item.url || imageFileUrl(item)) },
     slotImage(slot) { return this.activeDraft[slot] || null },
@@ -195,13 +194,51 @@ export default {
       try { uni.setStorageSync(DRAFT_CACHE_KEY, JSON.stringify(this.drafts)) } catch (error) {}
       try { await mpImageDesignApi.saveDrafts(this.drafts); this.draftSyncIssue = false } catch (error) { this.draftSyncIssue = true }
     },
-    openPicker(slot, sourceRole) { this.pickerSlot = slot; this.pickerSourceRole = sourceRole; this.pickerVisible = true; this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null; this.loadSourceFolders() },
-    closePicker() { this.pickerVisible = false; this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null },
-    backToFolders() { this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null },
-    async openFolder(folder) {
-      this.activeFolder = folder; this.pickerStage = 'images'; this.folderItems = []; this.selectedFolderItem = null; this.folderItemsLoading = true
-      try { const data = await mpContentApi.galleryItems(folder.id, folder.visibility || ''); this.folderItems = data.items || [] } catch (error) { uni.showToast({ title: errorMessage(error), icon: 'none' }) } finally { this.folderItemsLoading = false }
+    openPicker(slot, entry) {
+      if (!entry || entry.disabled) return
+      this.pickerSlot = slot; this.pickerSourceRole = entry.sourceRole; this.pickerTitle = entry.label; this.pickerIncludeDescendants = Boolean(entry.includeDescendants)
+      this.pickerVisible = true; this.pickerPersonalFolders = entry.folders || []; this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.selectedFolderItem = null
+      if (entry.pickerMode === 'personal-folders') { this.pickerMode = 'personal-folders'; this.activeFolder = null; return }
+      if (!entry.folder) { this.closePicker(); return }
+      this.pickerMode = 'images'; this.activeFolder = entry.folder
+      this.loadFolderItems(true)
     },
+    selectPersonalFolder(folder) {
+      if (!folder) return
+      this.pickerMode = 'images'; this.activeFolder = folder; this.pickerTitle = `我的素材 / ${folder.name || '未分类'}`; this.pickerIncludeDescendants = true
+      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.selectedFolderItem = null
+      this.loadFolderItems(true)
+    },
+    backPicker() {
+      if (this.pickerMode === 'images' && this.pickerPersonalFolders.length) {
+        this.pickerMode = 'personal-folders'; this.activeFolder = null; this.pickerTitle = '我的素材'; this.pickerIncludeDescendants = false
+        this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.selectedFolderItem = null
+        return
+      }
+      this.closePicker()
+    },
+    closePicker() {
+      this.pickerVisible = false; this.pickerMode = ''; this.pickerPersonalFolders = []; this.pickerSlot = ''; this.pickerSourceRole = ''; this.pickerTitle = ''; this.pickerIncludeDescendants = false; this.activeFolder = null
+      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsLoading = false; this.folderItemsLoadingMore = false; this.selectedFolderItem = null
+    },
+    async loadFolderItems(reset = false) {
+      if (!this.activeFolder || this.folderItemsLoading || this.folderItemsLoadingMore) return
+      if (!reset && !this.folderItemsHasMore) return
+      const page = reset ? 1 : this.folderItemsPage + 1
+      if (reset) this.folderItemsLoading = true
+      else this.folderItemsLoadingMore = true
+      try {
+        const data = await mpContentApi.galleryItems(this.activeFolder.id, this.activeFolder.visibility || '', { page, page_size: 30, include_descendants: this.pickerIncludeDescendants })
+        const incoming = data.items || []
+        this.folderItems = reset ? mergeGalleryItems([], incoming) : mergeGalleryItems(this.folderItems, incoming)
+        this.folderItemsPage = page
+        const pagination = data.pagination || {}
+        const rawTotal = data.total !== undefined ? data.total : pagination.total
+        this.folderItemsTotal = Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : this.folderItems.length
+        this.folderItemsHasMore = rawTotal !== undefined ? this.folderItems.length < this.folderItemsTotal : incoming.length >= 30
+      } catch (error) { uni.showToast({ title: errorMessage(error), icon: 'none' }) } finally { this.folderItemsLoading = false; this.folderItemsLoadingMore = false }
+    },
+    loadMoreFolderItems() { this.loadFolderItems(false) },
     async confirmPicker() {
       if (!this.selectedFolderItem || this.pickerSaving) return
       this.pickerSaving = true
@@ -303,7 +340,7 @@ export default {
 .page { min-height: 100vh; box-sizing: border-box; padding-bottom: calc(52px + env(safe-area-inset-bottom)); background: #f4f1ee; color: #282421; }
 .segments { display: flex; height: 48px; margin: 14px 14px 0; overflow: hidden; border: 1px solid #be2d22; border-radius: 5px; background: #fff; }.segment { flex: 1; display: flex; align-items: center; justify-content: center; border-right: 1px solid #be2d22; color: #6e6761; font-size: 15px; }.segment:last-child { border: 0; }.segment.active { color: #fff; font-weight: 700; background: #be2d22; }.content { height: calc(100vh - 114px - env(safe-area-inset-bottom)); }
 .section { margin-top: 12px; padding: 20px 18px; border-top: 1px solid #ede8e4; border-bottom: 1px solid #ede8e4; background: #fff; }.section-title { display: flex; align-items: center; color: #231f1d; font-size: 18px; font-weight: 700; }.section-title view { width: 4px; height: 23px; margin-right: 9px; background: #be2d22; }.workflow-options { display: flex; gap: 8px; margin-top: 17px; }.workflow-option { flex: 1; min-width: 0; min-height: 45px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; position: relative; border: 1px solid #8e8985; border-radius: 6px; color: #625c57; font-size: 14px; }.workflow-option.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.workflow-option text { position: absolute; right: 6px; bottom: 3px; font-size: 12px; }.workflow-description { display: block; margin-top: 12px; color: #5f5853; font-size: 13px; line-height: 1.6; }
-.field-title { color: #201d1a; font-size: 17px; font-weight: 700; }.field-title > text { margin-right: 3px; color: #be2d22; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 0; background: transparent; }.source-upload { border: 0; background: transparent; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
+.field-title { color: #201d1a; font-size: 17px; font-weight: 700; }.field-title > text, .field-title > view > text { margin-right: 3px; color: #be2d22; }.field-title-with-action { display: flex; align-items: center; justify-content: space-between; }.field-title-with-action .upload-link { margin: 0; color: #be2d22; font-size: 15px; font-weight: 400; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 0; background: transparent; }.source-upload { border: 0; background: transparent; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
 .selected-input { min-height: 66px; margin-top: 13px; padding: 7px 10px; box-sizing: border-box; display: flex; align-items: center; background: #f8f6f4; }.selected-input image { width: 52px; height: 52px; margin-right: 11px; background: #e5ddd7; }.selected-input view text { display: block; color: #38322e; font-size: 13px; font-weight: 700; }.selected-input view text + text { margin-top: 4px; color: #918780; font-size: 11px; font-weight: 400; }.selected-input > text { margin-left: auto; color: #be2d22; font-size: 13px; }
 .chip-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }.choice-chip { min-height: 40px; padding: 0 13px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #98918b; border-radius: 5px; color: #625c57; font-size: 13px; line-height: 1.25; text-align: center; }.choice-chip.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.three-column .choice-chip { width: calc((100% - 20px) / 3); padding: 0 4px; }.two-column .choice-chip { width: calc((100% - 10px) / 2); padding: 0 5px; }.sub-title { margin-top: 21px; color: #292421; font-size: 16px; font-weight: 700; }
 .description { width: 100%; height: 138px; margin-top: 16px; padding: 12px; box-sizing: border-box; border: 1px dashed #4f84ff; border-radius: 8px; color: #38322e; font-size: 14px; line-height: 1.55; background: #fafcff; }.description-placeholder { color: #ada9a5; }.polish-button { float: right; height: 39px; margin: 13px 0 12px; padding: 0 16px; border-radius: 20px; color: #fff; font-size: 14px; line-height: 39px; background: #be2d22; }.polish-button::after, .generate-button::after, .picker-confirm::after, .retry::after { border: 0; }.polish-result { clear: both; min-height: 87px; padding: 13px; box-sizing: border-box; border: 1px dashed #a9a29c; border-radius: 7px; background: #fafafa; }.polish-result.ready { border-color: #4f84ff; background: #f9fbff; }.polish-result text { display: block; color: #77706a; font-size: 13px; font-weight: 700; }.polish-result text + text { margin-top: 7px; color: #88817b; font-size: 12px; font-weight: 400; line-height: 1.6; white-space: pre-wrap; }.polish-result.ready text:first-child { color: #be2d22; }

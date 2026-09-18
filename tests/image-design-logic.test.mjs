@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import * as imageDesignLogic from '../utils/image-design-logic.mjs'
 import {
   buildImageDesignPayload,
   createImageDesignDrafts,
@@ -141,6 +142,54 @@ test('save path options keep concrete writable gallery ids and PC scope prefixes
     { id: 'enterprise-child', name: '品牌案例', visibility: 'enterprise', label: '企业共享 / 品牌案例' },
     { id: 'private-child', name: '洋湖天序', visibility: 'private', label: '我的素材 / 洋湖天序' }
   ])
+})
+
+test('reference sources use the personal material-library entry while other slots retain uncategorized', () => {
+  assert.equal(typeof imageDesignLogic.imageSourceEntries, 'function')
+  const { imageSourceEntries } = imageDesignLogic
+  const galleries = [
+    { id: 'case-root', name: '可重命名的案例库', visibility: 'enterprise', image_design_role: 'reference' },
+    { id: 'rough-root', name: '可重命名的毛坯库', visibility: 'enterprise', image_design_role: 'rough' },
+    { id: 'case-child', name: '案例子图库', visibility: 'enterprise', image_design_role: 'reference', parent_id: 'case-root' },
+    { id: 'uncategorized', name: '未分类', visibility: 'private', is_system: true },
+    { id: 'personal-root', name: '我的客厅', visibility: 'private' },
+    { id: 'personal-child', name: '卧室', visibility: 'private', parent_id: 'personal-root' }
+  ]
+
+  assert.deepEqual(imageSourceEntries('source', galleries).map((item) => [item.key, item.folderId, item.badge]), [
+    ['reference', 'case-root', '企业'],
+    ['rough', 'rough-root', '企业'],
+    ['uncategorized', 'uncategorized', '个人']
+  ])
+  const referenceEntries = imageSourceEntries('reference', galleries)
+  assert.deepEqual(referenceEntries.map((item) => [item.key, item.label, item.badge]), [
+    ['reference', '案例图库', '企业'],
+    ['my-materials', '我的素材', '个人']
+  ])
+  assert.equal(referenceEntries[1].pickerMode, 'personal-folders')
+  assert.equal(referenceEntries[1].disabled, false)
+  assert.deepEqual(referenceEntries[1].folders.map((item) => item.id).sort(), ['personal-root', 'uncategorized'])
+  assert.equal(referenceEntries[1].sourceRole, 'reference')
+  assert.deepEqual(imageSourceEntries('rough', galleries).map((item) => item.key), ['rough', 'uncategorized'])
+})
+
+test('missing configured galleries stay visible but disabled', () => {
+  assert.equal(typeof imageDesignLogic.imageSourceEntries, 'function')
+  const { imageSourceEntries } = imageDesignLogic
+  const entries = imageSourceEntries('reference', [])
+  assert.deepEqual(entries.map((item) => [item.label, item.disabled]), [
+    ['案例图库', true],
+    ['我的素材', true]
+  ])
+})
+
+test('gallery pagination appends new images without duplicating existing ids', () => {
+  assert.equal(typeof imageDesignLogic.mergeGalleryItems, 'function')
+  const { mergeGalleryItems } = imageDesignLogic
+  assert.deepEqual(mergeGalleryItems(
+    [{ id: 'old-1' }, { id: 'same' }],
+    [{ id: 'same', name: '重复项' }, { id: 'new-1' }, null]
+  ), [{ id: 'old-1' }, { id: 'same' }, { id: 'new-1' }])
 })
 
 test('a generation payload preserves role mapping and selected image settings', () => {

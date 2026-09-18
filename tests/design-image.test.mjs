@@ -130,11 +130,12 @@ test('result cards flatten each generated image', () => {
 
 test('生图 page hosts the current image-design workflow', () => {
   const page = readFileSync(resolve(import.meta.dirname, '..', 'pages/cover/cover.vue'), 'utf8')
+  const sourceLogic = readFileSync(resolve(import.meta.dirname, '..', 'utils/image-design-logic.mjs'), 'utf8')
   assert.match(page, /创作工作流/)
   assert.match(page, /换装风格选择/)
   assert.match(page, /AI 深度润色/)
-  assert.match(page, /案例图库/)
-  assert.match(page, /毛坯图库/)
+  assert.match(sourceLogic, /案例图库/)
+  assert.match(sourceLogic, /毛坯图库/)
   assert.match(page, /选择保存路径/)
   assert.match(page, /<picker[^>]+:range="savePathLabels"/)
   assert.match(page, /生成图片/)

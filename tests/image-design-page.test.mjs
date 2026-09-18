@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const page = readFileSync(resolve(import.meta.dirname, '../pages/cover/cover.vue'), 'utf8')
 const api = readFileSync(resolve(import.meta.dirname, '../apis/mp.js'), 'utf8')
+const sourceSelectorPath = resolve(import.meta.dirname, '../components/image-source-selector.vue')
 
 test('image design keeps the confirmed three-stage top navigation', () => {
   assert.match(page, /label: '工作流'/)
@@ -59,4 +60,27 @@ test('save path uses a compact picker backed by writable PC gallery options', ()
   assert.match(page, /@change="selectSavePathByIndex"/)
   assert.match(page, /savePathOptions\(this\.sourceFolders\)/)
   assert.doesNotMatch(page, /v-if="savePickerVisible"/)
+})
+
+test('source selector keeps yellow folders with enterprise and personal badges', () => {
+  assert.equal(existsSync(sourceSelectorPath), true)
+  const sourceSelector = readFileSync(sourceSelectorPath, 'utf8')
+  assert.match(sourceSelector, /background:\s*#ffc238/i)
+  assert.match(sourceSelector, /entry\.badge/)
+  assert.match(sourceSelector, /选择图库/)
+  assert.match(sourceSelector, /上传照片/)
+  assert.match(page, /<image-source-selector/)
+})
+
+test('gallery item requests support descendant pagination', () => {
+  assert.match(api, /include_descendants/)
+  assert.match(page, /@scrolltolower="loadMoreFolderItems"/)
+  assert.match(page, /mergeGalleryItems/)
+})
+
+test('reference image selection lets personal materials choose a private gallery before images', () => {
+  assert.match(page, /entry\.pickerMode === 'personal-folders'/)
+  assert.match(page, /selectPersonalFolder\(folder\)/)
+  assert.match(page, /pickerPersonalFolders/)
+  assert.match(page, /@click="backPicker"/)
 })

@@ -154,6 +154,55 @@ export function uniqueFolders(rawFolders = []) {
     .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN'))
 }
 
+const IMAGE_SOURCE_ENTRY_DEFINITIONS = Object.freeze({
+  reference: Object.freeze({ key: 'reference', label: '案例图库', badge: '企业', visibility: 'enterprise', includeDescendants: true }),
+  rough: Object.freeze({ key: 'rough', label: '毛坯图库', badge: '企业', visibility: 'enterprise', includeDescendants: true }),
+  'my-materials': Object.freeze({ key: 'my-materials', label: '我的素材', badge: '个人', visibility: 'private', pickerMode: 'personal-folders' }),
+  uncategorized: Object.freeze({ key: 'uncategorized', label: '未分类', badge: '个人', visibility: 'private', includeDescendants: false })
+})
+
+export function personalMaterialFolders(rawFolders = []) {
+  return uniqueFolders(rawFolders).filter((item) => !item.parent_id && (item.visibility || 'private') === 'private')
+}
+
+export function imageSourceEntries(slot, rawFolders = []) {
+  const folders = uniqueFolders(rawFolders)
+  const keys = slot === 'source'
+    ? ['reference', 'rough', 'uncategorized']
+    : slot === 'reference'
+      ? ['reference', 'my-materials']
+      : ['rough', 'uncategorized']
+
+  return keys.map((key) => {
+    const definition = IMAGE_SOURCE_ENTRY_DEFINITIONS[key]
+    const personalFolders = key === 'my-materials' ? personalMaterialFolders(folders) : []
+    const folder = key === 'uncategorized'
+      ? folders.find((item) => item.id === 'uncategorized' && (item.visibility || 'private') === 'private')
+      : folders.find((item) => !item.parent_id && item.visibility === 'enterprise' && item.image_design_role === key)
+    return {
+      ...definition,
+      folder: folder || null,
+      folderId: folder ? folder.id : '',
+      folders: personalFolders,
+      disabled: key === 'my-materials' ? !personalFolders.length : !folder,
+      sourceRole: key === 'uncategorized'
+        ? (slot === 'source' ? 'source' : slot)
+        : key === 'my-materials'
+          ? slot
+          : key
+    }
+  })
+}
+
+export function mergeGalleryItems(current = [], incoming = []) {
+  const known = new Set()
+  return [...current, ...incoming].filter((item) => {
+    if (!item || !item.id || known.has(item.id)) return false
+    known.add(item.id)
+    return true
+  })
+}
+
 export function isPublicSaveFolder(folder) {
   if (!folder || (folder.visibility || '') === 'private') return false
   if (folder.is_public || folder.can_save_generated) return true
