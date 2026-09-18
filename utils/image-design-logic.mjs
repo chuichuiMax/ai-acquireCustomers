@@ -168,6 +168,21 @@ export function saveableFolders(rawFolders = []) {
   return uniqueFolders(rawFolders).filter((folder) => isPrivateSaveFolder(folder) || isPublicSaveFolder(folder))
 }
 
+export function savePathOptions(rawFolders = []) {
+  return uniqueFolders(rawFolders)
+    .filter((folder) => folder.can_manage === true)
+    .map((folder) => {
+      const visibility = folder.visibility || 'private'
+      const name = folder.name || '未命名图库'
+      return {
+        id: folder.id,
+        name,
+        visibility,
+        label: `${visibility === 'enterprise' ? '企业共享' : '我的素材'} / ${name}`
+      }
+    })
+}
+
 export function buildImageDesignPayload(workflow, draft) {
   const images = requiredImageRoles(workflow).map((role) => ({
     role,

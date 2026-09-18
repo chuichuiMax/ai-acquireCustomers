@@ -10,6 +10,7 @@ import {
   isSupportedImageDesignStyle,
   normalizeImageDesignDrafts,
   requiredImageRoles,
+  savePathOptions,
   saveableFolders,
   updateImageDesignDraftStyle,
   uniqueFolders
@@ -127,6 +128,19 @@ test('folder lists are deduplicated and only private or public folders can save 
   ]
   assert.deepEqual(uniqueFolders(folders).map((item) => item.id), ['e-1', 'e-2', 'p-1'])
   assert.deepEqual(saveableFolders(folders).map((item) => item.id), ['e-1', 'p-1'])
+})
+
+test('save path options keep concrete writable gallery ids and PC scope prefixes', () => {
+  const options = savePathOptions([
+    { id: 'private-child', name: '洋湖天序', visibility: 'private', can_manage: true },
+    { id: 'enterprise-child', name: '品牌案例', visibility: 'enterprise', can_manage: true },
+    { id: 'enterprise-readonly', name: '只读共享', visibility: 'enterprise', can_manage: false }
+  ])
+
+  assert.deepEqual(options, [
+    { id: 'enterprise-child', name: '品牌案例', visibility: 'enterprise', label: '企业共享 / 品牌案例' },
+    { id: 'private-child', name: '洋湖天序', visibility: 'private', label: '我的素材 / 洋湖天序' }
+  ])
 })
 
 test('a generation payload preserves role mapping and selected image settings', () => {
