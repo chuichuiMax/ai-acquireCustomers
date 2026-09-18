@@ -26,7 +26,8 @@
         class="type-grid"
         :class="{
           'type-grid-single': contentTypes.length === 1,
-          'type-grid-home': isHomeDecor
+          'type-grid-home': isHomeDecor,
+          'type-grid-review': isReviewNotes
         }"
       >
         <view
@@ -34,6 +35,7 @@
           :key="item.id"
           class="type-card"
           :class="{ active: contentTypeCode === item.type_code }"
+          :style="reviewNotesCardStyle"
           @click="selectContentType(item.type_code)"
         >
           <view class="type-icon-wrap">
@@ -389,7 +391,8 @@ export default {
       schemaLoading: false,
       resumeAfterPicker: false,
       compositeFallback: false,
-      compositeToken: 0
+      compositeToken: 0,
+      homeTypeCardSize: null
     }
   },
   computed: {
@@ -398,6 +401,13 @@ export default {
     },
     isReviewNotes() {
       return String(this.serviceEntry || '').includes('好评')
+    },
+    reviewNotesCardStyle() {
+      if (!this.isReviewNotes || !this.homeTypeCardSize) return null
+      return {
+        width: `${this.homeTypeCardSize.width}px`,
+        height: `${this.homeTypeCardSize.height}px`
+      }
     },
     contentTypes() {
       if (this.isReviewNotes) return [REVIEW_NOTES_TYPE]
@@ -801,7 +811,10 @@ export default {
       }
       this.formValues = next
     },
-    switchEntry(value) {
+    async switchEntry(value) {
+      if (value === '好评笔记' && this.isHomeDecor && !this.typeStepDone) {
+        await this.captureHomeTypeCardSize()
+      }
       if (this._typeSelectTimer) {
         clearTimeout(this._typeSelectTimer)
         this._typeSelectTimer = null
@@ -821,6 +834,24 @@ export default {
       this.schema = createInitialSchema()
       this.schemaLoaded = false
       this.loadSchema()
+    },
+    captureHomeTypeCardSize() {
+      return new Promise((resolve) => {
+        if (typeof uni.createSelectorQuery !== 'function') {
+          resolve()
+          return
+        }
+        uni.createSelectorQuery()
+          .in(this)
+          .select('.type-grid-home .type-card')
+          .boundingClientRect((rect) => {
+            if (rect && rect.width > 0 && rect.height > 0) {
+              this.homeTypeCardSize = { width: rect.width, height: rect.height }
+            }
+            resolve()
+          })
+          .exec()
+      })
     },
     async loadSchema() {
       if (this.schemaLoading) return false
@@ -1270,7 +1301,8 @@ export default {
   background: #fff;
   text-align: center;
 }
-.type-grid-home .type-card {
+.type-grid-home .type-card,
+.type-grid-review .type-card {
   display: flex;
   flex-direction: column;
   align-items: center;
