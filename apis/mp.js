@@ -52,8 +52,13 @@ export const mpMeApi = {
 }
 
 export const mpContentApi = {
-  formSchema: (serviceEntry) =>
-    request({ url: `/api/mp/content/form-schema?service_entry=${encodeURIComponent(serviceEntry)}` }),
+  formSchema: (serviceEntry, { includeHycanvasTemplates = true } = {}) =>
+    request({
+      url: `/api/mp/content/form-schema?service_entry=${encodeURIComponent(serviceEntry)}${
+        includeHycanvasTemplates ? '' : '&include_hycanvas_templates=false'
+      }`
+    }),
+  hycanvasTemplates: () => request({ url: '/api/mp/content/hycanvas-templates' }),
   pricing: (frameArea) =>
     request({ url: `/api/mp/content/pricing?frame_area=${encodeURIComponent(frameArea)}` }),
   coverTemplates: () => request({ url: '/api/mp/content/cover-templates' }),
@@ -72,6 +77,7 @@ export const mpContentApi = {
     const pageSize = extra.page_size || extra.pageSize || 100
     query.push(`page=${encodeURIComponent(page)}`)
     query.push(`page_size=${encodeURIComponent(pageSize)}`)
+    if (extra.include_descendants || extra.includeDescendants) query.push('include_descendants=true')
     return request({ url: `/api/mp/content/gallery-items?${query.join('&')}` })
   },
   deleteGalleryItem: (itemId) => request({ url: `/api/mp/content/gallery-items/${encodeURIComponent(itemId)}`, method: 'DELETE' }),
