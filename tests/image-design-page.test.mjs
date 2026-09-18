@@ -53,3 +53,10 @@ test('the latest save path becomes the default for all workflow drafts', () => {
   assert.match(method[1], /Object\.keys\(this\.drafts\)/)
   assert.match(method[1], /save_target_id: folder\.id/)
 })
+
+test('save path uses a compact picker backed by writable PC gallery options', () => {
+  assert.match(page, /<picker[^>]+:range="savePathLabels"/)
+  assert.match(page, /@change="selectSavePathByIndex"/)
+  assert.match(page, /savePathOptions\(this\.sourceFolders\)/)
+  assert.doesNotMatch(page, /v-if="savePickerVisible"/)
+})

@@ -128,18 +128,17 @@ test('result cards flatten each generated image', () => {
   assert.equal(cards[0].sourceUrl, '/src.png')
 })
 
-test('生图 page hosts the PC image-design workflow', () => {
+test('生图 page hosts the current image-design workflow', () => {
   const page = readFileSync(resolve(import.meta.dirname, '..', 'pages/cover/cover.vue'), 'utf8')
   assert.match(page, /创作工作流/)
   assert.match(page, /换装风格选择/)
-  assert.match(page, /AI深度润色（必做）/)
+  assert.match(page, /AI 深度润色/)
   assert.match(page, /案例图库/)
   assert.match(page, /毛坯图库/)
   assert.match(page, /选择保存路径/)
+  assert.match(page, /<picker[^>]+:range="savePathLabels"/)
   assert.match(page, /生成图片/)
-  assert.match(page, /上传图库/)
+  assert.match(page, /我的生图图库/)
   assert.match(page, /生成结果/)
-  assert.match(page, /点击上传文件/)
-  assert.match(page, /recognitionText/)
   assert.match(page, /对比/)
 })
