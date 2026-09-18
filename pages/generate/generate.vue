@@ -389,6 +389,7 @@ export default {
       submitting: false,
       schemaLoaded: false,
       schemaLoading: false,
+      hycanvasTemplateExtras: [],
       resumeAfterPicker: false,
       compositeFallback: false,
       compositeToken: 0,
@@ -833,6 +834,7 @@ export default {
       this.closeRegion()
       this.schema = createInitialSchema()
       this.schemaLoaded = false
+      this.hycanvasTemplateExtras = []
       this.loadSchema()
     },
     captureHomeTypeCardSize() {
@@ -857,7 +859,9 @@ export default {
       if (this.schemaLoading) return false
       this.schemaLoading = true
       try {
-        const data = await mpContentApi.formSchema(this.serviceEntry)
+        const serviceEntry = this.serviceEntry
+        const data = await mpContentApi.formSchema(serviceEntry, { includeHycanvasTemplates: false })
+        if (this.serviceEntry !== serviceEntry) return false
         this.schema = data
         this.schemaLoaded = true
         const next = { ...this.formValues }
@@ -866,20 +870,8 @@ export default {
           if (name && next[name] === undefined) next[name] = ''
         }
         this.formValues = next
-        const templates = data.hycanvas_templates || []
-        try {
-          const extra = extraTemplateList(await mpContentApi.coverTemplates())
-          if (extra.length) {
-            this.schema = {
-              ...this.schema,
-              hycanvas_templates: mergeCoverTemplates(templates, extra)
-            }
-          }
-        } catch (error) {}
-        const mergedTemplates = this.schema.hycanvas_templates || []
-        if (!this.coverTemplateId || !mergedTemplates.some((item) => item.id === this.coverTemplateId)) {
-          this.coverTemplateId = mergedTemplates.length ? mergedTemplates[0].id : ''
-        }
+        this.loadHycanvasTemplates(serviceEntry)
+        this.loadCoverTemplateExtras(serviceEntry)
         this.loadGalleries()
         this.ensureUploadCategory()
         return true
@@ -889,6 +881,29 @@ export default {
       } finally {
         this.schemaLoading = false
       }
+    },
+    applyHycanvasTemplates(templates) {
+      const mergedTemplates = mergeCoverTemplates(templates, this.hycanvasTemplateExtras)
+      this.schema = { ...this.schema, hycanvas_templates: mergedTemplates }
+      if (!this.coverTemplateId || !mergedTemplates.some((item) => item.id === this.coverTemplateId)) {
+        this.coverTemplateId = mergedTemplates.length ? mergedTemplates[0].id : ''
+      }
+    },
+    async loadHycanvasTemplates(serviceEntry) {
+      if (serviceEntry !== '装修家居') return
+      try {
+        const data = await mpContentApi.hycanvasTemplates()
+        if (this.serviceEntry !== serviceEntry) return
+        this.applyHycanvasTemplates(data.hycanvas_templates || [])
+      } catch (error) {}
+    },
+    async loadCoverTemplateExtras(serviceEntry) {
+      try {
+        const extra = extraTemplateList(await mpContentApi.coverTemplates())
+        if (this.serviceEntry !== serviceEntry) return
+        this.hycanvasTemplateExtras = extra
+        this.applyHycanvasTemplates(this.schema.hycanvas_templates || [])
+      } catch (error) {}
     },
     onFrameArea(event) {
       const item = this.schema.frame_areas[event.detail.value]
