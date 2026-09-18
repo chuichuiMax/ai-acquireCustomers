@@ -132,7 +132,10 @@ export default {
   height: 44px;
   line-height: 44px;
   border-radius: 12px;
-  background: #fff;
-  color: #BE2D22;
+  background: #BE2D22;
+  color: #fff;
+}
+.logout::after {
+  border: none;
 }
 </style>

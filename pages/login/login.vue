@@ -2,7 +2,7 @@
   <view class="page">
     <view class="hero">
       <image class="logo" src="/static/hirun-logo.png" mode="aspectFit" />
-      <text class="title">AI获客平台</text>
+      <text class="title">鸿扬获客</text>
     </view>
 
     <view class="btn-wrap">
