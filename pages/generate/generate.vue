@@ -158,13 +158,12 @@
             <view class="xhs-card">
               <view class="xhs-preview-frame">
                 <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
-                <view
-                  v-if="compositeFallback && templateOverlaySrc"
-                  class="xhs-preview-overlay-wrap multiply"
-                >
-                  <image class="xhs-preview-overlay" :src="templateOverlaySrc" mode="scaleToFill" />
-                </view>
-                <canvas type="2d" id="xhsCompositeCanvas" class="xhs-preview-canvas" :class="{ hidden: compositeFallback }"></canvas>
+                <canvas
+                  type="2d"
+                  id="xhsCompositeCanvas"
+                  class="xhs-preview-canvas"
+                  :class="{ 'canvas-off': compositeFallback }"
+                ></canvas>
               </view>
               <text class="xhs-card-label">模板叠加效果</text>
               <text v-if="selectedTemplateTitle" class="xhs-card-sub">{{ selectedTemplateTitle }}</text>
@@ -268,20 +267,30 @@ import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { contentTypeIcon } from '../../utils/generate-content-type-icons'
-import { extraTemplateList, mergeCoverTemplates, preserveOverlayAlpha, resolveTemplateOverlay, aspectFillSourceRect, knockoutWhiteBackground, overlayLooksOpaqueWhite, sampleOverlayCorners, sourceOver } from '../../utils/cover-overlay.mjs'
+import {
+  extraTemplateList,
+  mergeCoverTemplates,
+  preserveOverlayAlpha,
+  resolveTemplateOverlay,
+  aspectFillSourceRect,
+  knockoutWhiteBackground,
+  overlayLooksOpaqueWhite,
+  sampleOverlayCorners,
+  sourceOver
+} from '../../utils/cover-overlay.mjs'
 import { isGalleryItemUsed, loadAllGalleryItems } from '../../utils/gallery-items.mjs'
 
 const REGION_INITIAL = {
-  芙: 'F', 天: 'T', 岳: 'Y', 开: 'K', 雨: 'Y', 望: 'W', 长: 'C', 浏: 'L', 宁: 'N',
-  荷: 'H', 芦: 'L', 石: 'S', 渌: 'L', 醴: 'L', 攸: 'Y', 茶: 'C', 炎: 'Y', 云: 'Y',
-  湘: 'X', 韶: 'S', 珠: 'Z', 雁: 'Y', 蒸: 'Z', 南: 'N', 衡: 'H', 祁: 'Q', 耒: 'L',
-  常: 'C', 双: 'S', 大: 'D', 北: 'B', 邵: 'S', 新: 'X', 隆: 'L', 洞: 'D', 绥: 'S',
-  城: 'C', 武: 'W', 君: 'J', 华: 'H', 平: 'P', 汨: 'M', 临: 'L', 鼎: 'D', 安: 'A',
-  汉: 'H', 澧: 'L', 桃: 'T', 津: 'J', 永: 'Y', 慈: 'C', 桑: 'S', 资: 'Z', 赫: 'H',
-  沅: 'Y', 苏: 'S', 桂: 'G', 宜: 'Y', 嘉: 'J', 汝: 'R', 零: 'L', 冷: 'L', 东: 'D',
-  道: 'D', 江: 'J', 蓝: 'L', 鹤: 'H', 中: 'Z', 辰: 'C', 溆: 'X', 会: 'H', 麻: 'M',
-  芷: 'Z', 靖: 'J', 通: 'T', 洪: 'H', 娄: 'L', 涟: 'L', 吉: 'J', 泸: 'L', 凤: 'F',
-  花: 'H', 保: 'B', 古: 'G', 龙: 'L', 株: 'Z', 张: 'Z', 益: 'Y', 郴: 'C', 怀: 'H'
+  '芙': 'F', '天': 'T', '岳': 'Y', '开': 'K', '雨': 'Y', '望': 'W', '长': 'C', '浏': 'L', '宁': 'N',
+  '荷': 'H', '芦': 'L', '石': 'S', '渌': 'L', '醴': 'L', '攸': 'Y', '茶': 'C', '炎': 'Y', '云': 'Y',
+  '湘': 'X', '韶': 'S', '珠': 'Z', '雁': 'Y', '蒸': 'Z', '南': 'N', '衡': 'H', '祁': 'Q', '耒': 'L',
+  '常': 'C', '双': 'S', '大': 'D', '北': 'B', '邵': 'S', '新': 'X', '隆': 'L', '洞': 'D', '绥': 'S',
+  '城': 'C', '武': 'W', '君': 'J', '华': 'H', '平': 'P', '汨': 'M', '临': 'L', '鼎': 'D', '安': 'A',
+  '汉': 'H', '澧': 'L', '桃': 'T', '津': 'J', '永': 'Y', '慈': 'C', '桑': 'S', '资': 'Z', '赫': 'H',
+  '沅': 'Y', '苏': 'S', '桂': 'G', '宜': 'Y', '嘉': 'J', '汝': 'R', '零': 'L', '冷': 'L', '东': 'D',
+  '道': 'D', '江': 'J', '蓝': 'L', '鹤': 'H', '中': 'Z', '辰': 'C', '溆': 'X', '会': 'H', '麻': 'M',
+  '芷': 'Z', '靖': 'J', '通': 'T', '洪': 'H', '娄': 'L', '涟': 'L', '吉': 'J', '泸': 'L', '凤': 'F',
+  '花': 'H', '保': 'B', '古': 'G', '龙': 'L', '株': 'Z', '张': 'Z', '益': 'Y', '郴': 'C', '怀': 'H'
 }
 
 function regionLetter(name) {
@@ -342,14 +351,14 @@ function createInitialSchema() {
 }
 
 const CONTENT_TYPE_DESC = {
-  工艺施工展示: '水电泥木油各阶段，AI自动生成专业话术',
-  装修报价清单: '把复杂的报价变成客户能看懂的小红书图文，信任度直接拉满',
-  装修案例分享: '上传几张完工照，AI帮你写故事感文案，从“这是我家”到“想抄”',
-  装修知识科普: '那些你重复讲了100遍的避坑知识，AI帮你整理成收藏级干货笔记',
-  人设自荐: '项目经理/设计师个人IP打造，AI帮你写出有温度的人设文案',
-  装修避坑分享: '把高频踩坑点整理成避雷笔记，帮客户少交学费',
-  装修省钱攻略: '预算怎么花更值，AI帮你写出可落地的省钱建议',
-  好评笔记: '品牌宣传 / 流量曝光\n默认目标：塑造品牌口碑'
+  '工艺施工展示': '水电泥木油各阶段，AI自动生成专业话术',
+  '装修报价清单': '把复杂的报价变成客户能看懂的小红书图文，信任度直接拉满',
+  '装修案例分享': '上传几张完工照，AI帮你写故事感文案，从“这是我家”到“想抄”',
+  '装修知识科普': '那些你重复讲了100遍的避坑知识，AI帮你整理成收藏级干货笔记',
+  '人设自荐': '项目经理/设计师个人IP打造，AI帮你写出有温度的人设文案',
+  '装修避坑分享': '把高频踩坑点整理成避雷笔记，帮客户少交学费',
+  '装修省钱攻略': '预算怎么花更值，AI帮你写出可落地的省钱建议',
+  '好评笔记': '品牌宣传 / 流量曝光\n默认目标：塑造品牌口碑'
 }
 
 export default {
@@ -509,9 +518,6 @@ export default {
     templateOverlaySrc() {
       const path = preserveOverlayAlpha(this.templateOverlay.path)
       return path ? this.mediaUrl(path) : ''
-    },
-    overlayUsesMultiply() {
-      return this.templateOverlay.multiply
     }
   },
   async onLoad() {
@@ -603,7 +609,11 @@ export default {
       query
         .select('#xhsCompositeCanvas')
         .fields({ node: true, size: true })
-        .exec(async (res) => {
+        .exec((res) => {
+          this.runCoverComposite(token, round, res, photoSrc, overlaySrc)
+        })
+    },
+    async runCoverComposite(token, round, res, photoSrc, overlaySrc) {
           const target = res && res[0]
           const canvas = target && target.node
           const cssWidth = target && target.width
@@ -659,7 +669,6 @@ export default {
           } catch (error) {
             if (token === this.compositeToken) this.compositeFallback = true
           }
-        })
     },
     shortTypeName(name) {
       return String(name || '')
@@ -705,7 +714,10 @@ export default {
     },
     prioritizeFormFields(fields) {
       const priority = ['外框面积', '基础', '木制品', '主材']
-      const rank = Object.fromEntries(priority.map((name, index) => [name, index]))
+      const rank = {}
+      for (let index = 0; index < priority.length; index += 1) {
+        rank[priority[index]] = index
+      }
       const fallback = priority.length
       return (fields || [])
         .map((field, index) => ({ field, index }))
@@ -902,7 +914,7 @@ export default {
     ensureUploadCategory() {
       const options = this.uploadCategoryOptions
       if (!options.some((item) => item.id === this.uploadCategoryId)) {
-        this.uploadCategoryId = options[0]?.id || 'uncategorized'
+        this.uploadCategoryId = (options[0] && options[0].id) || 'uncategorized'
       }
     },
     fileExt(path) {
@@ -991,7 +1003,7 @@ export default {
       this.imageItemId = item.id
       this.coverAssetId = item.asset_id
       this.coverName = item.name || item.file_name || ''
-      this.coverCategory = item.category_name || this.activeGallery?.name || ''
+      this.coverCategory = item.category_name || (this.activeGallery && this.activeGallery.name) || ''
       this.coverGalleryId = this.galleryId
       this.coverLocal = this.mediaUrl(item.file_url, { format: 'webp', width: 1080, quality: 80 })
       this.closeGallery()
@@ -1492,8 +1504,6 @@ export default {
   background: #fff;
 }
 .xhs-preview-image,
-.xhs-preview-overlay,
-.xhs-preview-overlay-wrap,
 .xhs-preview-canvas {
   position: absolute;
   left: 0;
@@ -1502,13 +1512,7 @@ export default {
   height: 100%;
   display: block;
 }
-.xhs-preview-overlay {
-  background: transparent;
-}
-.xhs-preview-overlay-wrap.multiply {
-  mix-blend-mode: multiply;
-}
-.xhs-preview-canvas.hidden {
+.xhs-preview-canvas.canvas-off {
   opacity: 0;
 }
 .xhs-card-label {

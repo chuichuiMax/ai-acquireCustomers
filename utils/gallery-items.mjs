@@ -14,22 +14,25 @@ export function isGalleryItemUsed(item) {
     hasUsageValue(item.usage_count) || hasUsageValue(item.used_count)
 }
 
-export async function loadAllGalleryItems(loadPage, pageSize = 100) {
+export async function loadAllGalleryItems(loadPage, pageSize) {
+  const size = pageSize || 100
   const items = []
   let page = 1
   let total = null
 
   while (page <= 1000) {
-    const data = await loadPage({ page, page_size: pageSize }) || {}
+    const data = (await loadPage({ page: page, page_size: size })) || {}
     const pageItems = Array.isArray(data.items) ? data.items :
       (Array.isArray(data.gallery_items) ? data.gallery_items : [])
     const reportedTotal = Number(data.total)
-    if (Number.isFinite(reportedTotal) && reportedTotal >= 0) total = reportedTotal
+    if (isFinite(reportedTotal) && reportedTotal >= 0) total = reportedTotal
 
-    items.push(...pageItems)
+    for (let index = 0; index < pageItems.length; index += 1) {
+      items.push(pageItems[index])
+    }
     if (total !== null && items.length >= total) return items.slice(0, total)
     if (!pageItems.length) return items
-    if (total === null && pageItems.length < pageSize) return items
+    if (total === null && pageItems.length < size) return items
     page += 1
   }
 

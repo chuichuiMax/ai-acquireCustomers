@@ -3,10 +3,20 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-test('generate page avoids nullish coalescing for older WeChat runtimes', () => {
+test('generate page avoids nullish coalescing and optional chaining for older WeChat runtimes', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/generate/generate.vue'), 'utf8')
 
   assert.doesNotMatch(page, /\?\?/)
+  assert.doesNotMatch(page, /\?\./)
   assert.match(page, /Object\.prototype\.hasOwnProperty\.call\(rank, aName\)/)
   assert.match(page, /Object\.prototype\.hasOwnProperty\.call\(rank, bName\)/)
+})
+
+test('generate page does not use mix-blend-mode because WeChat WXSS rejects it', () => {
+  const page = readFileSync(resolve(import.meta.dirname, '../pages/generate/generate.vue'), 'utf8')
+
+  assert.doesNotMatch(page, /mix-blend-mode/)
+  assert.match(page, /xhsCompositeCanvas/)
+  assert.match(page, /drawCoverComposite/)
+  assert.match(page, /canvas-off/)
 })
