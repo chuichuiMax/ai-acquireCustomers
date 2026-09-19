@@ -4,13 +4,19 @@
 
 ## 现有素材库
 
-图库选择不新建案例库或毛坯库。前端仍调用已有接口读取全部可见文件夹和文件：
+图库选择不新建案例库或毛坯库。PC 端在企业共享一级图片图库上配置稳定字段 `image_design_role`：
+
+- `reference`：小程序【案例图库】；
+- `rough`：小程序【毛坯图库】；
+- `null`：不作为生图固定入口。
+
+该字段与可修改的图库名称无关，只允许配置在企业共享一级图片图库，并且每种非空用途全局唯一。个人【未分类】继续使用系统稳定 ID `uncategorized`。前端调用已有接口读取可见文件夹和文件：
 
 - `GET /api/mp/content/galleries?scope=private`
 - `GET /api/mp/content/galleries?scope=enterprise`
-- `GET /api/mp/content/gallery-items?category={folderId}&scope={visibility}`
+- `GET /api/mp/content/gallery-items?category={folderId}&scope={visibility}&include_descendants={boolean}&page={page}&page_size={pageSize}`
 
-【案例图库】和【毛坯图库】只在创建生图图库引用时传递不同的 `source_role`，不改变原素材文件，也不复制原素材。
+企业固定入口传 `include_descendants=true`，服务端将一级图库自身及其直属二级图库的图片扁平化后统一分页，返回 `items`、`total`、`page`、`page_size`。【未分类】不展开子图库。选择图片后仍只创建生图图库引用并立即填入当前图片槽位，不改变或复制普通素材库原文件。
 
 ## 草稿
 

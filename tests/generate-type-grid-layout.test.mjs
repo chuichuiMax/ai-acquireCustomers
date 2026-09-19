@@ -7,7 +7,7 @@ const page = readFileSync(resolve(import.meta.dirname, '../pages/generate/genera
 
 function rule(selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return page.match(new RegExp(`(?:^|\\n)\\s*${escaped}\\s*\\{([^}]+)\\}`))?.[1] || ''
+  return page.match(new RegExp(`(?:^|\\n)\\s*${escaped}(?:\\s*,[^\\{]+)?\\s*\\{([^}]+)\\}`))?.[1] || ''
 }
 
 test('home decor type selection uses the available viewport height', () => {
@@ -33,6 +33,21 @@ test('home decor cards form two columns and three equal rows', () => {
   assert.match(gridRule, /grid-template-rows:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/)
 
   const cardRule = rule('.type-grid-home .type-card')
+  assert.match(cardRule, /margin-bottom:\s*0/)
+  assert.match(cardRule, /justify-content:\s*center/)
+})
+
+test('review notes copies the rendered home-card dimensions without expanding its section', () => {
+  assert.match(page, /'page-type-selection':\s*!typeStepDone\s*&&\s*isHomeDecor/)
+  assert.match(page, /'type-grid-home':\s*isHomeDecor/)
+  assert.match(page, /'type-grid-review':\s*isReviewNotes/)
+  assert.match(page, /:style="reviewNotesCardStyle"/)
+  assert.match(page, /reviewNotesCardStyle\(\)\s*\{[\s\S]*?width:\s*`\$\{this\.homeTypeCardSize\.width\}px`[\s\S]*?height:\s*`\$\{this\.homeTypeCardSize\.height\}px`/)
+  assert.match(page, /captureHomeTypeCardSize\(\)\s*\{[\s\S]*?select\('\.type-grid-home \.type-card'\)/)
+  assert.match(page, /switchEntry\(value\)\s*\{[\s\S]*?this\.captureHomeTypeCardSize\(\)/)
+
+  const cardRule = rule('.type-grid-review .type-card')
+  assert.match(cardRule, /width:\s*auto/)
   assert.match(cardRule, /margin-bottom:\s*0/)
   assert.match(cardRule, /justify-content:\s*center/)
 })
@@ -86,4 +101,14 @@ test('selecting an available content type does not wait for schema or gallery re
   assert.doesNotMatch(selectContentType[1], /await this\.loadSchema\(\)/)
   assert.doesNotMatch(loadSchema[1], /await this\.loadGalleries\(\)/)
   assert.match(loadSchema[1], /this\.loadGalleries\(\)/)
+})
+
+test('the first-screen schema skips remote HyCanvas templates and loads them in the background', () => {
+  const loadSchema = page.match(/async loadSchema\(\) \{([\s\S]*?)\r?\n    \},\r?\n    applyHycanvasTemplates/)
+
+  assert.ok(loadSchema)
+  assert.match(loadSchema[1], /formSchema\(serviceEntry, \{ includeHycanvasTemplates: false \}\)/)
+  assert.match(loadSchema[1], /this\.loadHycanvasTemplates\(serviceEntry\)/)
+  assert.match(loadSchema[1], /this\.loadCoverTemplateExtras\(serviceEntry\)/)
+  assert.doesNotMatch(loadSchema[1], /await mpContentApi\.hycanvasTemplates\(/)
 })

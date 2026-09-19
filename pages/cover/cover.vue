@@ -18,29 +18,25 @@
 
         <view v-if="workflow === 'redesign'" class="section">
           <view class="field-title"><text>*</text>原房实拍图</view>
-          <view class="source-actions source-actions-three">
-            <view class="source-folder" @click="openPicker('source', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view>
-            <view class="source-folder" @click="openPicker('source', 'rough')"><view class="mini-folder"><view /></view><text>毛坯图库</text></view>
-            <view class="source-upload" @click="chooseUpload('source')"><text>+</text><text>上传照片</text></view>
-          </view>
+          <image-source-selector :entries="sourceEntries('source')" :loading="sourceFoldersLoading" @select-gallery="openPicker('source', $event)" @upload="chooseUpload('source')" />
           <view v-if="slotImage('source')" class="selected-input" @click="previewImage(slotImage('source'))"><image :src="imageUrl(slotImage('source'))" mode="aspectFill" /><view><text>已选择原房图</text><text>{{ imageSourceLabel(slotImage('source').source_role) }}</text></view><text>更换</text></view>
         </view>
 
         <view v-if="workflow === 'adapt'" class="section">
           <view class="field-title"><text>*</text>参考效果图</view>
-          <view class="source-actions"><view class="source-folder" @click="openPicker('reference', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view><view class="source-upload" @click="chooseUpload('reference')"><text>+</text><text>上传照片</text></view></view>
+          <image-source-selector :entries="sourceEntries('reference')" :loading="sourceFoldersLoading" @select-gallery="openPicker('reference', $event)" @upload="chooseUpload('reference')" />
           <view v-if="slotImage('reference')" class="selected-input" @click="previewImage(slotImage('reference'))"><image :src="imageUrl(slotImage('reference'))" mode="aspectFill" /><view><text>已选择案例图</text><text>{{ imageSourceLabel(slotImage('reference').source_role) }}</text></view><text>更换</text></view>
         </view>
 
         <view v-if="workflow === 'adapt'" class="section">
           <view class="field-title"><text>*</text>毛坯实拍图</view>
-          <view class="source-actions"><view class="source-folder" @click="openPicker('rough', 'rough')"><view class="mini-folder"><view /></view><text>毛坯图库</text></view><view class="source-upload" @click="chooseUpload('rough')"><text>+</text><text>上传照片</text></view></view>
+          <image-source-selector :entries="sourceEntries('rough')" :loading="sourceFoldersLoading" @select-gallery="openPicker('rough', $event)" @upload="chooseUpload('rough')" />
           <view v-if="slotImage('rough')" class="selected-input" @click="previewImage(slotImage('rough'))"><image :src="imageUrl(slotImage('rough'))" mode="aspectFill" /><view><text>已选择毛坯图</text><text>{{ imageSourceLabel(slotImage('rough').source_role) }}</text></view><text>更换</text></view>
         </view>
 
         <view v-if="workflow === 'transfer'" class="section">
           <view class="field-title"><text>*</text>参考效果图</view>
-          <view class="source-actions"><view class="source-folder" @click="openPicker('reference', 'reference')"><view class="mini-folder"><view /></view><text>案例图库</text></view><view class="source-upload" @click="chooseUpload('reference')"><text>+</text><text>上传照片</text></view></view>
+          <image-source-selector :entries="sourceEntries('reference')" :loading="sourceFoldersLoading" @select-gallery="openPicker('reference', $event)" @upload="chooseUpload('reference')" />
           <view v-if="slotImage('reference')" class="selected-input" @click="previewImage(slotImage('reference'))"><image :src="imageUrl(slotImage('reference'))" mode="aspectFill" /><view><text>已选择案例图</text><text>{{ imageSourceLabel(slotImage('reference').source_role) }}</text></view><text>更换</text></view>
         </view>
 
@@ -61,9 +57,9 @@
 
         <view class="section">
           <view class="field-title"><text>*</text>补充描述</view>
-          <text class="field-note">填写后点击 AI 深度润色；润色成功后才可生成。</text>
+          <text class="field-note">填写后点击 AI深度润色（必做）；润色成功后才可生成。</text>
           <textarea class="description" :value="activeDraft.description" maxlength="500" placeholder="描述风格、材质、色调、空间氛围与重点陈设。" placeholder-class="description-placeholder" @input="updateDescription($event.detail.value)" />
-          <button class="polish-button" :loading="polishing" @click="polishDescription">AI 深度润色</button>
+          <button class="polish-button" :loading="polishing" @click="polishDescription">AI深度润色（必做）</button>
           <view class="polish-result" :class="{ ready: activeDraft.polished_prompt }"><text>AI 润色结果{{ activeDraft.polished_prompt ? '' : ' · 未生成' }}</text><text>{{ activeDraft.polished_prompt || '请先完成补充描述与 AI 深度润色。' }}</text></view>
         </view>
 
@@ -73,7 +69,7 @@
         </view>
         <view class="section compact"><view class="field-title"><text>*</text>生成数量</view><view class="two-row"><view v-for="count in imageCounts" :key="count" class="large-choice inline" :class="{ active: activeDraft.count === count }" @click="updateDraft({ count })">{{ count }}张</view></view></view>
         <view class="section compact"><view class="field-title"><text>*</text>清晰度</view><view class="two-row"><view v-for="item in imageQualities" :key="item.key" class="large-choice inline" :class="{ active: activeDraft.quality === item.key }" @click="updateDraft({ quality: item.key })">{{ item.label }}</view></view></view>
-        <view class="section compact"><view class="field-title"><text>*</text>选择保存路径</view><view class="save-target" @click="savePickerVisible = true"><text :class="{ placeholder: !selectedSaveFolder }">{{ selectedSaveFolder ? selectedSaveFolder.name : '请选择保存路径' }}</text><text>⌄</text></view><text v-if="draftSyncIssue" class="sync-note">草稿暂未同步到账号，将在网络恢复后再次保存。</text></view>
+        <view class="section compact"><view class="field-title"><text>*</text>选择保存路径</view><picker mode="selector" :range="savePathLabels" :disabled="!savePathOptions.length" @change="selectSavePathByIndex"><view class="save-target"><text :class="{ placeholder: !selectedSaveFolder }">{{ selectedSaveFolder ? selectedSaveFolder.label : '请选择保存路径' }}</text><text>⌄</text></view></picker><text v-if="draftSyncIssue" class="sync-note">草稿暂未同步到账号，将在网络恢复后再次保存。</text></view>
         <button class="generate-button" :loading="generating" :disabled="generating" @click="generateImages">生成图片</button>
       </template>
 
@@ -95,26 +91,21 @@
     </scroll-view>
 
     <view v-if="pickerVisible" class="layer">
-      <view class="layer-head"><text class="back" @click="pickerStage === 'images' ? backToFolders() : closePicker()">‹</text><text>{{ pickerStage === 'folders' ? '选择图库' : '选择图片' }}</text><text class="close" @click="closePicker">关闭</text></view>
-      <scroll-view class="layer-body" scroll-y>
-        <view v-if="pickerStage === 'folders'">
-          <view v-if="sourceFoldersLoading" class="state">正在加载图库…</view>
-          <view v-else-if="!sourceFolders.length" class="state">暂无可选择的图库文件夹</view>
-          <view v-else class="folder-grid"><view v-for="folder in sourceFolders" :key="folder.id" class="folder-card" @click="openFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name }}</text></view></view>
-        </view>
-        <view v-else>
-          <text class="breadcrumb">{{ activeFolder ? activeFolder.name : '' }}</text>
+      <view class="layer-head"><text class="back" @click="backPicker">‹</text><text>{{ pickerMode === 'personal-folders' ? '我的素材' : '选择图片' }}</text><text class="close" @click="closePicker">关闭</text></view>
+      <scroll-view class="layer-body" scroll-y :lower-threshold="80" @scrolltolower="loadMoreFolderItems">
+        <text class="breadcrumb">{{ pickerTitle }}</text>
+        <template v-if="pickerMode === 'personal-folders'">
+          <view v-if="!pickerPersonalFolders.length" class="state">暂无个人素材图库</view>
+          <view v-else class="folder-grid"><view v-for="folder in pickerPersonalFolders" :key="folder.id" class="folder-card" @click="selectPersonalFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name || '未分类' }}</text></view></view>
+        </template>
+        <template v-else>
           <view v-if="folderItemsLoading" class="state">正在加载图片…</view>
           <view v-else-if="!folderItems.length" class="state">该图库暂无图片</view>
           <view v-else class="picker-grid"><view v-for="item in folderItems" :key="item.id" class="picker-image" :class="{ selected: selectedFolderItem && selectedFolderItem.id === item.id }" @click="selectedFolderItem = item"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ selectedFolderItem && selectedFolderItem.id === item.id ? '✓' : '' }}</text></view></view>
-        </view>
+          <view v-if="folderItemsLoadingMore" class="load-more">正在加载更多…</view>
+        </template>
       </scroll-view>
-      <button v-if="pickerStage === 'images'" class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
-    </view>
-
-    <view v-if="savePickerVisible" class="layer">
-      <view class="layer-head"><text class="back" @click="savePickerVisible = false">‹</text><text>选择保存路径</text><text class="close" @click="savePickerVisible = false">关闭</text></view>
-      <scroll-view class="layer-body" scroll-y><view v-if="!saveFolders.length" class="state">暂无可保存的文件夹</view><view v-else class="save-list"><view v-for="folder in saveFolders" :key="folder.id" class="save-row" :class="{ selected: activeDraft.save_target_id === folder.id }" @click="selectSaveFolder(folder)"><view class="small-folder"><view /></view><view><text>{{ folder.name }}</text><text>{{ isPublicFolder(folder) ? '企业公共库' : '个人素材库' }}</text></view><text>{{ activeDraft.save_target_id === folder.id ? '✓' : '' }}</text></view></view></scroll-view>
+      <button v-if="pickerMode !== 'personal-folders'" class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
     </view>
 
     <view v-if="comparisonVisible" class="layer compare-layer"><view class="layer-head"><text class="back" @click="comparisonVisible = false">‹</text><text>对比</text><text class="close" @click="comparisonVisible = false">关闭</text></view><scroll-view class="layer-body" scroll-y><view class="compare-list"><view v-for="item in comparisonImages" :key="item.label"><text>{{ item.label }}</text><image :src="mediaUrl(item.url)" mode="widthFix" /></view></view></scroll-view></view>
@@ -124,21 +115,22 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
+import ImageSourceSelector from '../../components/image-source-selector.vue'
 import { mpContentApi, mpImageDesignApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import {
   IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
   buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
-  imageDesignStyleForPayload, isPublicSaveFolder, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
-  normalizeImageDesignLibraryItem, saveableFolders, uniqueFolders, updateImageDesignDraftStyle
+  imageDesignStyleForPayload, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
+  imageSourceEntries, mergeGalleryItems, normalizeImageDesignLibraryItem, savePathOptions, uniqueFolders, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
 const DRAFT_CACHE_KEY = 'image-design-drafts-v1'
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 export default {
-  components: { TabBar },
+  components: { ImageSourceSelector, TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
@@ -146,15 +138,17 @@ export default {
       activeTab: 'workflow', workflow: 'redesign', workflows: IMAGE_DESIGN_WORKFLOWS, imageRatios: IMAGE_RATIOS, imageCounts: IMAGE_COUNTS, imageQualities: IMAGE_QUALITIES,
       designStyles: IMAGE_DESIGN_STYLE_OPTIONS, targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
       sourceFolders: [], sourceFoldersLoading: false, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
-      pickerVisible: false, pickerStage: 'folders', pickerSlot: '', pickerSourceRole: '', activeFolder: null, folderItems: [], folderItemsLoading: false, selectedFolderItem: null, pickerSaving: false,
-      savePickerVisible: false, comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
+      pickerVisible: false, pickerMode: '', pickerPersonalFolders: [], pickerSlot: '', pickerSourceRole: '', pickerTitle: '', pickerIncludeDescendants: false, activeFolder: null,
+      folderItems: [], folderItemsPage: 0, folderItemsTotal: 0, folderItemsHasMore: false, folderItemsLoading: false, folderItemsLoadingMore: false, selectedFolderItem: null, pickerSaving: false,
+      comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null
     }
   },
   computed: {
     activeWorkflow() { return this.workflows.find((item) => item.key === this.workflow) || this.workflows[0] },
     activeDraft() { return this.drafts[this.workflow] || {} },
-    saveFolders() { return saveableFolders(this.sourceFolders) },
-    selectedSaveFolder() { return this.saveFolders.find((item) => item.id === this.activeDraft.save_target_id) || null },
+    savePathOptions() { return savePathOptions(this.sourceFolders) },
+    savePathLabels() { return this.savePathOptions.map((item) => item.label) },
+    selectedSaveFolder() { return this.savePathOptions.find((item) => item.id === this.activeDraft.save_target_id) || null },
     taskList() { return Object.keys(this.tasks).map((id) => this.tasks[id]).filter((item) => item && !this.isTaskDone(item)) }
   },
   async onShow() {
@@ -165,7 +159,8 @@ export default {
   onHide() { this.persistDraftsNow(); this.stopTaskPolling() },
   onUnload() { this.persistDraftsNow(); this.stopTaskPolling() },
   methods: {
-    mediaUrl, imageSourceLabel, isPublicFolder: isPublicSaveFolder,
+    mediaUrl, imageSourceLabel,
+    sourceEntries(slot) { return imageSourceEntries(slot, this.sourceFolders) },
     imageUrl(item) { return galleryThumbUrl(item, 720) },
     resultImageUrl(item) { return mediaUrl(item.image_url || item.file_url || item.url || imageFileUrl(item)) },
     slotImage(slot) { return this.activeDraft[slot] || null },
@@ -199,13 +194,51 @@ export default {
       try { uni.setStorageSync(DRAFT_CACHE_KEY, JSON.stringify(this.drafts)) } catch (error) {}
       try { await mpImageDesignApi.saveDrafts(this.drafts); this.draftSyncIssue = false } catch (error) { this.draftSyncIssue = true }
     },
-    openPicker(slot, sourceRole) { this.pickerSlot = slot; this.pickerSourceRole = sourceRole; this.pickerVisible = true; this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null; this.loadSourceFolders() },
-    closePicker() { this.pickerVisible = false; this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null },
-    backToFolders() { this.pickerStage = 'folders'; this.activeFolder = null; this.folderItems = []; this.selectedFolderItem = null },
-    async openFolder(folder) {
-      this.activeFolder = folder; this.pickerStage = 'images'; this.folderItems = []; this.selectedFolderItem = null; this.folderItemsLoading = true
-      try { const data = await mpContentApi.galleryItems(folder.id, folder.visibility || ''); this.folderItems = data.items || [] } catch (error) { uni.showToast({ title: errorMessage(error), icon: 'none' }) } finally { this.folderItemsLoading = false }
+    openPicker(slot, entry) {
+      if (!entry || entry.disabled) return
+      this.pickerSlot = slot; this.pickerSourceRole = entry.sourceRole; this.pickerTitle = entry.label; this.pickerIncludeDescendants = Boolean(entry.includeDescendants)
+      this.pickerVisible = true; this.pickerPersonalFolders = entry.folders || []; this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.selectedFolderItem = null
+      if (entry.pickerMode === 'personal-folders') { this.pickerMode = 'personal-folders'; this.activeFolder = null; return }
+      if (!entry.folder) { this.closePicker(); return }
+      this.pickerMode = 'images'; this.activeFolder = entry.folder
+      this.loadFolderItems(true)
     },
+    selectPersonalFolder(folder) {
+      if (!folder) return
+      this.pickerMode = 'images'; this.activeFolder = folder; this.pickerTitle = `我的素材 / ${folder.name || '未分类'}`; this.pickerIncludeDescendants = true
+      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.selectedFolderItem = null
+      this.loadFolderItems(true)
+    },
+    backPicker() {
+      if (this.pickerMode === 'images' && this.pickerPersonalFolders.length) {
+        this.pickerMode = 'personal-folders'; this.activeFolder = null; this.pickerTitle = '我的素材'; this.pickerIncludeDescendants = false
+        this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.selectedFolderItem = null
+        return
+      }
+      this.closePicker()
+    },
+    closePicker() {
+      this.pickerVisible = false; this.pickerMode = ''; this.pickerPersonalFolders = []; this.pickerSlot = ''; this.pickerSourceRole = ''; this.pickerTitle = ''; this.pickerIncludeDescendants = false; this.activeFolder = null
+      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsLoading = false; this.folderItemsLoadingMore = false; this.selectedFolderItem = null
+    },
+    async loadFolderItems(reset = false) {
+      if (!this.activeFolder || this.folderItemsLoading || this.folderItemsLoadingMore) return
+      if (!reset && !this.folderItemsHasMore) return
+      const page = reset ? 1 : this.folderItemsPage + 1
+      if (reset) this.folderItemsLoading = true
+      else this.folderItemsLoadingMore = true
+      try {
+        const data = await mpContentApi.galleryItems(this.activeFolder.id, this.activeFolder.visibility || '', { page, page_size: 30, include_descendants: this.pickerIncludeDescendants })
+        const incoming = data.items || []
+        this.folderItems = reset ? mergeGalleryItems([], incoming) : mergeGalleryItems(this.folderItems, incoming)
+        this.folderItemsPage = page
+        const pagination = data.pagination || {}
+        const rawTotal = data.total !== undefined ? data.total : pagination.total
+        this.folderItemsTotal = Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : this.folderItems.length
+        this.folderItemsHasMore = rawTotal !== undefined ? this.folderItems.length < this.folderItemsTotal : incoming.length >= 30
+      } catch (error) { uni.showToast({ title: errorMessage(error), icon: 'none' }) } finally { this.folderItemsLoading = false; this.folderItemsLoadingMore = false }
+    },
+    loadMoreFolderItems() { this.loadFolderItems(false) },
     async confirmPicker() {
       if (!this.selectedFolderItem || this.pickerSaving) return
       this.pickerSaving = true
@@ -255,8 +288,11 @@ export default {
       const drafts = {}
       Object.keys(this.drafts).forEach((key) => { drafts[key] = { ...this.drafts[key], save_target_id: folder.id } })
       this.drafts = drafts
-      this.savePickerVisible = false
       await this.persistDraftsNow()
+    },
+    selectSavePathByIndex(event) {
+      const folder = this.savePathOptions[Number(event && event.detail && event.detail.value)]
+      if (folder) return this.selectSaveFolder(folder)
     },
     validateGeneration() {
       const missing = this.requiredRoleMissing(); if (missing) return `请选择${this.roleLabel(missing)}`
@@ -304,12 +340,12 @@ export default {
 .page { min-height: 100vh; box-sizing: border-box; padding-bottom: calc(52px + env(safe-area-inset-bottom)); background: #f4f1ee; color: #282421; }
 .segments { display: flex; height: 48px; margin: 14px 14px 0; overflow: hidden; border: 1px solid #be2d22; border-radius: 5px; background: #fff; }.segment { flex: 1; display: flex; align-items: center; justify-content: center; border-right: 1px solid #be2d22; color: #6e6761; font-size: 15px; }.segment:last-child { border: 0; }.segment.active { color: #fff; font-weight: 700; background: #be2d22; }.content { height: calc(100vh - 114px - env(safe-area-inset-bottom)); }
 .section { margin-top: 12px; padding: 20px 18px; border-top: 1px solid #ede8e4; border-bottom: 1px solid #ede8e4; background: #fff; }.section-title { display: flex; align-items: center; color: #231f1d; font-size: 18px; font-weight: 700; }.section-title view { width: 4px; height: 23px; margin-right: 9px; background: #be2d22; }.workflow-options { display: flex; gap: 8px; margin-top: 17px; }.workflow-option { flex: 1; min-width: 0; min-height: 45px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; position: relative; border: 1px solid #8e8985; border-radius: 6px; color: #625c57; font-size: 14px; }.workflow-option.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.workflow-option text { position: absolute; right: 6px; bottom: 3px; font-size: 12px; }.workflow-description { display: block; margin-top: 12px; color: #5f5853; font-size: 13px; line-height: 1.6; }
-.field-title { color: #201d1a; font-size: 17px; font-weight: 700; }.field-title > text { margin-right: 3px; color: #be2d22; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 0; background: transparent; }.source-upload { border: 0; background: transparent; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
+.field-title { color: #201d1a; font-size: 17px; font-weight: 700; }.field-title > text, .field-title > view > text { margin-right: 3px; color: #be2d22; }.field-title-with-action { display: flex; align-items: center; justify-content: space-between; }.field-title-with-action .upload-link { margin: 0; color: #be2d22; font-size: 15px; font-weight: 400; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 0; background: transparent; }.source-upload { border: 0; background: transparent; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
 .selected-input { min-height: 66px; margin-top: 13px; padding: 7px 10px; box-sizing: border-box; display: flex; align-items: center; background: #f8f6f4; }.selected-input image { width: 52px; height: 52px; margin-right: 11px; background: #e5ddd7; }.selected-input view text { display: block; color: #38322e; font-size: 13px; font-weight: 700; }.selected-input view text + text { margin-top: 4px; color: #918780; font-size: 11px; font-weight: 400; }.selected-input > text { margin-left: auto; color: #be2d22; font-size: 13px; }
 .chip-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }.choice-chip { min-height: 40px; padding: 0 13px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1px solid #98918b; border-radius: 5px; color: #625c57; font-size: 13px; line-height: 1.25; text-align: center; }.choice-chip.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.three-column .choice-chip { width: calc((100% - 20px) / 3); padding: 0 4px; }.two-column .choice-chip { width: calc((100% - 10px) / 2); padding: 0 5px; }.sub-title { margin-top: 21px; color: #292421; font-size: 16px; font-weight: 700; }
 .description { width: 100%; height: 138px; margin-top: 16px; padding: 12px; box-sizing: border-box; border: 1px dashed #4f84ff; border-radius: 8px; color: #38322e; font-size: 14px; line-height: 1.55; background: #fafcff; }.description-placeholder { color: #ada9a5; }.polish-button { float: right; height: 39px; margin: 13px 0 12px; padding: 0 16px; border-radius: 20px; color: #fff; font-size: 14px; line-height: 39px; background: #be2d22; }.polish-button::after, .generate-button::after, .picker-confirm::after, .retry::after { border: 0; }.polish-result { clear: both; min-height: 87px; padding: 13px; box-sizing: border-box; border: 1px dashed #a9a29c; border-radius: 7px; background: #fafafa; }.polish-result.ready { border-color: #4f84ff; background: #f9fbff; }.polish-result text { display: block; color: #77706a; font-size: 13px; font-weight: 700; }.polish-result text + text { margin-top: 7px; color: #88817b; font-size: 12px; font-weight: 400; line-height: 1.6; white-space: pre-wrap; }.polish-result.ready text:first-child { color: #be2d22; }
 .option-stack { margin-top: 14px; }.large-choice { min-height: 64px; margin-top: 12px; padding: 9px 16px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; border: 1px solid #8f8984; border-radius: 7px; color: #6a635e; font-size: 18px; line-height: 1.35; }.large-choice text + text { margin-top: 3px; font-size: 15px; }.large-choice.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }.compact { padding-top: 18px; padding-bottom: 18px; }.two-row { display: flex; gap: 16px; margin-top: 14px; }.large-choice.inline { flex: 1; min-height: 51px; margin: 0; padding: 0 10px; align-items: center; text-align: center; }.save-target { min-height: 50px; margin-top: 14px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #b9b2ac; border-radius: 7px; color: #342e2a; font-size: 16px; background: #fff; }.save-target .placeholder { color: #8b837c; }.sync-note { display: block; margin-top: 8px; color: #aa6c34; font-size: 11px; }.generate-button { width: calc(100% - 36px); height: 55px; margin: 24px 18px 0; border-radius: 7px; color: #fff; font-size: 20px; line-height: 55px; background: #be2d22; }.generate-button[disabled] { opacity: .55; }
 .gallery-heading { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 18px 15px; background: #fff; }.gallery-heading text:first-child { color: #25211e; font-size: 19px; font-weight: 700; }.gallery-heading text:last-child { color: #8f867f; font-size: 12px; }.state { padding: 74px 22px; color: #8b837d; font-size: 14px; text-align: center; }.state text { display: block; }.retry { display: inline-block; margin-top: 10px; padding: 0; color: #be2d22; font-size: 14px; background: transparent; }.library-grid, .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }.library-image { position: relative; height: 195px; overflow: hidden; background: #e5ddd7; }.library-image image { width: 100%; height: 100%; display: block; }.library-image text { position: absolute; top: 8px; left: 8px; padding: 3px 6px; border-radius: 3px; color: #fff; font-size: 10px; background: rgba(38, 33, 30, .72); }.tasks { padding: 10px 14px 0; }.task { min-height: 45px; padding: 0 12px; display: flex; align-items: center; gap: 8px; color: #796f67; font-size: 13px; background: #fff7e8; }.task view { width: 8px; height: 8px; border-radius: 50%; background: #be2d22; animation: pulse 1.2s infinite; }.task text:last-child { margin-left: auto; color: #be2d22; }.result-card { overflow: hidden; border: 1px solid #e8e1dc; background: #fff; }.result-card image { width: 100%; height: 205px; display: block; background: #e5ddd7; }.result-time { display: block; min-height: 30px; padding: 6px 8px 0; color: #77706b; font-size: 11px; }.result-actions { min-height: 42px; padding: 0 8px 8px; display: flex; align-items: center; justify-content: space-between; }.download { display: flex; align-items: center; color: #347bf1; font-size: 12px; }.download text:first-child { margin-right: 2px; font-size: 25px; line-height: 20px; }.compare { min-width: 42px; min-height: 29px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #fff; font-size: 12px; background: #347bf1; }.retry-line { padding: 0 8px 8px; display: flex; justify-content: space-between; color: #aa6c34; font-size: 11px; }.retry-line text:last-child { color: #be2d22; }.spacer { height: 24px; }
 .layer { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); background: #f4f1ee; }.layer-head { position: relative; min-height: 58px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #ece6e1; color: #201c1a; font-size: 18px; font-weight: 700; background: #fff; }.back, .close { position: absolute; top: 0; min-height: 58px; display: flex; align-items: center; }.back { left: 17px; font-size: 37px; font-weight: 400; }.close { right: 16px; color: #766e68; font-size: 13px; font-weight: 400; }.layer-body { flex: 1; min-height: 0; }.folder-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 25px 13px; padding: 28px 18px; }.folder-card { min-width: 0; color: #38322e; font-size: 12px; text-align: center; }.folder-card text { display: block; overflow: hidden; margin-top: 10px; text-overflow: ellipsis; white-space: nowrap; }.folder-icon { position: relative; width: 78px; height: 57px; margin: 0 auto; border-radius: 4px 7px 8px 8px; background: #ffc238; }.folder-icon view { position: absolute; top: -8px; left: 0; width: 37px; height: 14px; border-radius: 5px 5px 0 0; background: #ffc238; }.breadcrumb { display: block; padding: 15px 17px 0; color: #756d67; font-size: 13px; }.picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 18px 15px 92px; }.picker-image { position: relative; height: 145px; border: 2px solid transparent; background: #e5ddd7; }.picker-image.selected { border-color: #347bf1; }.picker-image image { width: 100%; height: 100%; display: block; }.picker-image text { position: absolute; top: 6px; right: 6px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; color: #fff; font-size: 15px; line-height: 21px; text-align: center; background: rgba(0, 0, 0, .17); }.picker-image.selected text { border-color: #347bf1; background: #347bf1; }.picker-confirm { position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 18px; height: 54px; border-radius: 27px; color: #fff; font-size: 18px; line-height: 54px; background: #be2d22; }.picker-confirm[disabled] { opacity: .5; }
-.save-list { padding: 12px 15px; }.save-row { min-height: 70px; margin-bottom: 10px; padding: 10px 12px; box-sizing: border-box; display: flex; align-items: center; border: 1px solid #e2dcd7; background: #fff; }.save-row.selected { border-color: #be2d22; background: #fffaf9; }.small-folder { position: relative; width: 45px; height: 34px; margin-right: 12px; border-radius: 4px 5px 5px 5px; background: #ffc238; }.small-folder view { position: absolute; top: -5px; left: 0; width: 21px; height: 7px; border-radius: 3px 3px 0 0; background: #ffc238; }.save-row > view + view text { display: block; color: #38322e; font-size: 14px; }.save-row > view + view text + text { margin-top: 5px; color: #908781; font-size: 11px; }.save-row > text { margin-left: auto; color: #fff; font-size: 14px; }.save-row.selected > text { width: 21px; height: 21px; border-radius: 50%; line-height: 21px; text-align: center; background: #be2d22; }.compare-layer { background: #f5f2ef; }.compare-list { padding: 14px; }.compare-list > view { margin-bottom: 19px; background: #fff; }.compare-list text { display: block; padding: 14px 14px 9px; color: #25211f; font-size: 16px; font-weight: 700; }.compare-list image { width: 100%; display: block; background: #e5ddd7; } @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+.compare-layer { background: #f5f2ef; }.compare-list { padding: 14px; }.compare-list > view { margin-bottom: 19px; background: #fff; }.compare-list text { display: block; padding: 14px 14px 9px; color: #25211f; font-size: 16px; font-weight: 700; }.compare-list image { width: 100%; display: block; background: #e5ddd7; } @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 </style>

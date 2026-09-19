@@ -26,7 +26,8 @@
         class="type-grid"
         :class="{
           'type-grid-single': contentTypes.length === 1,
-          'type-grid-home': isHomeDecor
+          'type-grid-home': isHomeDecor,
+          'type-grid-review': isReviewNotes
         }"
       >
         <view
@@ -34,6 +35,7 @@
           :key="item.id"
           class="type-card"
           :class="{ active: contentTypeCode === item.type_code }"
+          :style="reviewNotesCardStyle"
           @click="selectContentType(item.type_code)"
         >
           <view class="type-icon-wrap">
@@ -396,9 +398,11 @@ export default {
       submitting: false,
       schemaLoaded: false,
       schemaLoading: false,
+      hycanvasTemplateExtras: [],
       resumeAfterPicker: false,
       compositeFallback: false,
-      compositeToken: 0
+      compositeToken: 0,
+      homeTypeCardSize: null
     }
   },
   computed: {
@@ -407,6 +411,13 @@ export default {
     },
     isReviewNotes() {
       return String(this.serviceEntry || '').includes('好评')
+    },
+    reviewNotesCardStyle() {
+      if (!this.isReviewNotes || !this.homeTypeCardSize) return null
+      return {
+        width: `${this.homeTypeCardSize.width}px`,
+        height: `${this.homeTypeCardSize.height}px`
+      }
     },
     contentTypes() {
       if (this.isReviewNotes) return [REVIEW_NOTES_TYPE]
@@ -813,7 +824,10 @@ export default {
       }
       this.formValues = next
     },
-    switchEntry(value) {
+    async switchEntry(value) {
+      if (value === '好评笔记' && this.isHomeDecor && !this.typeStepDone) {
+        await this.captureHomeTypeCardSize()
+      }
       if (this._typeSelectTimer) {
         clearTimeout(this._typeSelectTimer)
         this._typeSelectTimer = null
@@ -832,13 +846,34 @@ export default {
       this.closeRegion()
       this.schema = createInitialSchema()
       this.schemaLoaded = false
+      this.hycanvasTemplateExtras = []
       this.loadSchema()
+    },
+    captureHomeTypeCardSize() {
+      return new Promise((resolve) => {
+        if (typeof uni.createSelectorQuery !== 'function') {
+          resolve()
+          return
+        }
+        uni.createSelectorQuery()
+          .in(this)
+          .select('.type-grid-home .type-card')
+          .boundingClientRect((rect) => {
+            if (rect && rect.width > 0 && rect.height > 0) {
+              this.homeTypeCardSize = { width: rect.width, height: rect.height }
+            }
+            resolve()
+          })
+          .exec()
+      })
     },
     async loadSchema() {
       if (this.schemaLoading) return false
       this.schemaLoading = true
       try {
-        const data = await mpContentApi.formSchema(this.serviceEntry)
+        const serviceEntry = this.serviceEntry
+        const data = await mpContentApi.formSchema(serviceEntry, { includeHycanvasTemplates: false })
+        if (this.serviceEntry !== serviceEntry) return false
         this.schema = data
         this.schemaLoaded = true
         const next = { ...this.formValues }
@@ -847,20 +882,8 @@ export default {
           if (name && next[name] === undefined) next[name] = ''
         }
         this.formValues = next
-        const templates = data.hycanvas_templates || []
-        try {
-          const extra = extraTemplateList(await mpContentApi.coverTemplates())
-          if (extra.length) {
-            this.schema = {
-              ...this.schema,
-              hycanvas_templates: mergeCoverTemplates(templates, extra)
-            }
-          }
-        } catch (error) {}
-        const mergedTemplates = this.schema.hycanvas_templates || []
-        if (!this.coverTemplateId || !mergedTemplates.some((item) => item.id === this.coverTemplateId)) {
-          this.coverTemplateId = mergedTemplates.length ? mergedTemplates[0].id : ''
-        }
+        this.loadHycanvasTemplates(serviceEntry)
+        this.loadCoverTemplateExtras(serviceEntry)
         this.loadGalleries()
         this.ensureUploadCategory()
         return true
@@ -870,6 +893,29 @@ export default {
       } finally {
         this.schemaLoading = false
       }
+    },
+    applyHycanvasTemplates(templates) {
+      const mergedTemplates = mergeCoverTemplates(templates, this.hycanvasTemplateExtras)
+      this.schema = { ...this.schema, hycanvas_templates: mergedTemplates }
+      if (!this.coverTemplateId || !mergedTemplates.some((item) => item.id === this.coverTemplateId)) {
+        this.coverTemplateId = mergedTemplates.length ? mergedTemplates[0].id : ''
+      }
+    },
+    async loadHycanvasTemplates(serviceEntry) {
+      if (serviceEntry !== '装修家居') return
+      try {
+        const data = await mpContentApi.hycanvasTemplates()
+        if (this.serviceEntry !== serviceEntry) return
+        this.applyHycanvasTemplates(data.hycanvas_templates || [])
+      } catch (error) {}
+    },
+    async loadCoverTemplateExtras(serviceEntry) {
+      try {
+        const extra = extraTemplateList(await mpContentApi.coverTemplates())
+        if (this.serviceEntry !== serviceEntry) return
+        this.hycanvasTemplateExtras = extra
+        this.applyHycanvasTemplates(this.schema.hycanvas_templates || [])
+      } catch (error) {}
     },
     onFrameArea(event) {
       const item = this.schema.frame_areas[event.detail.value]
@@ -1282,7 +1328,8 @@ export default {
   background: #fff;
   text-align: center;
 }
-.type-grid-home .type-card {
+.type-grid-home .type-card,
+.type-grid-review .type-card {
   display: flex;
   flex-direction: column;
   align-items: center;

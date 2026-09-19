@@ -446,13 +446,15 @@ export default {
   box-sizing: border-box;
 }
 .gallery-content {
-  padding: 18px 14px;
+  padding: 6px 14px 18px;
   background: #f4f4f4;
 }
 .gallery-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
+  /* Keep the first row's -9px folder tab inside the native scroll content. */
+  padding-top: 12px;
 }
 .gallery-card {
   width: 47%;
