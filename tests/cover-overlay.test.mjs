@@ -12,7 +12,6 @@ import {
 } from '../utils/cover-overlay.mjs'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { resolveTemplateOverlay, templateOverlayPath } from '../utils/cover-overlay.mjs'
 
 test('template overlay selection prefers explicit overlay media over template previews', () => {
   const path = templateOverlayPath({
