@@ -3,7 +3,11 @@ import test from 'node:test'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { createCachedInternalAccessEvaluator, evaluateInternalAccess } from '../utils/internal-access-policy.mjs'
+import {
+  createCachedInternalAccessEvaluator,
+  evaluateInternalAccess,
+  hasMiniProgramPort
+} from '../utils/internal-access-policy.mjs'
 
 test('uni-app access wrapper has no same-name mjs module that can shadow it', () => {
   const utils = resolve(import.meta.dirname, '../utils')
@@ -56,4 +60,76 @@ test('the same token reuses one successful employee check across pages', async (
 
   await evaluator.evaluate('new-token', getMe)
   assert.equal(calls, 2)
+})
+
+test('APP login port is treated as mini-program permission', () => {
+  assert.equal(hasMiniProgramPort(['pc', 'app']), true)
+  assert.equal(hasMiniProgramPort(['app']), true)
+  assert.equal(hasMiniProgramPort('APP'), true)
+  assert.equal(hasMiniProgramPort('PC&APP'), true)
+  assert.equal(hasMiniProgramPort('pc_app'), true)
+  assert.equal(hasMiniProgramPort('["pc","app"]'), true)
+  assert.equal(hasMiniProgramPort(['pc']), false)
+})
+
+test('password-login PC user identity is not enough without APP login port', async () => {
+  const result = await evaluateInternalAccess({
+    token: 'pc-user-token',
+    getMe: async () => ({
+      id: 12,
+      uid: '181637612334',
+      username: '内部员工',
+      phone_number: '181637612334'
+    })
+  })
+
+  assert.equal(result.allowed, false)
+  assert.equal(result.clearToken, true)
+})
+
+test('employee with only APP port can enter the mini program', async () => {
+  const result = await evaluateInternalAccess({
+    token: 'app-user-token',
+    getMe: async () => ({
+      employee: {
+        id: 'only-app',
+        login_account: '13975171659',
+        login_port: ['app']
+      }
+    })
+  })
+
+  assert.equal(result.allowed, true)
+})
+
+test('employee with PC and APP ports can enter the mini program', async () => {
+  const result = await evaluateInternalAccess({
+    token: 'pc-user-token',
+    getMe: async () => ({
+      employee: {
+        id: 'H04454',
+        name: '徐迎港',
+        login_account: '181637612334',
+        login_port: ['pc', 'app']
+      }
+    })
+  })
+
+  assert.equal(result.allowed, true)
+})
+
+test('employee with only PC port cannot enter the mini program', async () => {
+  const result = await evaluateInternalAccess({
+    token: 'pc-user-token',
+    getMe: async () => ({
+      employee: {
+        id: 'only-pc',
+        login_account: '18100000000',
+        login_port: ['pc']
+      }
+    })
+  })
+
+  assert.equal(result.allowed, false)
+  assert.equal(result.clearToken, true)
 })

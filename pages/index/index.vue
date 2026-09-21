@@ -10,7 +10,9 @@
 
 	export default {
 		onLoad() {
-			enterInternalWorkspace()
+			enterInternalWorkspace().catch(function () {
+				uni.reLaunch({ url: '/pages/login/login' })
+			})
 		}
 	}
 </script>

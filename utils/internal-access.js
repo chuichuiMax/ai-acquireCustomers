@@ -21,21 +21,62 @@ function redirectToLogin() {
   uni.reLaunch({ url: LOGIN_PATH })
 }
 
-export async function requireInternalAccess({ redirect = true } = {}) {
-  const decision = await accessEvaluator.evaluate(getToken(), () => mpMeApi.get())
+function withTimeout(promise, ms) {
+  return new Promise(function (resolve, reject) {
+    const timer = setTimeout(function () {
+      reject({ statusCode: 408, data: { detail: '身份验证超时' } })
+    }, ms)
+    promise.then(
+      function (value) {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      function (error) {
+        clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+}
 
-  if (decision.clearToken) {
+export function resetInternalAccess() {
+  accessEvaluator.clear()
+}
+
+export async function requireInternalAccess({ redirect = true } = {}) {
+  try {
+    const decision = await withTimeout(
+      accessEvaluator.evaluate(getToken(), function () {
+        return mpMeApi.get()
+      }),
+      8000
+    )
+
+    if (decision.clearToken) {
+      setToken('')
+      accessEvaluator.clear()
+    }
+    if (!decision.allowed && redirect) redirectToLogin()
+    return decision.allowed
+  } catch (error) {
     setToken('')
     accessEvaluator.clear()
+    if (redirect) redirectToLogin()
+    return false
   }
-  if (!decision.allowed && redirect) redirectToLogin()
-  return decision.allowed
 }
 
 export async function enterInternalWorkspace() {
-  if (!(await requireInternalAccess())) return false
-  uni.reLaunch({ url: INTERNAL_HOME_PATH })
-  return true
+  try {
+    if (!(await requireInternalAccess())) return false
+    uni.reLaunch({ url: INTERNAL_HOME_PATH })
+    return true
+  } catch (error) {
+    setToken('')
+    resetInternalAccess()
+    redirectToLogin()
+    return false
+  }
 }
 
 export const internalPageMixin = {
