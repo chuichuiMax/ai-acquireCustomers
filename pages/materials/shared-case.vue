@@ -50,6 +50,7 @@
 import { mpContentApi } from '../../apis/mp'
 import { buildSharedCaseImages, formatArea } from '../../utils/materials-logic.mjs'
 import { errorMessage, publicMediaUrl } from '../../utils/request'
+import { saveLastShareId } from '../../utils/share-entry.mjs'
 
 export default {
   data() {
@@ -126,6 +127,7 @@ export default {
           area: share.area || gallery.area || '',
           style: share.design_style || share.style || gallery.design_style || gallery.style || gallery.style_name || ''
         }
+        saveLastShareId(this.shareId)
         uni.setNavigationBarTitle({ title: this.caseInfo.title })
       } catch (error) {
         this.loadError = true

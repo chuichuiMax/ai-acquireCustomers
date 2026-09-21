@@ -6,12 +6,8 @@
 </template>
 
 <script>
-	import { enterInternalWorkspace } from '../../utils/internal-access'
-
 	export default {
-		onLoad() {
-			enterInternalWorkspace()
-		}
+		// App.onShow 统一处理普通入口、平台用户工作台和业主最近案例恢复。
 	}
 </script>
 
