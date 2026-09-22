@@ -6,9 +6,8 @@
 </template>
 
 <script>
-	import { enterInternalWorkspace } from '../../utils/internal-access'
-
 	export default {
+		// App.onShow 统一处理普通入口、平台用户工作台和业主最近案例恢复。
 		onLoad() {
 			enterInternalWorkspace().catch(function () {
 				uni.reLaunch({ url: '/pages/login/login' })
