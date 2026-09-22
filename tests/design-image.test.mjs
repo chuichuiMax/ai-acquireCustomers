@@ -137,7 +137,7 @@ test('生图 page hosts the current image-design workflow', () => {
   assert.match(sourceLogic, /案例图库/)
   assert.match(sourceLogic, /毛坯图库/)
   assert.match(page, /选择保存路径/)
-  assert.match(page, /<picker[^>]+:range="savePathLabels"/)
+  assert.match(page, /<save-target-sheet[^>]+:scopes="saveTargetScopes"/)
   assert.match(page, /生成图片/)
   assert.match(page, /我的生图图库/)
   assert.match(page, /生成结果/)
