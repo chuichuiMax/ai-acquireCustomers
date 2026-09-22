@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
+import { resolveApiBaseUrl } from '../utils/api-base-url.mjs'
 
 const projectRoot = resolve(import.meta.dirname, '..')
 const loginPage = readFileSync(resolve(projectRoot, 'pages/login/login.vue'), 'utf8')
@@ -22,8 +24,14 @@ test('login page only exposes one-click login and the employee-only notice', () 
 })
 
 test('the mini program uses the online API base URL', () => {
-  assert.match(config, /https:\/\/ai\.hi-run\.net/)
-  assert.doesNotMatch(config, /127\.0\.0\.1:5050/)
+  const script = config.replace(/^import .*$/gm, '').replace(/^export /gm, '')
+  for (const platform of ['devtools', 'android', 'ios']) {
+    const baseUrl = runInNewContext(`${script}\nBASE_URL`, {
+      resolveApiBaseUrl,
+      uni: { getSystemInfoSync: () => ({ platform }) }
+    })
+    assert.equal(baseUrl, 'https://ai.hi-run.net')
+  }
 })
 
 test('WeChat mini-program login still offers one-click phone authorization', () => {
