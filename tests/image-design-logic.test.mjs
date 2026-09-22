@@ -90,6 +90,7 @@ test('description style mode omits a preset style from the task payload', () => 
     source: { id: 'source-1' },
     style: DESCRIPTION_STYLE_VALUE,
     description: '奶油色墙面与圆角木质家具',
+    description_keywords: [],
     polished_prompt: '保留原房结构，使用奶油色墙面与圆角木质家具',
     polished_for: '奶油色墙面与圆角木质家具',
     refinement_id: 'ref-1',
@@ -112,6 +113,7 @@ test('each image-design workflow validates its own required images', () => {
     reference: { id: 'reference' },
     rough: { id: 'rough' },
     description: '保留采光',
+    description_keywords: [],
     polished_prompt: '保留采光，优化空间陈设',
     polished_for: '保留采光',
     refinement_id: 'ref-1',
@@ -129,6 +131,7 @@ test('editing a description invalidates the polished prompt until it is refreshe
     style: '现代轻奢',
     description: '增加阅读角',
     polished_prompt: '保留原始结构，增加阅读角',
+    description_keywords: [],
     polished_for: '增加阅读角',
     refinement_id: 'ref-1',
     save_target: { scope: 'private', gallery_id: 'folder-1' }

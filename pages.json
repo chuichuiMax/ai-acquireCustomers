@@ -51,7 +51,7 @@
 		{
 			"path": "pages/cover/cover",
 			"style": {
-				"navigationBarTitleText": "图片生成"
+				"navigationBarTitleText": "生成图片"
 			}
 		},
 		{

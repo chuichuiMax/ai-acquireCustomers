@@ -8,8 +8,8 @@ const api = readFileSync(resolve(import.meta.dirname, '../apis/mp.js'), 'utf8')
 const sourceSelectorPath = resolve(import.meta.dirname, '../components/image-source-selector.vue')
 
 test('image design keeps the confirmed three-stage top navigation', () => {
-  assert.match(page, /label: '工作流'/)
-  assert.match(page, /label: '图库'/)
+  assert.match(page, /label: '生成图片'/)
+  assert.match(page, /label: '图库管理'/)
   assert.match(page, /label: '生成结果'/)
 })
 
@@ -29,7 +29,7 @@ test('local uploads use the dedicated image-design endpoint and immediately fill
 
 test('description changes invalidate AI polish and generation requires the refreshed result', () => {
   assert.match(page, /updateImageDesignDraftDescription\(this\.activeDraft, description\)/)
-  assert.match(page, /this\.activeDraft\.polished_for !== this\.activeDraft\.description/)
+  assert.match(page, /this\.activeDraft\.polished_for !== description/)
   assert.match(page, /!this\.activeDraft\.refinement_id/)
 })
 
@@ -70,7 +70,7 @@ test('transfer addon choices support multiple selections with a two-item cap', (
   assert.match(page, /extra_element: this\.workflow === 'transfer' \? normalizeTransferElements\(this\.activeDraft\.extra_element\) : undefined/)
 })
 
-test('save path uses the API-backed two-stage sheet and validates the canonical target', () => {
+test('save path uses the API-backed fixed choices and validates the canonical target', () => {
   assert.match(api, /url: '\/api\/mp\/image-design\/save-targets'/)
   assert.match(page, /<save-target-sheet[^>]+:scopes="saveTargetScopes"/)
   assert.match(page, /@confirm="confirmSaveTarget"/)

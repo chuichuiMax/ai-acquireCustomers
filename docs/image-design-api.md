@@ -40,9 +40,13 @@
 
 请求体为 `{ "drafts": { ... } }`。服务端必须只覆盖当前账号自己的草稿，并保留 JSON 中的图片引用 ID。前端在输入后约 700ms 同步，也会在退出页面时再同步一次。
 
+每个草稿的 `description` 保存自由输入的文字，`description_keywords` 保存可删除、自定义的关键词数组。新草稿默认包含“高级质感”“空间合理”“专业空间摄影构图”。当前页面内可以删除默认词；刷新或重新进入页面加载草稿时补回缺失的默认词，并保留已保存的自定义词和描述。普通保存路径更新、模式切换不会补回默认词。旧草稿缺少该字段时初始化默认词，保留原有描述。
+
+润色及生成请求均将关键词用“、”连接，再以“。”拼接自由输入文字，作为接口的 `description`（合计最多 3000 字）；不向这两个接口增加关键词字段。草稿的 `polished_for` 记录该合并文本。修改关键词、描述，或恢复默认词导致合并文本变化时，清除 `polished_prompt`、`polished_for`、`refinement_id`，必须重新润色。默认词齐全且合并文本未变时，重新加载保留有效润色结果。
+
 ## 生图专用图库
 
-### `GET /api/mp/image-design/library?page=1&page_size=100`
+### `GET /api/mp/image-design/library?page=1&page_size=30`
 
 返回当前账号的已收藏/已上传输入图，以及已经生成成功并同步到 PC 素材库的结果图。每个条目至少包含：
 
@@ -57,11 +61,21 @@
       "thumbnail_file_url": "/media/image-thumb.jpg",
       "file_name": "客厅.jpg",
       "source_role": "reference",
+      "recognized_roles": ["style_reference"],
       "created_at": "2026-09-17T10:00:00Z"
     }
-  ]
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 30
 }
 ```
+
+小程序按页追加加载，超过 100 张仍可浏览。`recognized_roles` 仅包含当前账号、同一图片哈希、当前分析 schema 下已完成的真实分析角色；数组非空显示“已识别”，否则显示“未识别”。该汇总标签不代替生成时对具体角色、模型及输入的重新校验。卡片日期使用 `created_at`。
+
+### `DELETE /api/mp/image-design/library/{itemId}`
+
+仅将当前账号的引用标记为隐藏（`hidden_at`）；不删除 PC 素材、图片文件、生成结果或已有任务输入。其他账号不能操作此引用。再次主动选入同一素材可恢复原引用；worker 重试不会让用户已移除的卡片重新出现。部署时通过现有业务表迁移补齐 `hidden_at`。
 
 ### `POST /api/mp/image-design/library`
 
@@ -107,22 +121,24 @@
 
 ### `GET /api/mp/image-design/save-targets`
 
-返回当前员工可写入的保存范围，与输入图片的源图库浏览独立：
+只返回“我的素材”和“企业共享 / 生图图库”两个保存位置，与输入图片的源图库浏览独立：
 
 ```json
 {
   "scopes": [
     { "scope": "private", "label": "我的素材", "can_write_root": true,
-      "folders": [{ "id": "private-folder", "name": "背景", "path": "背景" }] },
-    { "scope": "enterprise", "label": "企业图库", "can_write_root": true,
-      "folders": [{ "id": "shared-folder", "name": "效果图", "path": "项目 A / 效果图" }] }
+      "folders": [] },
+    { "scope": "enterprise", "label": "企业共享", "can_write_root": false, "error": "",
+      "folders": [{ "id": "existing-generated-gallery-id", "name": "生图图库", "path": "生图图库", "parent_id": null }] }
   ]
 }
 ```
 
-新草稿和任务使用 `save_target`：`{ "scope": "private" | "enterprise", "gallery_id": string | null }`。`gallery_id: null` 表示该范围的根目录；字符串表示服务端返回的可写文件夹。旧草稿的 `save_target_id` 仅在它能映射到当前返回的文件夹时迁移，否则必须重新选择。
+新草稿和任务使用 `save_target`：个人为 `{ "scope": "private", "gallery_id": null }`；企业为 `{ "scope": "enterprise", "gallery_id": "existing-generated-gallery-id" }`。旧草稿中的其他文件夹和企业根目录不再允许提交，须重新选择。
 
-普通员工可向可见企业图库及企业根目录保存图片，个人图库仅本人可写；图库结构管理仍遵循管理员权限。服务端按 `scope` 和 `gallery_id` 查找，个人范围同时限定当前所有者；同一范围存在多个同 ID 图库时返回 `IMAGE_DESIGN_SAVE_TARGET_AMBIGUOUS`，范围不匹配返回 `IMAGE_DESIGN_SAVE_TARGET_SCOPE_MISMATCH`。Worker 仅在目标文件夹确实已删除时回退至同范围根目录并记录警告，权限或范围变更必须报错。
+个人根目录使用独立内部分类 `private-root`，PC 根页直接展示其中图片；保留 `uncategorized` 文件夹及普通历史素材。访问个人根目录时，仅将明确记录 `source=image_design`、`resolved_save_target={scope:private,gallery_id:null}` 的旧根目录生成结果从 `uncategorized` 迁移，并同步引用中的分类。其他素材不移动。迁移后的记录、新生成记录和用户主动移动的记录标记 `save_target_version=2`，避免之后再次迁移或撤销用户主动移动。
+
+企业选项绑定当前唯一、有效、顶层且名为“生图图库”的企业图片图库；没有或重名时该选项禁用并返回原因，不创建替代图库。后端任务入口和 worker 均校验固定目标，小程序新任务携带内部 `mp_fixed_target` 标记；目标失效必须报错，不能回退企业根目录。PC 通用文件夹管理仍保持原有能力。
 
 ## 异步生成
 
