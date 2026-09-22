@@ -144,7 +144,14 @@
             :class="{ active: coverTemplateId === item.id }"
             @click="coverTemplateId = item.id"
           >
-            <image :src="thumbUrl(item.preview_urls && item.preview_urls[0], 360)" mode="aspectFill" lazy-load />
+            <view class="tpl-preview">
+              <image
+                class="tpl-image"
+                :src="thumbUrl(item.preview_urls && item.preview_urls[0], 360)"
+                mode="aspectFill"
+                lazy-load
+              />
+            </view>
             <text class="tpl-title">{{ item.title }}</text>
           </view>
         </scroll-view>
@@ -1812,10 +1819,16 @@ input,
 .tpl.active {
   border-color: #BE2D22;
 }
-.tpl image {
+.tpl-preview {
   width: 72px;
   height: 96px;
-  background: #f7f4f2;
+  overflow: hidden;
+  background: #f2f2f2;
+}
+.tpl-image {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .tpl-title {
   display: block;

@@ -1,42 +1,11 @@
-function firstMediaPathFromList(values) {
-  for (let index = 0; index < values.length; index += 1) {
-    const value = values[index]
-    if (Array.isArray(value)) {
-      const nested = firstMediaPathFromList(value)
-      if (nested) return nested
-      continue
-    }
-    if (value && typeof value === 'object') {
-      const nested = firstMediaPathFromList([
-        value.overlay_url,
-        value.overlay_file_url,
-        value.overlay_image_url,
-        value.overlay_png_url,
-        value.foreground_url,
-        value.transparent_url,
-        value.png_url,
-        value.url,
-        value.file_url,
-        value.preview_url
-      ])
-      if (nested) return nested
-      continue
-    }
-    if (typeof value === 'string' && value.trim()) return value.trim()
-  }
-  return ''
-}
-
-function firstMediaPath() {
-  return firstMediaPathFromList(Array.prototype.slice.call(arguments))
+export function firstOverlayPath(...values) {
+  const paths = collectOverlayPaths(values)
+  const png = paths.find(isPngPath)
+  return png || paths[0] || ''
 }
 
 export function isPngPath(path) {
   return /\.png(?:\?|#|$)/i.test(String(path || ''))
-}
-
-export function firstOverlayPath() {
-  return firstMediaPathFromList(Array.prototype.slice.call(arguments))
 }
 
 export function preserveOverlayAlpha(url) {
@@ -51,10 +20,36 @@ export function preserveOverlayAlpha(url) {
   return cleaned.replace(/([?&]x-oss-process=image)(?=&|$)/i, '$1/')
 }
 
-export function resolveTemplateOverlay(template) {
-  if (!template || typeof template !== 'object') return { path: '', multiply: false }
+function collectOverlayPaths(values, paths) {
+  const list = paths || []
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index]
+    if (Array.isArray(value) && value.length) {
+      collectOverlayPaths(value, list)
+    } else if (value && typeof value === 'object') {
+      collectOverlayPaths(
+        [
+          value.overlay_url,
+          value.overlay_file_url,
+          value.overlay_image_url,
+          value.overlay_png_url,
+          value.foreground_url,
+          value.transparent_url,
+          value.png_url,
+          value.url,
+          value.file_url
+        ],
+        list
+      )
+    } else if (typeof value === 'string' && value.trim()) {
+      list.push(value.trim())
+    }
+  }
+  return list
+}
 
-  const dedicated = firstMediaPath(
+function dedicatedOverlayPath(template) {
+  return firstOverlayPath(
     template.overlay_url,
     template.overlay_file_url,
     template.overlay_image_url,
@@ -67,32 +62,29 @@ export function resolveTemplateOverlay(template) {
     template.layer_url,
     template.layer_urls
   )
-  if (dedicated) return { path: dedicated, multiply: false }
+}
 
-  const previews = Array.isArray(template.preview_urls) ? template.preview_urls : []
-  const legacyOverlayPath = previews.length > 1 ? firstMediaPathFromList(previews.slice(1)) : ''
-  if (legacyOverlayPath) return { path: legacyOverlayPath, multiply: true }
-
-  const preview = firstMediaPath(previews, template.preview_url, template.cover_url, template.file_url)
-  if (preview) return { path: preview, multiply: !isPngPath(preview) }
-  return { path: '', multiply: false }
+function previewOverlayPath(template) {
+  return firstOverlayPath(template.preview_urls, template.preview_url, template.cover_url, template.file_url)
 }
 
 export function templateOverlayPath(template) {
-  return resolveTemplateOverlay(template).path
+  const resolved = resolveTemplateOverlay(template)
+  return resolved.path
 }
 
-export function extraTemplateList(data) {
-  if (!data) return []
-  if (Array.isArray(data)) return data
-  const nested = data.data && !Array.isArray(data.data) ? data.data : data
-  if (Array.isArray(data.templates)) return data.templates
-  if (Array.isArray(data.hycanvas_templates)) return data.hycanvas_templates
-  if (Array.isArray(data.items)) return data.items
-  if (Array.isArray(nested.templates)) return nested.templates
-  if (Array.isArray(nested.hycanvas_templates)) return nested.hycanvas_templates
-  if (Array.isArray(nested.items)) return nested.items
-  return []
+export function resolveTemplateOverlay(template) {
+  if (!template) return { path: '', multiply: false }
+  const dedicated = dedicatedOverlayPath(template)
+  if (dedicated) return { path: dedicated, multiply: false }
+
+  const previews = Array.isArray(template.preview_urls) ? template.preview_urls : []
+  const legacyOverlay = previews.length > 1 ? firstOverlayPath(...previews.slice(1)) : ''
+  if (legacyOverlay) return { path: legacyOverlay, multiply: true }
+
+  const preview = previewOverlayPath(template)
+  if (preview) return { path: preview, multiply: !isPngPath(preview) }
+  return { path: '', multiply: false }
 }
 
 export function mergeCoverTemplates(schemaTemplates, extraTemplates) {
@@ -104,10 +96,25 @@ export function mergeCoverTemplates(schemaTemplates, extraTemplates) {
     const item = extras[index]
     if (item && item.id != null) byId[String(item.id)] = item
   }
-  return base.map(function (item) {
+  return base.map((item) => {
     const extra = item && item.id != null ? byId[String(item.id)] : null
     return extra ? Object.assign({}, item, extra) : item
   })
+}
+
+export function extraTemplateList(data) {
+  if (!data) return []
+  if (Array.isArray(data)) return data
+  const nested = data.data && !Array.isArray(data.data) ? data.data : data
+  return (
+    (Array.isArray(data.templates) && data.templates) ||
+    (Array.isArray(data.hycanvas_templates) && data.hycanvas_templates) ||
+    (Array.isArray(data.items) && data.items) ||
+    (Array.isArray(nested.templates) && nested.templates) ||
+    (Array.isArray(nested.hycanvas_templates) && nested.hycanvas_templates) ||
+    (Array.isArray(nested.items) && nested.items) ||
+    []
+  )
 }
 
 export function aspectFillSourceRect(imageWidth, imageHeight, destWidth, destHeight) {
@@ -120,8 +127,8 @@ export function aspectFillSourceRect(imageWidth, imageHeight, destWidth, destHei
   return {
     sx: (imageWidth - sw) / 2,
     sy: (imageHeight - sh) / 2,
-    sw: sw,
-    sh: sh
+    sw,
+    sh
   }
 }
 
@@ -138,7 +145,7 @@ export function overlayLooksOpaqueWhite(pixels) {
 
 export function sampleOverlayCorners(data, width, height) {
   if (!data || !width || !height) return []
-  function at(x, y) {
+  const at = (x, y) => {
     const index = (y * width + x) * 4
     return { r: data[index], g: data[index + 1], b: data[index + 2], a: data[index + 3] }
   }
