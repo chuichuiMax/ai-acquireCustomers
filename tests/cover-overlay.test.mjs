@@ -5,8 +5,10 @@ import {
   knockoutWhiteBackground,
   mergeCoverTemplates,
   overlayLooksOpaqueWhite,
+  padWhiteTypeWithBlack,
   preserveOverlayAlpha,
   resolveTemplateOverlay,
+  shouldPadWhiteType,
   sourceOver,
   templateOverlayPath
 } from '../utils/cover-overlay.mjs'
@@ -113,12 +115,34 @@ test('opaque white overlay corners are detected and cover photos are cropped wit
   assert.equal(Math.round(rect.sw), 1000)
 })
 
+test('white type overlays get a black backing instead of being punched out', () => {
+  const data = new Uint8ClampedArray(4 * 5 * 5)
+  data[2 * 5 * 4 + 2 * 4] = 255
+  data[2 * 5 * 4 + 2 * 4 + 1] = 255
+  data[2 * 5 * 4 + 2 * 4 + 2] = 255
+  data[2 * 5 * 4 + 2 * 4 + 3] = 255
+  const corners = [
+    { r: 0, g: 0, b: 0, a: 0 },
+    { r: 0, g: 0, b: 0, a: 0 },
+    { r: 0, g: 0, b: 0, a: 0 },
+    { r: 0, g: 0, b: 0, a: 0 }
+  ]
+  assert.equal(shouldPadWhiteType(data, corners), true)
+  padWhiteTypeWithBlack(data, 5, 5, 1)
+  assert.equal(data[2 * 5 * 4 + 2 * 4], 255)
+  assert.equal(data[2 * 5 * 4 + 1 * 4], 0)
+  assert.equal(data[2 * 5 * 4 + 1 * 4 + 3], 255)
+})
+
 test('generate preview composites overlay on canvas without mix-blend-mode', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/generate/generate.vue'), 'utf8')
   assert.match(page, /xhsCompositeCanvas/)
   assert.match(page, /drawCoverComposite/)
   assert.match(page, /aspectFillSourceRect/)
   assert.match(page, /knockoutWhiteBackground/)
+  assert.match(page, /padWhiteTypeWithBlack/)
+  assert.match(page, /templateCardSrc/)
+  assert.match(page, /tpl-thumb/)
   assert.match(page, /globalCompositeOperation = 'source-over'/)
   assert.doesNotMatch(page, /mix-blend-mode/)
   assert.doesNotMatch(page, /overlayUsesMultiply/)

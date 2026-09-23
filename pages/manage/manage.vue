@@ -73,6 +73,7 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
+import { saveActiveGeneration } from '../../utils/active-generation.mjs'
 
 const STATUS_LABELS = {
   draft: '草稿',
@@ -178,6 +179,7 @@ export default {
       const taskId = this.taskIdOf(item)
       if (!taskId || this.regeneratingId) return
       this.regeneratingId = taskId
+      saveActiveGeneration(taskId, item.service_entry || '')
       uni.navigateTo({
         url: `/pages/generate/locked?task_id=${taskId}&service_entry=${encodeURIComponent(
           item.service_entry || ''

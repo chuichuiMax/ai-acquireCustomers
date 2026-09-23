@@ -144,7 +144,9 @@
             :class="{ active: coverTemplateId === item.id }"
             @click="coverTemplateId = item.id"
           >
-            <image :src="thumbUrl(item.preview_urls && item.preview_urls[0], 360)" mode="aspectFill" lazy-load />
+            <view class="tpl-thumb">
+              <image :src="templateCardSrc(item)" mode="aspectFit" lazy-load />
+            </view>
             <text class="tpl-title">{{ item.title }}</text>
           </view>
         </scroll-view>
@@ -277,10 +279,13 @@ import {
   aspectFillSourceRect,
   knockoutWhiteBackground,
   overlayLooksOpaqueWhite,
+  padWhiteTypeWithBlack,
   sampleOverlayCorners,
+  shouldPadWhiteType,
   sourceOver
 } from '../../utils/cover-overlay.mjs'
 import { isGalleryItemUsed, loadAllGalleryItems } from '../../utils/gallery-items.mjs'
+import { saveActiveGeneration } from '../../utils/active-generation.mjs'
 
 const REGION_INITIAL = {
   '芙': 'F', '天': 'T', '岳': 'Y', '开': 'K', '雨': 'Y', '望': 'W', '长': 'C', '浏': 'L', '宁': 'N',
@@ -565,6 +570,13 @@ export default {
     mediaUrl,
     thumbUrl,
     galleryThumbUrl,
+    templateCardSrc(item) {
+      if (!item) return ''
+      const overlay = resolveTemplateOverlay(item)
+      const preview = (item.preview_urls && item.preview_urls[0]) || item.preview_url || ''
+      const path = preserveOverlayAlpha((overlay && overlay.path) || preview)
+      return path ? mediaUrl(path, { width: 360 }) : ''
+    },
     queueCoverComposite() {
       if (!this.coverPhotoSrc) return
       const token = this.compositeToken + 1
@@ -656,7 +668,10 @@ export default {
               ctx.drawImage(overlayImage, 0, 0, width, height)
               try {
                 overlayData = ctx.getImageData(0, 0, width, height)
-                if (overlayLooksOpaqueWhite(sampleOverlayCorners(overlayData.data, width, height))) {
+                const corners = sampleOverlayCorners(overlayData.data, width, height)
+                if (shouldPadWhiteType(overlayData.data, corners)) {
+                  padWhiteTypeWithBlack(overlayData.data, width, height)
+                } else if (overlayLooksOpaqueWhite(corners)) {
                   knockoutWhiteBackground(overlayData.data)
                 }
               } catch (error) {
@@ -1217,6 +1232,7 @@ export default {
           formValues.cover_asset_ids = coverAssetIds
         }
         const data = await mpContentApi.compileBrief(payload)
+        saveActiveGeneration(data.task_id, this.serviceEntry)
         uni.navigateTo({
           url: `/pages/generate/locked?task_id=${data.task_id}&service_entry=${encodeURIComponent(this.serviceEntry)}`
         })
@@ -1812,10 +1828,15 @@ input,
 .tpl.active {
   border-color: #BE2D22;
 }
-.tpl image {
+.tpl-thumb {
   width: 72px;
   height: 96px;
-  background: #f7f4f2;
+  background: #111;
+}
+.tpl-thumb image {
+  width: 72px;
+  height: 96px;
+  background: transparent;
 }
 .tpl-title {
   display: block;

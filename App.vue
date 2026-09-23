@@ -1,5 +1,6 @@
 <script>
 import { requireInternalAccess } from './utils/internal-access'
+import { getActiveGeneration, resolveAllowedShowUrl } from './utils/active-generation.mjs'
 import { buildSharedCasePath, getLastShareId } from './utils/share-entry.mjs'
 
 const ENTRY_URL = '/pages/index/index'
@@ -95,7 +96,8 @@ export default {
 			const allowed = await requireInternalAccess({ redirect: false })
 			const route = currentRoute()
 			if (allowed) {
-				if (route !== 'pages/generate/generate') uni.reLaunch({ url: WORKSPACE_URL })
+				const resumeUrl = resolveAllowedShowUrl(route, getActiveGeneration())
+				if (resumeUrl) uni.reLaunch({ url: resumeUrl })
 				return
 			}
 

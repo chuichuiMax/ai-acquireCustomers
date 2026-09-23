@@ -136,6 +136,68 @@ export function overlayLooksOpaqueWhite(pixels) {
   return white >= Math.max(1, pixels.length - 1)
 }
 
+export function overlayWhitePixelRatio(data) {
+  if (!data || !data.length) return 0
+  let white = 0
+  const pixels = data.length / 4
+  for (let index = 0; index < data.length; index += 4) {
+    if (data[index + 3] > 40 && data[index] > 245 && data[index + 1] > 245 && data[index + 2] > 245) {
+      white += 1
+    }
+  }
+  return white / pixels
+}
+
+export function shouldPadWhiteType(data, corners) {
+  const ratio = overlayWhitePixelRatio(data)
+  const paper = overlayLooksOpaqueWhite(corners)
+  if (ratio <= 0.01) return false
+  if (paper && ratio > 0.55) return false
+  return true
+}
+
+export function padWhiteTypeWithBlack(data, width, height, radius) {
+  if (!data || !width || !height) return data
+  const pad = radius == null ? 5 : radius
+  const marks = []
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4
+      if (data[index + 3] > 40 && data[index] > 245 && data[index + 1] > 245 && data[index + 2] > 245) {
+        marks.push(x)
+        marks.push(y)
+      }
+    }
+  }
+  for (let offset = 0; offset < marks.length; offset += 2) {
+    const cx = marks[offset]
+    const cy = marks[offset + 1]
+    for (let dy = -pad; dy <= pad; dy += 1) {
+      for (let dx = -pad; dx <= pad; dx += 1) {
+        const x = cx + dx
+        const y = cy + dy
+        if (x < 0 || y < 0 || x >= width || y >= height) continue
+        const index = (y * width + x) * 4
+        if (data[index + 3] > 200 && data[index] > 245 && data[index + 1] > 245 && data[index + 2] > 245) {
+          continue
+        }
+        data[index] = 0
+        data[index + 1] = 0
+        data[index + 2] = 0
+        data[index + 3] = 255
+      }
+    }
+  }
+  for (let offset = 0; offset < marks.length; offset += 2) {
+    const index = (marks[offset + 1] * width + marks[offset]) * 4
+    data[index] = 255
+    data[index + 1] = 255
+    data[index + 2] = 255
+    data[index + 3] = 255
+  }
+  return data
+}
+
 export function sampleOverlayCorners(data, width, height) {
   if (!data || !width || !height) return []
   function at(x, y) {

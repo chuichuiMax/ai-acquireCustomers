@@ -75,6 +75,7 @@
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
+import { clearActiveGeneration, saveActiveGeneration } from '../../utils/active-generation.mjs'
 
 const MAX_AUTO_RETRY = 5
 
@@ -228,13 +229,24 @@ export default {
     this.taskId = query.task_id
     this.serviceEntry = decodeURIComponent(query.service_entry || '')
     this.fromManage = query.from === 'manage'
+    saveActiveGeneration(this.taskId, this.serviceEntry)
     this.markStarted()
     this.startTick()
     this.restore()
   },
+  onShow() {
+    if (!this.taskId) return
+    this.startTick()
+    if (this.runId) this.poll()
+  },
+  onHide() {
+    this.stopPoll()
+    this.stopTick()
+  },
   onUnload() {
     this.stopPoll()
     this.stopTick()
+    clearActiveGeneration()
   },
   methods: {
     markStarted() {
@@ -262,6 +274,7 @@ export default {
     },
     goResult() {
       this.stopPoll()
+      clearActiveGeneration()
       uni.redirectTo({
         url: `/pages/generate/result?task_id=${this.taskId}&service_entry=${encodeURIComponent(this.serviceEntry || '')}`
       })

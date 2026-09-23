@@ -47,6 +47,7 @@ test('app and entry pages keep share routing ahead of workspace routing', () => 
   assert.match(app, /getLastShareId\(\)/)
   assert.match(app, /WORKSPACE_URL = '\/pages\/generate\/generate'/)
   assert.match(app, /LOGIN_URL = '\/pages\/login\/login'/)
+  assert.match(app, /resolveAllowedShowUrl/)
   assert.doesNotMatch(entry, /enterInternalWorkspace\(/)
   assert.match(sharedCase, /saveLastShareId\(this\.shareId\)/)
 })
