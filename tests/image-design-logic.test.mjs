@@ -3,19 +3,31 @@ import test from 'node:test'
 import * as imageDesignLogic from '../utils/image-design-logic.mjs'
 import {
   buildImageDesignPayload,
+  childFolders,
   createImageDesignDrafts,
   DESCRIPTION_STYLE_VALUE,
   draftCanGenerate,
   IMAGE_DESIGN_STYLE_OPTIONS,
+  normalizeTransferElements,
   imageDesignStyleForPayload,
   isSupportedImageDesignStyle,
   normalizeImageDesignDrafts,
+  normalizeSaveTarget,
   requiredImageRoles,
+  saveTargetLabel,
   savePathOptions,
   saveableFolders,
   updateImageDesignDraftStyle,
   uniqueFolders
 } from '../utils/image-design-logic.mjs'
+
+test('transfer drafts normalize legacy addon values and cap selections at two', () => {
+  assert.deepEqual(normalizeTransferElements('落地窗旁休闲躺椅'), ['落地窗旁休闲躺椅'])
+  assert.deepEqual(normalizeTransferElements([
+    '落地窗旁休闲躺椅', '壁炉居中', '电视墙满墙收纳柜', '未知元素'
+  ]), ['落地窗旁休闲躺椅', '壁炉居中'])
+  assert.deepEqual(normalizeImageDesignDrafts({ transfer: { extra_element: '壁炉居中' } }).transfer.extra_element, ['壁炉居中'])
+})
 
 test('image design keeps its own preset styles and recognizes description mode', () => {
   assert.deepEqual(IMAGE_DESIGN_STYLE_OPTIONS, [
@@ -58,14 +70,16 @@ test('changing a redesign style clears its AI polish while reselecting it keeps 
     ...createImageDesignDrafts().redesign,
     style: '现代轻奢',
     polished_prompt: '现代轻奢的温暖客厅',
-    polished_for: '增加阅读角'
+    polished_for: '增加阅读角',
+    refinement_id: 'ref-1'
   }
 
   assert.deepEqual(updateImageDesignDraftStyle(draft, '新中式'), {
     ...draft,
     style: '新中式',
     polished_prompt: '',
-    polished_for: ''
+    polished_for: '',
+    refinement_id: ''
   })
   assert.deepEqual(updateImageDesignDraftStyle(draft, '现代轻奢'), draft)
 })
@@ -76,9 +90,11 @@ test('description style mode omits a preset style from the task payload', () => 
     source: { id: 'source-1' },
     style: DESCRIPTION_STYLE_VALUE,
     description: '奶油色墙面与圆角木质家具',
+    description_keywords: [],
     polished_prompt: '保留原房结构，使用奶油色墙面与圆角木质家具',
     polished_for: '奶油色墙面与圆角木质家具',
-    save_target_id: 'folder-1'
+    refinement_id: 'ref-1',
+    save_target: { scope: 'private', gallery_id: 'folder-1' }
   }
 
   assert.equal(draftCanGenerate('redesign', draft), true)
@@ -97,9 +113,11 @@ test('each image-design workflow validates its own required images', () => {
     reference: { id: 'reference' },
     rough: { id: 'rough' },
     description: '保留采光',
+    description_keywords: [],
     polished_prompt: '保留采光，优化空间陈设',
     polished_for: '保留采光',
-    save_target_id: 'folder-1'
+    refinement_id: 'ref-1',
+    save_target: { scope: 'private', gallery_id: 'folder-1' }
   }
   assert.equal(draftCanGenerate('adapt', draft), true)
   assert.equal(draftCanGenerate('redesign', { ...draft, source: draft.reference, style: '' }), false)
@@ -113,8 +131,10 @@ test('editing a description invalidates the polished prompt until it is refreshe
     style: '现代轻奢',
     description: '增加阅读角',
     polished_prompt: '保留原始结构，增加阅读角',
+    description_keywords: [],
     polished_for: '增加阅读角',
-    save_target_id: 'folder-1'
+    refinement_id: 'ref-1',
+    save_target: { scope: 'private', gallery_id: 'folder-1' }
   }
   assert.equal(draftCanGenerate('redesign', ready), true)
   assert.equal(draftCanGenerate('redesign', { ...ready, description: '增加阅读角与落地灯' }), false)
@@ -139,12 +159,12 @@ test('save path options keep concrete writable gallery ids and PC scope prefixes
   ])
 
   assert.deepEqual(options, [
-    { id: 'enterprise-child', name: '品牌案例', visibility: 'enterprise', label: '企业共享 / 品牌案例' },
+    { id: 'enterprise-child', name: '品牌案例', visibility: 'enterprise', label: '企业图库 / 品牌案例' },
     { id: 'private-child', name: '洋湖天序', visibility: 'private', label: '我的素材 / 洋湖天序' }
   ])
 })
 
-test('reference sources use the personal material-library entry while other slots retain uncategorized', () => {
+test('each workflow slot uses the confirmed enterprise and personal material entries', () => {
   assert.equal(typeof imageDesignLogic.imageSourceEntries, 'function')
   const { imageSourceEntries } = imageDesignLogic
   const galleries = [
@@ -161,6 +181,7 @@ test('reference sources use the personal material-library entry while other slot
     ['rough', 'rough-root', '企业'],
     ['uncategorized', 'uncategorized', '个人']
   ])
+  assert.equal(imageSourceEntries('source', galleries)[2].sourceRole, 'source')
   const referenceEntries = imageSourceEntries('reference', galleries)
   assert.deepEqual(referenceEntries.map((item) => [item.key, item.label, item.badge]), [
     ['reference', '案例图库', '企业'],
@@ -170,7 +191,23 @@ test('reference sources use the personal material-library entry while other slot
   assert.equal(referenceEntries[1].disabled, false)
   assert.deepEqual(referenceEntries[1].folders.map((item) => item.id).sort(), ['personal-root', 'uncategorized'])
   assert.equal(referenceEntries[1].sourceRole, 'reference')
-  assert.deepEqual(imageSourceEntries('rough', galleries).map((item) => item.key), ['rough', 'uncategorized'])
+  const roughEntries = imageSourceEntries('rough', galleries)
+  assert.deepEqual(roughEntries.map((item) => item.key), ['rough', 'my-materials'])
+  assert.equal(roughEntries[1].pickerMode, 'personal-folders')
+  assert.deepEqual(roughEntries[1].folders.map((item) => item.id).sort(), ['personal-root', 'uncategorized'])
+  assert.equal(roughEntries[1].sourceRole, 'rough')
+})
+
+test('image-design picker preserves each gallery level instead of flattening descendants', () => {
+  const folders = [
+    { id: 'root', name: '案例图库', visibility: 'enterprise' },
+    { id: 'child-a', name: '项目 A', visibility: 'enterprise', parent_id: 'root' },
+    { id: 'child-b', name: '项目 B', visibility: 'enterprise', parent_id: 'root' },
+    { id: 'grandchild', name: '客厅', visibility: 'enterprise', parent_id: 'child-a' },
+    { id: 'other-root-child', name: '其他', visibility: 'enterprise', parent_id: 'other-root' }
+  ]
+  assert.deepEqual(childFolders(folders, 'root').map((item) => item.id), ['child-a', 'child-b'])
+  assert.deepEqual(childFolders(folders, 'child-a').map((item) => item.id), ['grandchild'])
 })
 
 test('missing configured galleries stay visible but disabled', () => {
@@ -202,11 +239,39 @@ test('a generation payload preserves role mapping and selected image settings', 
     ratio: 'landscape',
     count: 4,
     quality: '2k',
-    save_target_id: 'target',
+    save_target: { scope: 'enterprise', gallery_id: 'target' },
+    refinement_id: 'ref-1'
   }
   const payload = buildImageDesignPayload('adapt', draft)
   assert.equal(payload.images[0].role, 'reference')
   assert.equal(payload.images[1].asset_id, 'rough-asset')
   assert.equal(payload.count, 4)
   assert.equal(payload.ratio, 'landscape')
+  assert.deepEqual(payload.save_target, { scope: 'enterprise', gallery_id: 'target' })
+  assert.equal(payload.refinement_id, 'ref-1')
+  assert.equal('save_target_id' in payload, false)
+})
+
+test('a generation payload sends transfer addons as an array', () => {
+  const draft = {
+    ...createImageDesignDrafts().transfer,
+    reference: { id: 'design-ref' },
+    description: '保留开窗',
+    polished_prompt: '保留开窗，增加休闲元素',
+    polished_for: '保留开窗',
+    save_target: { scope: 'private', gallery_id: 'target' },
+    refinement_id: 'ref-1',
+    extra_element: ['落地窗旁休闲躺椅', '壁炉居中']
+  }
+  assert.deepEqual(buildImageDesignPayload('transfer', draft).extra_element, ['落地窗旁休闲躺椅', '壁炉居中'])
+})
+
+test('legacy folder ids migrate only after their writable scope is available', () => {
+  const scopes = [{ scope: 'enterprise', label: '企业共享', can_write_root: true, folders: [{ id: 'legacy-folder', name: '案例', path: '项目 / 案例' }] }]
+  const drafts = normalizeImageDesignDrafts({ redesign: { save_target_id: 'legacy-folder' }, adapt: { save_target_id: 'missing' } }, scopes)
+  assert.deepEqual(drafts.redesign.save_target, { scope: 'enterprise', gallery_id: 'legacy-folder' })
+  assert.equal(drafts.adapt.save_target, null)
+  assert.equal('save_target_id' in drafts.redesign, false)
+  assert.equal(saveTargetLabel(drafts.redesign.save_target, scopes), '企业共享 / 项目 / 案例')
+  assert.equal(normalizeSaveTarget({ scope: 'invalid', gallery_id: 'x' }), null)
 })

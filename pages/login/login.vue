@@ -13,6 +13,7 @@
         class="wechat"
         open-type="getPhoneNumber"
         :loading="wechatLoading"
+        :disabled="wechatLoading"
         @getphonenumber="onGetPhoneNumber"
       >
         一键登录
@@ -39,8 +40,13 @@ export default {
   },
   methods: {
     async onGetPhoneNumber(event) {
+      if (this.wechatLoading) return
       const detail = (event && event.detail) || {}
       const errMsg = String(detail.errMsg || '')
+      if (/too frequently|too many|频繁/i.test(errMsg)) {
+        uni.showToast({ title: '手机号授权过于频繁，请稍后重试', icon: 'none' })
+        return
+      }
       if (errMsg.includes('fail')) {
         uni.showToast({ title: '需要授权手机号才能登录', icon: 'none' })
         return
@@ -52,6 +58,7 @@ export default {
       })
     },
     async bindWechatAndConfirm(wechatPayload) {
+      if (this.wechatLoading) return
       if (!wechatPayload.code && !wechatPayload.encrypted_data) {
         uni.showToast({ title: '未获取到手机号', icon: 'none' })
         return
@@ -82,6 +89,7 @@ export default {
     getJsCode() {
       return new Promise((resolve, reject) => {
         uni.login({
+          timeout: 10000,
           success: (res) => resolve(res.code),
           fail: reject
         })

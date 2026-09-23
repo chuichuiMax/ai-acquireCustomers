@@ -42,6 +42,8 @@ export const TRANSFER_ELEMENTS = Object.freeze([
   '落地窗旁休闲躺椅', '沙发后长条书桌/吧台', '电视墙满墙收纳柜',
   '开放式层板展示架', '地毯划分沙发区', '壁炉居中'
 ])
+export const MAX_TRANSFER_ELEMENTS = 2
+export const DEFAULT_DESCRIPTION_KEYWORDS = Object.freeze(['高级质感', '空间合理', '专业空间摄影构图'])
 
 export function createImageDesignDrafts() {
   return {
@@ -52,7 +54,7 @@ export function createImageDesignDrafts() {
       reference: null,
       target_space: '客厅',
       layout_type: TRANSFER_LAYOUTS[0],
-      extra_element: TRANSFER_ELEMENTS[0]
+      extra_element: [TRANSFER_ELEMENTS[0]]
     }
   }
 }
@@ -62,12 +64,14 @@ function createDraft() {
     source: null,
     style: '',
     description: '',
+    description_keywords: [...DEFAULT_DESCRIPTION_KEYWORDS],
     polished_prompt: '',
     polished_for: '',
+    refinement_id: '',
     ratio: 'portrait',
     count: 2,
     quality: '1k',
-    save_target_id: ''
+    save_target: null
   }
 }
 
@@ -83,17 +87,73 @@ export function imageDesignStyleForPayload(style) {
 export function updateImageDesignDraftStyle(draft = {}, style) {
   const nextStyle = isSupportedImageDesignStyle(style) ? style : ''
   if (draft.style === nextStyle) return draft
-  return { ...draft, style: nextStyle, polished_prompt: '', polished_for: '' }
+  return clearStalePolish({ ...draft, style: nextStyle })
 }
 
-export function normalizeImageDesignDrafts(received) {
+export function updateImageDesignDraftDescription(draft = {}, description) {
+  const nextDescription = String(description || '')
+  if (draft.description === nextDescription) return draft
+  return clearStalePolish({ ...draft, description: nextDescription })
+}
+
+export function normalizeDescriptionKeywords(keywords) {
+  return [...new Set((Array.isArray(keywords) ? keywords : [])
+    .filter((item) => typeof item === 'string').map((item) => item.trim()).filter(Boolean))]
+}
+
+export function imageDesignDescription(draft = {}) {
+  const keywords = normalizeDescriptionKeywords(draft.description_keywords).join('、')
+  const description = String(draft.description || '').trim()
+  return [keywords, description].filter(Boolean).join('。')
+}
+
+export function updateImageDesignDraftKeywords(draft = {}, keywords) {
+  const next = { ...draft, description_keywords: normalizeDescriptionKeywords(keywords) }
+  return imageDesignDescription(next) === imageDesignDescription(draft) ? next : clearStalePolish(next)
+}
+
+export function restoreImageDesignDraftKeywords(draft = {}) {
+  const keywords = normalizeDescriptionKeywords(draft.description_keywords)
+  if (DEFAULT_DESCRIPTION_KEYWORDS.every((item) => keywords.includes(item))) return draft
+  return updateImageDesignDraftKeywords(draft, [...DEFAULT_DESCRIPTION_KEYWORDS, ...keywords])
+}
+
+export function updateImageDesignDraftImage(draft = {}, role, image) {
+  if (!requiredImageRoles('redesign').concat(['reference', 'rough']).includes(role)) return draft
+  if (draft[role] === image) return draft
+  return clearStalePolish({ ...draft, [role]: image || null })
+}
+
+export function normalizeTransferElements(value) {
+  const values = Array.isArray(value) ? value : (value ? [value] : [])
+  return [...new Set(values.filter((item) => TRANSFER_ELEMENTS.includes(item)))].slice(0, MAX_TRANSFER_ELEMENTS)
+}
+
+export function toggleTransferElement(value, element) {
+  const current = normalizeTransferElements(value)
+  if (!TRANSFER_ELEMENTS.includes(element)) return current
+  if (current.includes(element)) return current.filter((item) => item !== element)
+  if (current.length >= MAX_TRANSFER_ELEMENTS) return current
+  return [...current, element]
+}
+
+function clearStalePolish(draft) {
+  return { ...draft, polished_prompt: '', polished_for: '', refinement_id: '' }
+}
+
+export function normalizeImageDesignDrafts(received, scopes = []) {
   const initial = createImageDesignDrafts()
   const next = {}
   Object.keys(initial).forEach((key) => {
     next[key] = { ...initial[key], ...((received && received[key]) || {}) }
+    next[key].description_keywords = normalizeDescriptionKeywords(next[key].description_keywords)
+    if (next[key].polished_for !== imageDesignDescription(next[key])) next[key] = clearStalePolish(next[key])
+    if (key === 'transfer') next[key].extra_element = normalizeTransferElements(next[key].extra_element)
+    next[key].save_target = normalizeSaveTarget(next[key].save_target) || migrateLegacySaveTarget(next[key], scopes)
+    delete next[key].save_target_id
   })
   if (!isSupportedImageDesignStyle(next.redesign.style)) {
-    next.redesign = { ...next.redesign, style: '', polished_prompt: '', polished_for: '' }
+    next.redesign = clearStalePolish({ ...next.redesign, style: '' })
   }
   return next
 }
@@ -105,10 +165,11 @@ export function requiredImageRoles(workflow) {
 }
 
 export function draftCanGenerate(workflow, draft) {
-  if (!draft || !String(draft.description || '').trim()) return false
+  if (!draft || !imageDesignDescription(draft) || imageDesignDescription(draft).length > 3000) return false
   if (!String(draft.polished_prompt || '').trim()) return false
-  if (String(draft.polished_for || '') !== String(draft.description || '')) return false
-  if (!draft.save_target_id || !draft.ratio || !draft.count || !draft.quality) return false
+  if (String(draft.polished_for || '') !== imageDesignDescription(draft)) return false
+  if (!normalizeSaveTarget(draft.save_target) || !String(draft.refinement_id || '').trim()) return false
+  if (!draft.ratio || !draft.count || !draft.quality) return false
   if (workflow === 'redesign' && !isSupportedImageDesignStyle(draft.style)) return false
   return requiredImageRoles(workflow).every((role) => Boolean(draft[role]))
 }
@@ -118,7 +179,8 @@ export function imageSourceLabel(role) {
     reference: '案例图',
     rough: '毛坯图',
     source: '原房图',
-    upload: '本地上传'
+    upload: '本地上传',
+    generated: '生成图片'
   }
   return labels[role] || '图库图片'
 }
@@ -138,6 +200,7 @@ export function normalizeImageDesignLibraryItem(item = {}, fallback = {}) {
     thumbnail_file_url: item.thumbnail_file_url || item.thumb_url || fallback.thumbnail_file_url || '',
     file_name: item.file_name || item.name || fallback.file_name || '图片素材',
     source_role: item.source_role || fallback.source_role || '',
+    recognized_roles: Array.isArray(item.recognized_roles) ? item.recognized_roles : [],
     created_at: item.created_at || fallback.created_at || ''
   }
 }
@@ -154,9 +217,51 @@ export function uniqueFolders(rawFolders = []) {
     .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN'))
 }
 
+export function normalizeSaveTarget(value) {
+  if (!value || !['private', 'enterprise'].includes(value.scope)) return null
+  return { scope: value.scope, gallery_id: value.gallery_id || null }
+}
+
+export function fixedSaveTargetOptions(scopes = []) {
+  const personal = scopes.find((scope) => scope.scope === 'private')
+  const enterprise = scopes.find((scope) => scope.scope === 'enterprise')
+  const folders = (enterprise?.folders || []).filter((folder) => folder.id && folder.name === '生图图库' && !folder.parent_id)
+  const gallery = folders.length === 1 ? folders[0] : null
+  return [
+    { scope: 'private', gallery_id: null, label: '我的素材', disabled: personal?.can_write_root !== true, hint: '直接保存到我的素材一级位置' },
+    { scope: 'enterprise', gallery_id: gallery?.id || null, label: '企业共享 / 生图图库', disabled: !gallery,
+      hint: gallery ? '保存到企业图库中的生图图库' : (enterprise?.error || '企业生图图库不可用，请联系管理员') }
+  ]
+}
+
+export function imageDesignLibraryDate(value) {
+  const date = new Date(value)
+  if (!value || Number.isNaN(date.getTime())) return ''
+  return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
+}
+
+export function saveTargetLabel(target, scopes = []) {
+  const normalized = normalizeSaveTarget(target)
+  if (!normalized) return ''
+  const scope = scopes.find((item) => item && item.scope === normalized.scope)
+  if (!scope) return ''
+  if (!normalized.gallery_id) return scope.label || ''
+  const folder = (scope.folders || []).find((item) => item && item.id === normalized.gallery_id)
+  return folder ? `${scope.label || ''} / ${folder.path || folder.name || ''}` : ''
+}
+
+export function migrateLegacySaveTarget(draft = {}, scopes = []) {
+  const legacyId = draft.save_target_id
+  if (!legacyId) return null
+  for (const scope of scopes) {
+    if ((scope.folders || []).some((folder) => folder && folder.id === legacyId)) return { scope: scope.scope, gallery_id: legacyId }
+  }
+  return null
+}
+
 const IMAGE_SOURCE_ENTRY_DEFINITIONS = Object.freeze({
-  reference: Object.freeze({ key: 'reference', label: '案例图库', badge: '企业', visibility: 'enterprise', includeDescendants: true }),
-  rough: Object.freeze({ key: 'rough', label: '毛坯图库', badge: '企业', visibility: 'enterprise', includeDescendants: true }),
+  reference: Object.freeze({ key: 'reference', label: '案例图库', badge: '企业', visibility: 'enterprise', includeDescendants: false }),
+  rough: Object.freeze({ key: 'rough', label: '毛坯图库', badge: '企业', visibility: 'enterprise', includeDescendants: false }),
   'my-materials': Object.freeze({ key: 'my-materials', label: '我的素材', badge: '个人', visibility: 'private', pickerMode: 'personal-folders' }),
   uncategorized: Object.freeze({ key: 'uncategorized', label: '未分类', badge: '个人', visibility: 'private', includeDescendants: false })
 })
@@ -165,13 +270,17 @@ export function personalMaterialFolders(rawFolders = []) {
   return uniqueFolders(rawFolders).filter((item) => !item.parent_id && (item.visibility || 'private') === 'private')
 }
 
+export function childFolders(rawFolders = [], parentId = '') {
+  return uniqueFolders(rawFolders).filter((item) => (item.parent_id || '') === (parentId || ''))
+}
+
 export function imageSourceEntries(slot, rawFolders = []) {
   const folders = uniqueFolders(rawFolders)
   const keys = slot === 'source'
     ? ['reference', 'rough', 'uncategorized']
     : slot === 'reference'
       ? ['reference', 'my-materials']
-      : ['rough', 'uncategorized']
+      : ['rough', 'my-materials']
 
   return keys.map((key) => {
     const definition = IMAGE_SOURCE_ENTRY_DEFINITIONS[key]
@@ -227,7 +336,7 @@ export function savePathOptions(rawFolders = []) {
         id: folder.id,
         name,
         visibility,
-        label: `${visibility === 'enterprise' ? '企业共享' : '我的素材'} / ${name}`
+        label: `${visibility === 'enterprise' ? '企业图库' : '我的素材'} / ${name}`
       }
     })
 }
@@ -244,15 +353,16 @@ export function buildImageDesignPayload(workflow, draft) {
     workflow,
     images,
     style: imageDesignStyleForPayload(draft.style),
-    description: String(draft.description || '').trim(),
+    description: imageDesignDescription(draft),
     polished_prompt: String(draft.polished_prompt || '').trim(),
     ratio: draft.ratio,
     count: Number(draft.count),
     quality: draft.quality,
-    save_target_id: draft.save_target_id,
+    save_target: normalizeSaveTarget(draft.save_target),
+    refinement_id: String(draft.refinement_id || '').trim(),
     target_space: draft.target_space || undefined,
     layout_type: draft.layout_type || undefined,
-    extra_element: draft.extra_element || undefined
+    extra_element: workflow === 'transfer' ? normalizeTransferElements(draft.extra_element) : undefined
   }
 }
 

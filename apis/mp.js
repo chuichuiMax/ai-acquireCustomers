@@ -373,6 +373,7 @@ export const mpImageApi = {
 // library owns only references selected for image generation and never changes
 // the source material-library item.
 export const mpImageDesignApi = {
+  saveTargets: () => request({ url: '/api/mp/image-design/save-targets' }),
   drafts: () => request({ url: '/api/mp/image-design/drafts' }),
   saveDrafts: (drafts) => request({ url: '/api/mp/image-design/drafts', method: 'PUT', data: { drafts } }),
   library: (params = {}) => {
@@ -383,6 +384,7 @@ export const mpImageDesignApi = {
     return request({ url: `/api/mp/image-design/library${query ? `?${query}` : ''}` })
   },
   addLibraryItem: (data) => request({ url: '/api/mp/image-design/library', method: 'POST', data }),
+  removeLibraryItem: (itemId) => request({ url: `/api/mp/image-design/library/${encodeURIComponent(itemId)}`, method: 'DELETE' }),
   uploadInput: (filePath, role) =>
     uploadFile({
       url: '/api/mp/image-design/uploads',
