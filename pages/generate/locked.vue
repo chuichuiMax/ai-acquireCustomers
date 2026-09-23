@@ -1,36 +1,24 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
-    <view v-if="isGenerating" class="card loading-card">
-      <view class="spinner"></view>
-      <text class="badge">正在生成{{ serviceEntry || '内容' }}</text>
-      <text class="step">{{ currentStepLabel }}</text>
-      <view class="progress">
-        <view class="progress-bar" :style="{ width: progressPercent + '%' }"></view>
+    <view v-if="isGenerating" class="card process-card">
+      <text class="phase-title">{{ generationProcess.title }}</text>
+      <text v-for="line in generationProcess.lines" :key="line.id" class="process-line">{{ line.text }}</text>
+      <view v-if="generationProcess.thinking" class="thinking">
+        <view class="spinner"></view>
+        <text>正在思考...</text>
       </view>
-      <text class="eta">{{ etaText }}</text>
       <text class="elapsed">已等待 {{ elapsedText }}</text>
     </view>
     <view v-else class="card">
       <text class="badge">{{ autoRun ? '正在生成内容' : '策略和证据已锁定' }}</text>
-      <text v-if="!autoRun && !runId" class="desc">内容将按策略 → 证据 → 标题 → 正文 → 审核生成。点击开始后，会在标题候选处暂停。</text>
+      <text v-if="!autoRun && !runId" class="desc">内容将按策略 → 证据 → 标题 → 正文 → 审核生成，标题和封面会自动确认。</text>
       <button v-if="!autoRun && !runId" class="primary" :loading="starting" @click="start">点击开始生成</button>
       <view v-else class="status">当前状态：{{ statusText }}</view>
       <text v-if="!autoRun && errorMessage" class="desc">{{ errorMessage }}</text>
       <button v-if="!autoRun && status === 'failed'" class="primary" :loading="retrying" @click="retry">重试</button>
     </view>
 
-    <view v-if="!autoRun && interrupt && interrupt.interrupt_type === 'title_selection'" class="card">
-      <text class="block-title">请选择最终标题</text>
-      <radio-group @change="onTitle">
-        <label v-for="item in titleOptions" :key="item.id" class="option">
-          <radio :value="item.id" :checked="selectedTitleId === item.id" color="#BE2D22" />
-          <text>{{ item.text || item.title }}</text>
-        </label>
-      </radio-group>
-      <button class="primary" :loading="resuming" @click="resumeTitle">确认标题并继续生成</button>
-    </view>
-
-    <view v-else-if="!autoRun && interrupt && interrupt.interrupt_type === 'content_correction'" class="card">
+    <view v-if="!autoRun && interrupt && interrupt.interrupt_type === 'content_correction'" class="card">
       <text class="block-title">内容需要定点回修</text>
       <text class="desc">校验或审核发现阻断问题，确认后只重跑建议节点。</text>
       <text class="desc">回修原因：{{ interrupt.reason_code || '未标注' }}</text>
@@ -39,29 +27,8 @@
       <button class="primary" :loading="resuming" @click="resumeGeneric">确认并重新生成</button>
     </view>
 
-    <view v-else-if="!autoRun && interrupt && interrupt.interrupt_type === 'cover_selection'" class="card">
-      <text class="block-title">选择最终封面</text>
-      <text class="desc">只能选系统生成并通过视觉审核的封面，不能选上传或图库原图。</text>
-      <text v-if="!coverOptions.length" class="desc">当前没有通过视觉审核的封面，请点重试重新生成。</text>
-      <view class="cover-grid">
-        <view
-          v-for="(assetId, index) in coverOptions"
-          :key="assetId"
-          class="cover-option"
-          :class="{ active: selectedCoverAssetId === assetId }"
-          @click="selectedCoverAssetId = assetId"
-        >
-          <image :src="coverFileUrl(assetId)" mode="aspectFill" lazy-load />
-          <text class="cover-option-label">封面候选 {{ index + 1 }}</text>
-        </view>
-      </view>
-      <button class="primary" :loading="resuming" :disabled="!selectedCoverAssetId" @click="resumeCover">
-        确认封面并保存
-      </button>
-    </view>
-
     <view
-      v-else-if="!autoRun && interrupt && interrupt.interrupt_type && interrupt.interrupt_type !== 'external_wait'"
+      v-else-if="showsManualInterrupt"
       class="card"
     >
       <text class="block-title">需要确认后继续</text>
@@ -73,34 +40,12 @@
 
 <script>
 import { mpContentApi } from '../../apis/mp'
-import { errorMessage, mediaUrl } from '../../utils/request'
+import { errorMessage } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { clearActiveGeneration, saveActiveGeneration } from '../../utils/active-generation.mjs'
+import { buildGenerationProcess, normalizeRunSnapshot, shouldAutoPassInterrupt } from '../../utils/generation-process.mjs'
 
 const MAX_AUTO_RETRY = 5
-
-const ESTIMATE_SECONDS = {
-  装修家居: 120,
-  好评笔记: 50
-}
-
-const GENERATE_STEPS = {
-  装修家居: [
-    { key: 'prepare', label: '正在锁定策略与证据' },
-    { key: 'title', label: '正在生成爆款标题' },
-    { key: 'body', label: '正在撰写正文' },
-    { key: 'review', label: '正在审核内容' },
-    { key: 'cover', label: '正在生成封面' },
-    { key: 'finish', label: '即将完成，正在整理结果' }
-  ],
-  好评笔记: [
-    { key: 'prepare', label: '正在准备素材与口碑要点' },
-    { key: 'title', label: '正在生成标题' },
-    { key: 'body', label: '正在撰写正文' },
-    { key: 'review', label: '正在审核内容' },
-    { key: 'finish', label: '即将完成，正在整理结果' }
-  ]
-}
 
 function formatDuration(seconds) {
   const value = Math.max(0, Math.ceil(seconds))
@@ -125,6 +70,8 @@ export default {
       status: '',
       errorMessage: '',
       interrupt: null,
+      runNodes: [],
+      runEvents: [],
       selectedTitleId: '',
       selectedCoverAssetId: '',
       fromManage: false,
@@ -138,11 +85,14 @@ export default {
     autoRun() {
       return this.serviceEntry === '好评笔记'
     },
-    generateSteps() {
-      return GENERATE_STEPS[this.serviceEntry] || GENERATE_STEPS['好评笔记']
-    },
-    estimateSeconds() {
-      return ESTIMATE_SECONDS[this.serviceEntry] || 60
+    generationProcess() {
+      return buildGenerationProcess({
+        nodes: this.runNodes,
+        events: this.runEvents,
+        interrupt: this.interrupt,
+        status: this.status,
+        elapsedSeconds: this.elapsedSeconds
+      })
     },
     elapsedSeconds() {
       if (!this.startedAt) return 0
@@ -153,7 +103,18 @@ export default {
       return Boolean(
         !this.autoRun &&
           type &&
-          type !== 'external_wait'
+          type !== 'external_wait' &&
+          !shouldAutoPassInterrupt(type)
+      )
+    },
+    showsManualInterrupt() {
+      const type = this.interrupt && this.interrupt.interrupt_type
+      return Boolean(
+        !this.autoRun &&
+          type &&
+          type !== 'external_wait' &&
+          type !== 'content_correction' &&
+          !shouldAutoPassInterrupt(type)
       )
     },
     isGenerating() {
@@ -162,40 +123,11 @@ export default {
       if (this.waitingUser) return false
       return true
     },
-    currentStepIndex() {
-      const steps = this.generateSteps
-      const type = this.interrupt && this.interrupt.interrupt_type
-      const byKey = (key) => Math.max(0, steps.findIndex((item) => item.key === key))
-      if (type === 'title_selection') return byKey('title')
-      if (type === 'content_correction' || type === 'content_approval') return byKey('review')
-      if (type === 'cover_selection' || type === 'external_wait') return byKey('cover')
-      if (type === 'formula_selection' || type === 'content_direction' || type === 'high_risk_facts') {
-        return byKey('prepare')
-      }
-      const ratio = Math.min(0.92, this.elapsedSeconds / this.estimateSeconds)
-      return Math.min(steps.length - 1, Math.floor(ratio * steps.length))
-    },
-    currentStepLabel() {
-      const step = this.generateSteps[this.currentStepIndex]
-      return (step && step.label) || '正在生成内容'
-    },
-    progressPercent() {
-      const timed = Math.min(92, Math.round((this.elapsedSeconds / this.estimateSeconds) * 100))
-      const stepped = Math.round(((this.currentStepIndex + 1) / this.generateSteps.length) * 90)
-      return Math.max(8, Math.min(95, Math.max(timed, stepped)))
-    },
     elapsedText() {
       return formatDuration(this.elapsedSeconds)
     },
-    etaText() {
-      const remain = this.estimateSeconds - this.elapsedSeconds
-      if (remain <= 0) return '即将完成，请再稍候'
-      return `预计还需要 ${formatDuration(remain)}，请稍候`
-    },
     statusText() {
       if (this.autoRun) return '生成中'
-      if (this.interrupt && this.interrupt.interrupt_type === 'title_selection') return '等待选择标题'
-      if (this.interrupt && this.interrupt.interrupt_type === 'cover_selection') return '等待选择封面'
       if (this.interrupt && this.interrupt.interrupt_type === 'external_wait') return '封面生成中'
       if (this.status === 'completed') return '已完成'
       if (this.status === 'failed') return '失败'
@@ -272,6 +204,24 @@ export default {
         this.timer = null
       }
     },
+    applyRunSnapshot(data) {
+      const snapshot = normalizeRunSnapshot(data)
+      if (snapshot.runId) this.runId = snapshot.runId
+      if (snapshot.status) this.status = snapshot.status
+      this.interrupt = snapshot.interrupt
+      this.errorMessage = this.autoRun ? '' : snapshot.errorMessage
+      this.runNodes = snapshot.nodes
+      this.runEvents = snapshot.events
+      if (
+        snapshot.interrupt &&
+        snapshot.interrupt.interrupt_type === 'cover_selection' &&
+        !this.selectedCoverAssetId &&
+        (snapshot.interrupt.asset_ids || []).length
+      ) {
+        this.selectedCoverAssetId = snapshot.interrupt.asset_ids[0]
+      }
+      return snapshot
+    },
     goResult() {
       this.stopPoll()
       clearActiveGeneration()
@@ -311,9 +261,7 @@ export default {
       this.markStarted()
       try {
         const data = await mpContentApi.startRun(this.taskId, {})
-        this.runId = data.run_id
-        this.status = data.status
-        this.errorMessage = this.autoRun ? '' : data.error_message || ''
+        this.applyRunSnapshot(data)
         this.poll()
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
@@ -332,19 +280,8 @@ export default {
       if (!this.runId) return
       try {
         const data = await mpContentApi.getRun(this.runId)
-        this.status = data.status
-        this.interrupt = data.interrupt
-        this.errorMessage = this.autoRun ? '' : data.error_message || ''
-        if (data.run_id && data.run_id !== this.runId) this.runId = data.run_id
-        if (
-          data.interrupt &&
-          data.interrupt.interrupt_type === 'cover_selection' &&
-          !this.selectedCoverAssetId &&
-          (data.interrupt.asset_ids || []).length
-        ) {
-          this.selectedCoverAssetId = data.interrupt.asset_ids[0]
-        }
-        if (data.status === 'completed' || data.status === 'reviewed') {
+        const snapshot = this.applyRunSnapshot(data)
+        if (snapshot.status === 'completed' || snapshot.status === 'reviewed') {
           this.goResult()
           return
         }
@@ -352,7 +289,8 @@ export default {
           await this.advanceAuto()
           return
         }
-        if (data.status === 'failed' || data.status === 'cancelled') {
+        await this.advancePassThrough()
+        if (snapshot.status === 'failed' || snapshot.status === 'cancelled') {
           this.stopPoll()
         }
       } catch (error) {
@@ -369,17 +307,25 @@ export default {
       }
       const type = this.interrupt && this.interrupt.interrupt_type
       if (!type || type === 'external_wait') return
-      if (type === 'title_selection') {
-        const first = this.titleOptions[0]
-        if (!first) return
-        this.selectedTitleId = first.id
-        await this.doResume(this.resumePayload({ title_id: first.id }))
-        return
-      }
+      if (await this.advancePassThrough()) return
       await this.resumeGeneric()
     },
-    onTitle(event) {
-      this.selectedTitleId = event.detail.value
+    async advancePassThrough() {
+      if (this.starting || this.retrying || this.resuming) return false
+      const type = this.interrupt && this.interrupt.interrupt_type
+      if (!shouldAutoPassInterrupt(type)) return false
+      if (type === 'title_selection') {
+        const first = this.titleOptions[0]
+        if (!first) return false
+        this.selectedTitleId = first.id
+        await this.doResume(this.resumePayload({ title_id: first.id }))
+        return true
+      }
+      const assetId = this.selectedCoverAssetId || (this.coverOptions && this.coverOptions[0])
+      if (!assetId) return false
+      this.selectedCoverAssetId = assetId
+      await this.doResume(this.resumePayload({ asset_id: assetId }))
+      return true
     },
     resumePayload(extra) {
       return {
@@ -390,23 +336,6 @@ export default {
           ...extra
         }
       }
-    },
-    async resumeTitle() {
-      if (!this.selectedTitleId) {
-        uni.showToast({ title: '请选择一个标题', icon: 'none' })
-        return
-      }
-      await this.doResume(this.resumePayload({ title_id: this.selectedTitleId }))
-    },
-    coverFileUrl(assetId) {
-      return mediaUrl(`/api/mp/content/covers/${assetId}/file`, { format: 'webp', width: 720, quality: 75 })
-    },
-    async resumeCover() {
-      if (!this.selectedCoverAssetId) {
-        uni.showToast({ title: '请选择一张封面', icon: 'none' })
-        return
-      }
-      await this.doResume(this.resumePayload({ asset_id: this.selectedCoverAssetId }))
     },
     async resumeGeneric() {
       const type = this.interrupt.interrupt_type
@@ -433,10 +362,7 @@ export default {
       this.now = Date.now()
       try {
         const data = await mpContentApi.retryRun(this.runId, {})
-        this.runId = data.run_id
-        this.status = data.status
-        this.errorMessage = ''
-        this.interrupt = null
+        this.applyRunSnapshot(data)
         this.poll()
       } catch (error) {
         if (!this.autoRun) uni.showToast({ title: errorMessage(error), icon: 'none' })
@@ -448,9 +374,7 @@ export default {
       this.resuming = true
       try {
         const data = await mpContentApi.resumeRun(this.runId, payload)
-        this.runId = data.run_id
-        this.interrupt = null
-        this.errorMessage = ''
+        this.applyRunSnapshot(data)
         this.poll()
       } catch (error) {
         if (!this.autoRun) uni.showToast({ title: errorMessage(error), icon: 'none' })
@@ -480,19 +404,41 @@ export default {
   font-weight: 700;
   font-size: 18px;
 }
-.loading-card {
+.process-card {
+  padding: 28px 24px 24px;
+}
+.phase-title {
+  display: block;
+  margin-bottom: 20px;
+  color: #1f1a18;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 26px;
+}
+.process-line {
+  display: block;
+  margin-bottom: 16px;
+  color: #2b2422;
+  font-size: 15px;
+  line-height: 24px;
+}
+.thinking {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  text-align: center;
-  padding: 28px 20px 24px;
+  margin-top: 4px;
+  color: #8a817c;
+  font-size: 14px;
+  line-height: 22px;
+}
+.thinking .spinner {
+  margin-right: 8px;
 }
 .spinner {
-  width: 36px;
-  height: 36px;
-  margin-bottom: 16px;
-  border: 3px solid #f0d9d4;
-  border-top-color: #BE2D22;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e5ddd8;
+  border-top-color: #8a817c;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -504,37 +450,9 @@ export default {
     transform: rotate(360deg);
   }
 }
-.step {
-  display: block;
-  margin-top: 10px;
-  color: #2b2422;
-  font-size: 15px;
-  font-weight: 600;
-}
-.progress {
-  width: 100%;
-  height: 8px;
-  margin: 16px 0 12px;
-  border-radius: 8px;
-  background: #f0ebe8;
-  overflow: hidden;
-}
-.progress-bar {
-  height: 100%;
-  border-radius: 8px;
-  background: #BE2D22;
-  transition: width 0.4s ease;
-}
-.eta {
-  display: block;
-  color: #BE2D22;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 22px;
-}
 .elapsed {
   display: block;
-  margin-top: 6px;
+  margin-top: 16px;
   color: #8a817c;
   font-size: 12px;
 }
@@ -549,42 +467,6 @@ export default {
   display: block;
   margin-bottom: 10px;
   font-weight: 600;
-}
-.option {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.cover-grid {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  margin: 12px 0;
-}
-.cover-option {
-  width: 48%;
-  box-sizing: border-box;
-  margin-bottom: 10px;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #f7f4f2;
-}
-.cover-option.active {
-  border-color: #BE2D22;
-}
-.cover-option image {
-  width: 100%;
-  height: 220px;
-  background: #eee;
-}
-.cover-option-label {
-  display: block;
-  padding: 8px;
-  font-size: 12px;
-  color: #6f6763;
 }
 .primary {
   height: 46px;

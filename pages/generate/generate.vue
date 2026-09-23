@@ -1822,9 +1822,11 @@ input,
 }
 .templates {
   margin-top: 10px;
+  height: 132px;
   white-space: nowrap;
 }
 .tpl {
+  position: relative;
   display: inline-block;
   width: 72px;
   margin-right: 8px;
@@ -1836,12 +1838,20 @@ input,
 .tpl.active {
   border-color: #BE2D22;
 }
-.tpl-preview {
+.tpl-preview,
+.tpl-thumb {
   width: 72px;
   height: 96px;
   overflow: hidden;
-  background: #f2f2f2;
+  background: #111;
 }
+.tpl-thumb {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: transparent;
+}
+.tpl-thumb image,
 .tpl-image {
   display: block;
   width: 100%;
