@@ -113,9 +113,7 @@ export function updateImageDesignDraftKeywords(draft = {}, keywords) {
 }
 
 export function restoreImageDesignDraftKeywords(draft = {}) {
-  const keywords = normalizeDescriptionKeywords(draft.description_keywords)
-  if (DEFAULT_DESCRIPTION_KEYWORDS.every((item) => keywords.includes(item))) return draft
-  return updateImageDesignDraftKeywords(draft, [...DEFAULT_DESCRIPTION_KEYWORDS, ...keywords])
+  return updateImageDesignDraftKeywords(draft, DEFAULT_DESCRIPTION_KEYWORDS)
 }
 
 export function updateImageDesignDraftImage(draft = {}, role, image) {
@@ -228,7 +226,7 @@ export function fixedSaveTargetOptions(scopes = []) {
   const folders = (enterprise?.folders || []).filter((folder) => folder.id && folder.name === '生图图库' && !folder.parent_id)
   const gallery = folders.length === 1 ? folders[0] : null
   return [
-    { scope: 'private', gallery_id: null, label: '我的素材', disabled: personal?.can_write_root !== true, hint: '直接保存到我的素材一级位置' },
+    { scope: 'private', gallery_id: null, label: '我的素材/AI生图图库', disabled: personal?.can_write_root !== true, hint: '直接保存到我的素材一级位置' },
     { scope: 'enterprise', gallery_id: gallery?.id || null, label: '企业共享 / 生图图库', disabled: !gallery,
       hint: gallery ? '保存到企业图库中的生图图库' : (enterprise?.error || '企业生图图库不可用，请联系管理员') }
   ]

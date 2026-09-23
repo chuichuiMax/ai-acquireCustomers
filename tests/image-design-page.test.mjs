@@ -73,8 +73,12 @@ test('transfer addon choices support multiple selections with a two-item cap', (
 test('save path uses the API-backed fixed choices and validates the canonical target', () => {
   assert.match(api, /url: '\/api\/mp\/image-design\/save-targets'/)
   assert.match(page, /<save-target-sheet[^>]+:scopes="saveTargetScopes"/)
+  assert.match(page, /class="save-target-control"/)
+  assert.match(page, /:loading="saveTargetsLoading"/)
+  assert.match(page, /:error="saveTargetsError"/)
   assert.match(page, /@confirm="confirmSaveTarget"/)
   assert.match(page, /isWritableSaveTarget\(target\)/)
+  assert.doesNotMatch(page, /保存位置暂时无法加载/)
   assert.doesNotMatch(page, /save_target_id/)
 })
 

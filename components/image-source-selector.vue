@@ -61,7 +61,7 @@ export default {
 .folder-photo { position: absolute; width: 27px; height: 21px; border: 2px solid rgba(255,255,255,.92); border-radius: 3px; background: rgba(255,255,255,.42); }
 .folder-photo-back { top: 10px; left: 14px; transform: rotate(-5deg); }
 .folder-photo-front { top: 14px; left: 26px; transform: rotate(4deg); }
-.scope-badge { position: absolute; right: -8px; bottom: -8px; min-width: 33px; height: 23px; padding: 0 6px; box-sizing: border-box; border: 1px solid #347bf1; border-radius: 12px; color: #27221f; font-size: 12px; line-height: 21px; text-align: center; background: #fff; }
+.scope-badge { position: absolute; right: -8px; bottom: -8px; min-width: 33px; height: 23px; padding: 0 6px; box-sizing: border-box; border: 1px solid #be2d22; border-radius: 12px; color: #fff; font-size: 12px; line-height: 21px; text-align: center; background: #be2d22; }
 .entry-label { display: block; overflow: hidden; color: #302a26; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .entry-state { display: block; margin-top: 4px; color: #938a84; font-size: 10px; }
 .upload-panel { min-height: 86px; margin-top: 18px; padding: 15px 16px; box-sizing: border-box; display: flex; align-items: center; border: 1px dashed #d2c9c2; border-radius: 8px; background: #faf8f6; }

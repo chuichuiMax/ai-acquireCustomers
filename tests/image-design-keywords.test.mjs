@@ -64,12 +64,12 @@ test('keyword edits invalidate polish and normal draft normalization does not re
   assert.equal(logic.updateImageDesignDraftKeywords(readyDraft(), defaults).refinement_id, 'refinement-1')
 })
 
-test('reopening restores defaults and custom text, invalidating only a changed description', () => {
+test('reopening resets keywords to defaults and preserves the free description', () => {
   const { instance } = createPage()
   const edited = { ...readyDraft(), description_keywords: ['空间合理', '暖色灯光'] }
   edited.polished_for = logic.imageDesignDescription(edited)
   instance.applyDrafts(JSON.parse(JSON.stringify({ redesign: edited })))
-  assert.deepEqual(instance.activeDraft.description_keywords, [...defaults, '暖色灯光'])
+  assert.deepEqual(instance.activeDraft.description_keywords, defaults)
   assert.equal(instance.activeDraft.description, '增加阅读角')
   assert.equal(instance.activeDraft.refinement_id, '')
   instance.applyDrafts({ redesign: readyDraft() })
@@ -136,10 +136,10 @@ test('polish sends exactly the task description and ignores a response after key
   assert.equal(logic.draftCanGenerate('redesign', instance.activeDraft), true)
 })
 
-test('offline reopening restores deleted defaults from the local cached draft', async () => {
+test('offline reopening resets cached custom keywords to defaults', async () => {
   const { instance } = createPage({ drafts: async () => { throw new Error('offline') } })
   instance.loadCachedDrafts = () => ({ redesign: { ...readyDraft(), description_keywords: ['暖色灯光'] } })
   await instance.loadRemoteDrafts()
-  assert.deepEqual(instance.activeDraft.description_keywords, [...defaults, '暖色灯光'])
+  assert.deepEqual(instance.activeDraft.description_keywords, defaults)
   assert.equal(instance.draftSyncIssue, true)
 })

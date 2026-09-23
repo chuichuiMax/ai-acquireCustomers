@@ -163,13 +163,18 @@
           <view class="xhs-pair">
             <view class="xhs-card">
               <view class="xhs-preview-frame">
-                <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
+                <image
+                  class="xhs-preview-image"
+                  :src="previewPhotoSrc"
+                  mode="aspectFill"
+                  @error="handleCoverPreviewImageError"
+                />
               </view>
               <text class="xhs-card-label">封面原图</text>
             </view>
             <view class="xhs-card">
               <view class="xhs-preview-frame">
-                <image class="xhs-preview-image" :src="coverPhotoSrc" mode="aspectFill" />
+                <image class="xhs-preview-image" :src="previewPhotoSrc" mode="aspectFill" />
                 <canvas
                   type="2d"
                   id="xhsCompositeCanvas"
@@ -181,6 +186,7 @@
               <text v-if="selectedTemplateTitle" class="xhs-card-sub">{{ selectedTemplateTitle }}</text>
             </view>
           </view>
+          <text v-if="previewError" class="xhs-preview-error">{{ previewError }}</text>
           <view v-if="imageItemId || coverAssetId" class="xhs-preview-toolbar">
             <text class="selected-cover-link" @click="coverGalleryId ? openGallery(coverGalleryId) : chooseCover">更换</text>
             <text class="selected-cover-link" @click="clearCover">清除</text>
@@ -415,6 +421,8 @@ export default {
       resumeAfterPicker: false,
       compositeFallback: false,
       compositeToken: 0,
+      previewPhotoLocal: '',
+      previewError: '',
       homeTypeCardSize: null
     }
   },
@@ -536,12 +544,32 @@ export default {
     coverPhotoSrc() {
       return this.coverLocal || ''
     },
+    previewPhotoSrc() {
+      return this.previewPhotoLocal || this.coverPhotoSrc
+    },
     templateOverlay() {
       return resolveTemplateOverlay(this.selectedTemplate)
     },
     templateOverlaySrc() {
       const path = preserveOverlayAlpha(this.templateOverlay.path)
       return path ? this.mediaUrl(path) : ''
+    },
+    templateHasDedicatedOverlay() {
+      const template = this.selectedTemplate || {}
+      const candidates = [
+        template.overlay_url,
+        template.overlay_file_url,
+        template.overlay_image_url,
+        template.overlay_png_url,
+        template.overlay_urls,
+        template.foreground_url,
+        template.png_url,
+        template.mask_url,
+        template.transparent_url,
+        template.layer_url,
+        template.layer_urls
+      ]
+      return candidates.some((value) => (Array.isArray(value) ? value.length > 0 : Boolean(value)))
     }
   },
   async onLoad() {
@@ -568,9 +596,12 @@ export default {
       this.formValues = next
     },
     coverPhotoSrc() {
+      this.previewPhotoLocal = ''
+      this.previewError = ''
       this.queueCoverComposite()
     },
     templateOverlaySrc() {
+      this.previewError = ''
       this.queueCoverComposite()
     }
   },
@@ -625,7 +656,7 @@ export default {
         (path) =>
           new Promise((resolve, reject) => {
             const image = canvas.createImage()
-            image.onload = () => resolve(image)
+            image.onload = () => resolve({ image, path })
             image.onerror = () => reject(new Error('image load failed'))
             image.src = path
           })
@@ -652,57 +683,78 @@ export default {
           if (!canvas || !cssWidth || !cssHeight) {
             if (round < 5 && token === this.compositeToken) {
               setTimeout(() => this.drawCoverComposite(token, round + 1), 80)
-            } else if (token === this.compositeToken) {
-              this.compositeFallback = true
-            }
-            return
+          } else if (token === this.compositeToken) {
+            this.compositeFallback = true
+            this.previewError = '封面预览初始化失败，请稍后重试'
           }
-          try {
+          return
+        }
+        try {
             const ctx = canvas.getContext('2d')
             const width = 1080
             const height = 1440
-            canvas.width = width
-            canvas.height = height
-            ctx.setTransform(1, 0, 0, 1, 0, 0)
-            const photo = await this.loadCanvasImage(canvas, photoSrc)
-            if (token !== this.compositeToken) return
-            let overlayImage = null
-            if (overlaySrc) overlayImage = await this.loadCanvasImage(canvas, overlaySrc)
-            if (token !== this.compositeToken) return
-            let overlayData = null
-            if (overlayImage) {
-              ctx.clearRect(0, 0, width, height)
-              ctx.globalCompositeOperation = 'source-over'
-              ctx.drawImage(overlayImage, 0, 0, width, height)
-              try {
-                overlayData = ctx.getImageData(0, 0, width, height)
-                const corners = sampleOverlayCorners(overlayData.data, width, height)
-                if (shouldPadWhiteType(overlayData.data, corners)) {
-                  padWhiteTypeWithBlack(overlayData.data, width, height)
-                } else if (overlayLooksOpaqueWhite(corners)) {
-                  knockoutWhiteBackground(overlayData.data)
-                }
-              } catch (error) {
-                overlayData = null
-              }
+          canvas.width = width
+          canvas.height = height
+          ctx.setTransform(1, 0, 0, 1, 0, 0)
+          const photoResult = await this.loadCanvasImage(canvas, photoSrc)
+          if (token !== this.compositeToken) return
+          this.previewPhotoLocal = photoResult.path
+          const photo = photoResult.image
+          if (!overlaySrc) {
+            this.compositeFallback = true
+            this.previewError = '当前模板没有可用的叠加图，请更换模板'
+            return
+          }
+          const overlayResult = await this.loadCanvasImage(canvas, overlaySrc)
+          if (token !== this.compositeToken) return
+          const overlayImage = overlayResult.image
+          ctx.clearRect(0, 0, width, height)
+          ctx.globalCompositeOperation = 'source-over'
+          const rect = aspectFillSourceRect(photo.width, photo.height, width, height)
+          ctx.drawImage(photo, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, width, height)
+          if (this.templateHasDedicatedOverlay) {
+            ctx.drawImage(overlayImage, 0, 0, width, height)
+            this.compositeFallback = false
+            return
+          }
+          let overlayData = null
+          ctx.clearRect(0, 0, width, height)
+          ctx.drawImage(overlayImage, 0, 0, width, height)
+          try {
+            overlayData = ctx.getImageData(0, 0, width, height)
+            const corners = sampleOverlayCorners(overlayData.data, width, height)
+            if (shouldPadWhiteType(overlayData.data, corners)) {
+              padWhiteTypeWithBlack(overlayData.data, width, height)
+            } else if (overlayLooksOpaqueWhite(corners)) {
+              knockoutWhiteBackground(overlayData.data)
             }
-            ctx.clearRect(0, 0, width, height)
-            ctx.globalCompositeOperation = 'source-over'
-            const rect = aspectFillSourceRect(photo.width, photo.height, width, height)
-            ctx.drawImage(photo, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, width, height)
+          } catch (error) {
+            overlayData = null
+          }
+          ctx.clearRect(0, 0, width, height)
+          ctx.globalCompositeOperation = 'source-over'
+          ctx.drawImage(photo, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, width, height)
             if (overlayData) {
               const photoData = ctx.getImageData(0, 0, width, height)
               sourceOver(photoData.data, overlayData.data)
               ctx.putImageData(photoData, 0, 0)
               this.compositeFallback = false
-            } else if (overlayImage) {
-              this.compositeFallback = true
-            } else {
-              this.compositeFallback = false
-            }
-          } catch (error) {
-            if (token === this.compositeToken) this.compositeFallback = true
+          } else if (overlayImage) {
+            this.compositeFallback = true
+            this.previewError = '模板叠加处理失败，请更换模板后重试'
+          } else {
+            this.compositeFallback = true
+            this.previewError = '模板叠加图加载失败，请稍后重试'
           }
+        } catch (error) {
+          if (token === this.compositeToken) {
+            this.compositeFallback = true
+            this.previewError = '封面原图或模板加载失败，请检查网络后重试'
+          }
+        }
+    },
+    handleCoverPreviewImageError() {
+      if (!this.previewPhotoLocal) this.previewError = '封面原图加载失败，请检查网络后重试'
     },
     shortTypeName(name) {
       return String(name || '')
@@ -1597,6 +1649,13 @@ export default {
   display: block;
   margin-top: 2px;
   color: #8a817c;
+  font-size: 12px;
+  text-align: center;
+}
+.xhs-preview-error {
+  display: block;
+  margin-top: 8px;
+  color: #BE2D22;
   font-size: 12px;
   text-align: center;
 }
