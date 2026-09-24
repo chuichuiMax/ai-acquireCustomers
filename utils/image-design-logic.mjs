@@ -257,48 +257,39 @@ export function migrateLegacySaveTarget(draft = {}, scopes = []) {
   return null
 }
 
-const IMAGE_SOURCE_ENTRY_DEFINITIONS = Object.freeze({
-  reference: Object.freeze({ key: 'reference', label: '案例图库', badge: '企业', visibility: 'enterprise', includeDescendants: false }),
-  rough: Object.freeze({ key: 'rough', label: '毛坯图库', badge: '企业', visibility: 'enterprise', includeDescendants: false }),
-  'my-materials': Object.freeze({ key: 'my-materials', label: '我的素材', badge: '个人', visibility: 'private', pickerMode: 'personal-folders' }),
-  uncategorized: Object.freeze({ key: 'uncategorized', label: '未分类', badge: '个人', visibility: 'private', includeDescendants: false })
-})
-
-export function personalMaterialFolders(rawFolders = []) {
-  return uniqueFolders(rawFolders).filter((item) => !item.parent_id && (item.visibility || 'private') === 'private')
-}
-
 export function childFolders(rawFolders = [], parentId = '') {
   return uniqueFolders(rawFolders).filter((item) => (item.parent_id || '') === (parentId || ''))
 }
 
-export function imageSourceEntries(slot, rawFolders = []) {
-  const folders = uniqueFolders(rawFolders)
-  const keys = slot === 'source'
-    ? ['reference', 'rough', 'uncategorized']
-    : slot === 'reference'
-      ? ['reference', 'my-materials']
-      : ['rough', 'my-materials']
+// Keep the picker aligned with the current PC material-library catalog when
+// an older /api/mp/content/galleries deployment still returns retired roots.
+const RETIRED_PRIVATE_GALLERY_IDS = new Set(['people', 'scene', 'background', 'decoration', 'brand'])
+const CURRENT_PRIVATE_GALLERY_NAMES = { product: 'AI生图图库', uncategorized: '我的图库' }
 
-  return keys.map((key) => {
-    const definition = IMAGE_SOURCE_ENTRY_DEFINITIONS[key]
-    const personalFolders = key === 'my-materials' ? personalMaterialFolders(folders) : []
-    const folder = key === 'uncategorized'
-      ? folders.find((item) => item.id === 'uncategorized' && (item.visibility || 'private') === 'private')
-      : folders.find((item) => !item.parent_id && item.visibility === 'enterprise' && item.image_design_role === key)
-    return {
-      ...definition,
-      folder: folder || null,
-      folderId: folder ? folder.id : '',
-      folders: personalFolders,
-      disabled: key === 'my-materials' ? !personalFolders.length : !folder,
-      sourceRole: key === 'uncategorized'
-        ? (slot === 'source' ? 'source' : slot)
-        : key === 'my-materials'
-          ? slot
-          : key
-    }
-  })
+export function normalizeImageSourceFolders(rawFolders = []) {
+  return uniqueFolders(rawFolders)
+    .filter((folder) => folder.visibility !== 'private' || (
+      !RETIRED_PRIVATE_GALLERY_IDS.has(folder.id) &&
+      !RETIRED_PRIVATE_GALLERY_IDS.has(folder.parent_id)
+    ))
+    .map((folder) => folder.visibility === 'private' && CURRENT_PRIVATE_GALLERY_NAMES[folder.id]
+      ? { ...folder, name: CURRENT_PRIVATE_GALLERY_NAMES[folder.id] }
+      : folder)
+}
+
+export function imageSourceEntries(slot, rawFolders = []) {
+  return uniqueFolders(rawFolders)
+    .filter((folder) => !folder.parent_id && ['private', 'enterprise'].includes(folder.visibility))
+    .sort((left, right) => Number(left.visibility === 'enterprise') - Number(right.visibility === 'enterprise'))
+    .map((folder) => ({
+      key: `${folder.visibility}:${folder.id}`,
+      label: folder.name || '未命名图库',
+      badge: folder.visibility === 'enterprise' ? '企业' : '个人',
+      scopeLabel: folder.visibility === 'enterprise' ? '企业共享' : '我的素材',
+      folder,
+      folderId: folder.id,
+      sourceRole: slot
+    }))
 }
 
 export function mergeGalleryItems(current = [], incoming = []) {

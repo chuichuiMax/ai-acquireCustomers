@@ -82,11 +82,19 @@ test('save path uses the API-backed fixed choices and validates the canonical ta
   assert.doesNotMatch(page, /save_target_id/)
 })
 
-test('source selector keeps yellow folders with enterprise and personal badges', () => {
+test('source selector uses compact case-style cover folders with scope badges', () => {
   assert.equal(existsSync(sourceSelectorPath), true)
   const sourceSelector = readFileSync(sourceSelectorPath, 'utf8')
-  assert.match(sourceSelector, /background:\s*#ffc238/i)
+  assert.match(sourceSelector, /--folder-back-color:\s*#ffc238/i)
   assert.match(sourceSelector, /entry\.badge/)
+  assert.match(sourceSelector, /folderCoverUrl\(entry\)/)
+  assert.match(sourceSelector, /galleryCoverPath\(entry && entry\.folder\)/)
+  assert.match(sourceSelector, /class="folder-preview"/)
+  assert.match(sourceSelector, /mode="aspectFill"/)
+  assert.match(sourceSelector, /\.yellow-folder::before/)
+  assert.doesNotMatch(sourceSelector, /folder-photo/)
+  assert.match(sourceSelector, /scroll-x/)
+  assert.match(sourceSelector, /class="source-entry-row"/)
   assert.match(sourceSelector, /选择图库/)
   assert.match(sourceSelector, /上传照片/)
   assert.match(page, /<image-source-selector/)
@@ -107,10 +115,12 @@ test('image picker shows child galleries and supports nested navigation for ever
   assert.match(page, /pickerFolderStack\.length > 1/)
 })
 
-test('reference image selection lets personal materials choose a private gallery before images', () => {
-  assert.match(page, /entry\.pickerMode === 'personal-folders'/)
-  assert.match(page, /selectPersonalFolder\(folder\)/)
-  assert.match(page, /pickerPersonalFolders/)
+test('all image slots open their chosen first-level gallery with its scope path', () => {
+  assert.match(page, /openPicker\('source', \$event\)/)
+  assert.equal((page.match(/openPicker\('reference', \$event\)/g) || []).length, 2)
+  assert.match(page, /openPicker\('rough', \$event\)/)
+  assert.match(page, /this\.pickerScopeLabel = entry\.scopeLabel/)
+  assert.match(page, /this\.pickerFolderStack = \[entry\.folder\]/)
   assert.match(page, /@click="backPicker"/)
 })
 

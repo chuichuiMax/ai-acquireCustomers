@@ -4,21 +4,13 @@
 
 ## 现有素材库
 
-图库选择不新建案例库或毛坯库。PC 端在企业共享一级图片图库上配置稳定字段 `image_design_role`：
-
-- `reference`：小程序【案例图库】；
-- `rough`：小程序【毛坯图库】；
-- `null`：不作为生图固定入口。
-
-该字段与可修改的图库名称无关，只允许配置在企业共享一级图片图库，并且每种非空用途全局唯一。个人【未分类】继续使用系统稳定 ID `uncategorized`。前端调用已有接口读取可见文件夹和文件：
+原房换装的【原房实拍图】、户型适配的【参考效果图】和【毛坯实拍图】、跨空间迁移的【参考效果图】，均展示 PC【我的素材】和【企业共享】下当前用户可见的全部一级图库，横向滑动选择。企业图库的 `image_design_role` 不限制这些入口；选入图片的 `source_role` 由当前图片槽位决定。前端调用已有接口读取可见文件夹和文件：
 
 - `GET /api/mp/content/galleries?scope=private`
 - `GET /api/mp/content/galleries?scope=enterprise`
 - `GET /api/mp/content/gallery-items?category={folderId}&scope={visibility}&include_descendants={boolean}&page={page}&page_size={pageSize}`
 
-小程序按 `parent_id` 层级浏览图库：进入一级或子图库时，默认只请求当前图库直属图片；`/api/mp/content/galleries` 返回的子图库在当前层作为文件夹展示，点击后再进入下一层。只有明确需要汇总后代图片时才传 `include_descendants=true`；【未分类】默认不展开子图库。选择图片后仍只创建生图图库引用并立即填入当前图片槽位，不改变或复制普通素材库原文件。
-
-个人素材入口按图片槽位区分：原房换装的 `source` 使用 PC【我的素材 / 未分类】；户型适配的 `reference`、`rough` 以及跨空间迁移的 `reference` 均进入完整的 PC【我的素材】文件夹树。企业入口仍分别使用【案例图库】与【毛坯图库】。
+小程序按 `parent_id` 层级浏览图库：进入一级或子图库时，只请求当前图库直属图片；`/api/mp/content/galleries` 返回的子图库在当前层作为文件夹展示，点击后再进入下一层。`include_descendants=false` 保持图片不跨层汇总。选择图片后仍只创建生图图库引用并立即填入当前图片槽位，不改变或复制普通素材库原文件。
 
 ## 草稿
 

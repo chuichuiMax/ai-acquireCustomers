@@ -109,24 +109,18 @@
     </scroll-view>
 
     <view v-if="pickerVisible" class="layer">
-      <view class="layer-head"><text class="back" @click="backPicker">‹</text><text>{{ pickerMode === 'personal-folders' ? '我的素材' : '选择图片' }}</text></view>
+      <view class="layer-head"><text class="back" @click="backPicker">‹</text><text>选择图片</text></view>
       <scroll-view class="layer-body" scroll-y :lower-threshold="80" @scrolltolower="loadMoreFolderItems">
         <text class="breadcrumb">{{ pickerTitle }}</text>
-        <template v-if="pickerMode === 'personal-folders'">
-          <view v-if="!pickerFolders.length" class="state">暂无个人素材图库</view>
-          <view v-else class="folder-grid"><view v-for="folder in pickerFolders" :key="folder.id" class="folder-card" @click="selectPersonalFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name || '未分类' }}</text></view></view>
-        </template>
-        <template v-else>
-          <view v-if="pickerFolders.length" class="folder-grid"><view v-for="folder in pickerFolders" :key="folder.id" class="folder-card" @click="selectPickerFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name || '未分类' }}</text></view></view>
-          <view v-if="folderItemsLoading && !folderItems.length" class="state">正在加载图片…</view>
-          <view v-else-if="folderItemsError && !folderItems.length" class="state"><text>图库加载失败</text><button class="retry" @click="retryFolderItems">重新加载</button></view>
-          <view v-else-if="!folderItems.length && !pickerFolders.length" class="state">该图库暂无图片或子图库</view>
-          <view v-else-if="folderItems.length" class="picker-grid"><view v-for="item in folderItems" :key="item.id" class="picker-image" :class="{ selected: selectedFolderItem && selectedFolderItem.id === item.id }" @click="selectedFolderItem = item"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ selectedFolderItem && selectedFolderItem.id === item.id ? '✓' : '' }}</text></view></view>
-          <view v-if="folderItemsLoadingMore" class="load-more">正在加载更多…</view>
-          <view v-else-if="folderItemsError && folderItems.length" class="load-more load-more-error"><text>加载更多失败</text><text @click="retryFolderItems">重试</text></view>
-        </template>
+        <view v-if="pickerFolders.length" class="folder-grid"><view v-for="folder in pickerFolders" :key="folder.id" class="folder-card" @click="selectPickerFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name || '未分类' }}</text></view></view>
+        <view v-if="folderItemsLoading && !folderItems.length" class="state">正在加载图片…</view>
+        <view v-else-if="folderItemsError && !folderItems.length" class="state"><text>图库加载失败</text><button class="retry" @click="retryFolderItems">重新加载</button></view>
+        <view v-else-if="!folderItems.length && !pickerFolders.length" class="state">该图库暂无图片或子图库</view>
+        <view v-else-if="folderItems.length" class="picker-grid"><view v-for="item in folderItems" :key="item.id" class="picker-image" :class="{ selected: selectedFolderItem && selectedFolderItem.id === item.id }" @click="selectedFolderItem = item"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ selectedFolderItem && selectedFolderItem.id === item.id ? '✓' : '' }}</text></view></view>
+        <view v-if="folderItemsLoadingMore" class="load-more">正在加载更多…</view>
+        <view v-else-if="folderItemsError && folderItems.length" class="load-more load-more-error"><text>加载更多失败</text><text @click="retryFolderItems">重试</text></view>
       </scroll-view>
-      <button v-if="pickerMode !== 'personal-folders'" class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
+      <button class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
     </view>
 
     <view v-if="comparisonVisible" class="layer compare-layer"><view class="layer-head"><text class="back" @click="comparisonVisible = false">‹</text><text>对比</text><text class="close" @click="comparisonVisible = false">关闭</text></view><scroll-view class="layer-body" scroll-y><view class="compare-list"><view v-for="item in comparisonImages" :key="item.label"><text>{{ item.label }}</text><image :src="mediaUrl(item.url)" mode="widthFix" /></view></view></scroll-view></view>
@@ -147,7 +141,7 @@ import {
   fixedSaveTargetOptions, imageDesignLibraryDate,
   imageDesignStyleForPayload, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
   imageDesignDescription, restoreImageDesignDraftKeywords, updateImageDesignDraftKeywords,
-  childFolders, imageSourceEntries, mergeGalleryItems, normalizeImageDesignLibraryItem, normalizeSaveTarget, normalizeTransferElements, toggleTransferElement as toggleTransferElementValue, uniqueFolders,
+  childFolders, imageSourceEntries, mergeGalleryItems, normalizeImageDesignLibraryItem, normalizeImageSourceFolders, normalizeSaveTarget, normalizeTransferElements, toggleTransferElement as toggleTransferElementValue,
   updateImageDesignDraftDescription, updateImageDesignDraftImage, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
@@ -164,7 +158,7 @@ export default {
       designStyles: IMAGE_DESIGN_STYLE_OPTIONS, targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
       keywordInputVisible: false, keywordInput: '',
       sourceFolders: [], sourceFoldersLoading: false, sourceFolderErrors: { private: false, enterprise: false }, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
-      pickerVisible: false, pickerMode: '', pickerPersonalFolders: [], pickerFolders: [], pickerFolderStack: [], pickerSlot: '', pickerSourceRole: '', pickerTitle: '', pickerIncludeDescendants: false, activeFolder: null,
+      pickerVisible: false, pickerFolders: [], pickerFolderStack: [], pickerSlot: '', pickerSourceRole: '', pickerScopeLabel: '', pickerTitle: '', activeFolder: null,
       folderItems: [], folderItemsPage: 0, folderItemsTotal: 0, folderItemsHasMore: false, folderItemsLoading: false, folderItemsLoadingMore: false, folderItemsError: false, selectedFolderItem: null, pickerSaving: false,
       comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null,
       saveTargetScopes: [], saveTargetsLoaded: false, saveTargetsLoading: false, saveTargetsError: '', saveTargetVisible: false,
@@ -253,7 +247,7 @@ export default {
             errors.enterprise = false
           } catch (error) {}
         }
-        this.sourceFolders = uniqueFolders(folders)
+        this.sourceFolders = normalizeImageSourceFolders(folders)
         this.sourceFolderErrors = errors
       } catch (error) {
         this.sourceFolders = []
@@ -323,43 +317,33 @@ export default {
       try { await mpImageDesignApi.saveDrafts(this.drafts); this.draftSyncIssue = false } catch (error) { this.draftSyncIssue = true }
     },
     openPicker(slot, entry) {
-      if (!entry || entry.disabled) return
-      this.pickerSlot = slot; this.pickerSourceRole = entry.sourceRole; this.pickerTitle = entry.label; this.pickerIncludeDescendants = false
-      this.pickerVisible = true; this.pickerPersonalFolders = entry.folders || []; this.pickerFolders = entry.folders || []; this.pickerFolderStack = []; this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null
-      if (entry.pickerMode === 'personal-folders') { this.pickerMode = 'personal-folders'; this.activeFolder = null; return }
-      if (!entry.folder) { this.closePicker(); return }
-      this.pickerMode = 'images'; this.pickerFolderStack = [entry.folder]; this.activeFolder = entry.folder; this.pickerFolders = childFolders(this.sourceFolders, entry.folder.id); this.loadFolderItems(true)
-    },
-    selectPersonalFolder(folder) {
-      if (!folder) return
-      this.pickerMode = 'images'; this.pickerFolderStack = [folder]; this.activeFolder = folder; this.pickerTitle = `我的素材 / ${folder.name || '未分类'}`; this.pickerIncludeDescendants = false; this.pickerFolders = childFolders(this.sourceFolders, folder.id)
+      if (!entry || !entry.folder) return
+      this.pickerSlot = slot; this.pickerSourceRole = entry.sourceRole; this.pickerScopeLabel = entry.scopeLabel
+      this.pickerFolderStack = [entry.folder]; this.activeFolder = entry.folder
+      this.pickerTitle = `${this.pickerScopeLabel} / ${entry.folder.name || '未分类'}`
+      this.pickerFolders = childFolders(this.sourceFolders, entry.folder.id)
       this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null
+      this.pickerVisible = true
       this.loadFolderItems(true)
     },
     selectPickerFolder(folder) {
       if (!folder) return
-      this.pickerMode = 'images'; this.pickerFolderStack = [...this.pickerFolderStack, folder]; this.activeFolder = folder
-      if (this.pickerPersonalFolders.length) this.pickerTitle = `我的素材 / ${this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')}`
-      else this.pickerTitle = this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')
+      this.pickerFolderStack = [...this.pickerFolderStack, folder]; this.activeFolder = folder
+      this.pickerTitle = `${this.pickerScopeLabel} / ${this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')}`
       this.pickerFolders = childFolders(this.sourceFolders, folder.id); this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null
       this.loadFolderItems(true)
     },
     backPicker() {
-      if (this.pickerMode === 'images' && this.pickerFolderStack.length > 1) {
+      if (this.pickerFolderStack.length > 1) {
         this.pickerFolderStack = this.pickerFolderStack.slice(0, -1); this.activeFolder = this.pickerFolderStack[this.pickerFolderStack.length - 1]
-        this.pickerTitle = this.pickerPersonalFolders.length ? `我的素材 / ${this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')}` : this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')
+        this.pickerTitle = `${this.pickerScopeLabel} / ${this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')}`
         this.pickerFolders = childFolders(this.sourceFolders, this.activeFolder.id); this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null; this.loadFolderItems(true)
-        return
-      }
-      if (this.pickerMode === 'images' && this.pickerPersonalFolders.length) {
-        this.pickerMode = 'personal-folders'; this.pickerFolderStack = []; this.activeFolder = null; this.pickerFolders = this.pickerPersonalFolders; this.pickerTitle = '我的素材'; this.pickerIncludeDescendants = false
-        this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null
         return
       }
       this.closePicker()
     },
     closePicker() {
-      this.pickerVisible = false; this.pickerMode = ''; this.pickerPersonalFolders = []; this.pickerFolders = []; this.pickerFolderStack = []; this.pickerSlot = ''; this.pickerSourceRole = ''; this.pickerTitle = ''; this.pickerIncludeDescendants = false; this.activeFolder = null
+      this.pickerVisible = false; this.pickerFolders = []; this.pickerFolderStack = []; this.pickerSlot = ''; this.pickerSourceRole = ''; this.pickerScopeLabel = ''; this.pickerTitle = ''; this.activeFolder = null
       this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsLoading = false; this.folderItemsLoadingMore = false; this.folderItemsError = false; this.selectedFolderItem = null
     },
     async loadFolderItems(reset = false) {
