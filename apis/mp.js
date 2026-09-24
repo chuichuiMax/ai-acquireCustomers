@@ -1,5 +1,6 @@
 import { getToken, request, setToken, uploadFile } from '../utils/request'
 import { employeeFromMe, hasMiniProgramAccess } from '../utils/internal-access-policy.mjs'
+import { matchEmployeeAccount } from '../utils/account-match.mjs'
 
 function isMissingApi(error) {
   const status = error && error.statusCode
@@ -72,21 +73,6 @@ async function tryPasswordLogin(url, data, extra) {
     if (!shouldFallbackPasswordLogin(error)) throw error
     return null
   }
-}
-
-function employeeFieldEquals(value, account) {
-  return String(value || '').trim() === account
-}
-
-function matchEmployeeAccount(employee, account) {
-  if (!employee || !account) return false
-  return (
-    employeeFieldEquals(employee.login_account, account) ||
-    employeeFieldEquals(employee.employee_code, account) ||
-    employeeFieldEquals(employee.phone_number, account) ||
-    employeeFieldEquals(employee.phone, account) ||
-    employeeFieldEquals(employee.uid, account)
-  )
 }
 
 async function findEmployeeByAccount(account) {
