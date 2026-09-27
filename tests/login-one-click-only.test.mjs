@@ -23,15 +23,17 @@ test('login page only exposes one-click login and the employee-only notice', () 
   assert.match(pagesConfig, /"navigationBarTitleText": "登录"/)
 })
 
-test('the mini program uses the online API base URL', () => {
+test('developer tools and real devices use the online API', () => {
   const script = config.replace(/^import .*$/gm, '').replace(/^export /gm, '')
-  for (const platform of ['devtools', 'android', 'ios']) {
-    const baseUrl = runInNewContext(`${script}\nBASE_URL`, {
+  const baseUrl = (platform) =>
+    runInNewContext(`${script}\nBASE_URL`, {
       resolveApiBaseUrl,
       uni: { getSystemInfoSync: () => ({ platform }) }
     })
-    assert.equal(baseUrl, 'https://ai.hi-run.net')
-  }
+
+  assert.equal(baseUrl('devtools'), 'https://ai.hi-run.net')
+  assert.equal(baseUrl('android'), 'https://ai.hi-run.net')
+  assert.equal(baseUrl('ios'), 'https://ai.hi-run.net')
 })
 
 test('WeChat mini-program login still offers one-click phone authorization', () => {

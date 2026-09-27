@@ -77,9 +77,9 @@ test('password-login PC user identity is not enough without APP login port', asy
     token: 'pc-user-token',
     getMe: async () => ({
       id: 12,
-      uid: '181637612334',
+      uid: '18163761233',
       username: '内部员工',
-      phone_number: '181637612334'
+      phone_number: '18163761233'
     })
   })
 
@@ -109,7 +109,8 @@ test('employee with PC and APP ports can enter the mini program', async () => {
       employee: {
         id: 'H04454',
         name: '徐迎港',
-        login_account: '181637612334',
+        employee_code: 'H04454',
+        login_account: '18163761233',
         login_port: ['pc', 'app']
       }
     })
