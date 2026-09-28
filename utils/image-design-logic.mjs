@@ -221,13 +221,11 @@ export function normalizeSaveTarget(value) {
 }
 
 export function fixedSaveTargetOptions(scopes = []) {
-  const personal = scopes.find((scope) => scope.scope === 'private')
   const enterprise = scopes.find((scope) => scope.scope === 'enterprise')
   const folders = (enterprise?.folders || []).filter((folder) => folder.id && folder.name === '生图图库' && !folder.parent_id)
   const gallery = folders.length === 1 ? folders[0] : null
   return [
-    { scope: 'private', gallery_id: null, label: '我的素材/AI生图图库', disabled: personal?.can_write_root !== true, hint: '直接保存到我的素材一级位置' },
-    { scope: 'enterprise', gallery_id: gallery?.id || null, label: '企业共享 / 生图图库', disabled: !gallery,
+      { scope: 'enterprise', gallery_id: gallery?.id || null, label: '生图图库（企业内可见）', disabled: !gallery,
       hint: gallery ? '保存到企业图库中的生图图库' : (enterprise?.error || '企业生图图库不可用，请联系管理员') }
   ]
 }

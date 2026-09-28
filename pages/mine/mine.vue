@@ -9,12 +9,8 @@
       </view>
     </view>
     <view class="card menu-card">
-      <view class="menu-row" @click="goWorks">
-        <text>我的作品</text>
-        <text class="arrow">›</text>
-      </view>
       <view class="menu-row" @click="goUploads">
-        <text>我的上传</text>
+        <text>我的素材</text>
         <text class="arrow">›</text>
       </view>
     </view>
@@ -52,9 +48,6 @@ export default {
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
-    },
-    goWorks() {
-      uni.navigateTo({ url: '/pages/mine/works' })
     },
     goUploads() {
       uni.navigateTo({ url: '/pages/mine/uploads' })

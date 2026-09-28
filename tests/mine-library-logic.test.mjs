@@ -3,8 +3,11 @@ import assert from 'node:assert/strict'
 
 import {
   createImageSelection,
+  formatUploadTime,
+  nextDateRangeSelection,
   privateChildGalleries,
   toggleImageSelection,
+  uploadDateKey,
   visiblePrivateGalleries
 } from '../utils/mine-library-logic.mjs'
 
@@ -25,6 +28,25 @@ test('editing selection adds a picture once and removes it when tapped again', (
 
   assert.deepEqual(afterSelect, ['work-1'])
   assert.deepEqual(afterUnselect, [])
+})
+
+test('upload time and date filter use the same Beijing calendar day at midnight', () => {
+  const before = '2026-09-13T15:59:00Z'
+  const after = '2026-09-13T16:01:00Z'
+
+  assert.equal(uploadDateKey(before), '2026-09-13')
+  assert.equal(uploadDateKey(after), '2026-09-14')
+  assert.equal(formatUploadTime(after), '20260914 00:01')
+  assert.equal(formatUploadTime(null), '-')
+})
+
+test('date range accepts either tap order and starts a new range after completion', () => {
+  const first = nextDateRangeSelection('', '', '2026-09-15')
+  const backward = nextDateRangeSelection(first.start, first.end, '2026-09-13')
+  const next = nextDateRangeSelection(backward.start, backward.end, '2026-10-01')
+
+  assert.deepEqual(backward, { start: '2026-09-13', end: '2026-09-15' })
+  assert.deepEqual(next, { start: '2026-10-01', end: '' })
 })
 
 test('opening a private parent exposes only its private child folders', () => {

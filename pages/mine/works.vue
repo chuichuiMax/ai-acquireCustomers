@@ -1,18 +1,19 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
+    <view v-if="loadError" class="load-error" @click="load(true)">{{ loadError }}，点击重试</view>
     <view v-if="loading && !items.length" class="empty">正在加载作品…</view>
-    <view v-else-if="!items.length" class="empty">还没有生成作品</view>
+    <view v-else-if="!loadError && !items.length" class="empty">还没有生成作品</view>
     <view v-else class="grid">
       <view v-for="item in items" :key="item.id" class="work-card" @click="toggleItem(item.id)">
         <image class="work-image" :src="imageUrl(item)" mode="aspectFill" lazy-load />
         <view v-if="editing" class="check" :class="{ selected: selectedIds.includes(item.id) }">{{ selectedIds.includes(item.id) ? '✓' : '' }}</view>
-        <text class="created-at">生成时间：{{ displayTime(item.created_at) }}</text>
+        <text class="created-at">上传时间：{{ formatUploadTime(item.uploaded_at) }}</text>
       </view>
     </view>
     <view class="actions">
       <button v-if="!editing" class="button ghost" @click="editing = true">编辑</button>
       <template v-else>
-        <button class="button danger" :disabled="!selectedIds.length" @click="removeSelected">删除{{ selectedIds.length ? ` (${selectedIds.length})` : '' }}</button>
+        <button class="button danger" :disabled="!selectedIds.length" @click="removeSelected">删除</button>
         <button class="button ghost" @click="cancelEdit">取消</button>
       </template>
     </view>
@@ -24,14 +25,14 @@
 import TabBar from '../../components/tab-bar.vue'
 import { mpImageApi } from '../../apis/mp'
 import { errorMessage, mediaUrl } from '../../utils/request'
-import { createImageSelection, toggleImageSelection } from '../../utils/mine-library-logic.mjs'
+import { createImageSelection, formatUploadTime, toggleImageSelection } from '../../utils/mine-library-logic.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
   components: { TabBar },
   mixins: [internalPageMixin],
   data() {
-    return { items: [], page: 1, total: 0, loading: false, finished: false, editing: false, selectedIds: createImageSelection() }
+    return { items: [], page: 1, total: 0, loading: false, finished: false, loadError: '', editing: false, selectedIds: createImageSelection() }
   },
   async onShow() {
     if (await this.ensureInternalAccess()) this.load(true)
@@ -44,8 +45,11 @@ export default {
       if (this.loading || (!reset && this.finished)) return
       if (reset) {
         this.page = 1
+        this.items = []
+        this.total = 0
         this.finished = false
       }
+      this.loadError = ''
       this.loading = true
       try {
         const data = await mpImageApi.works({ page: this.page, page_size: 24 })
@@ -55,7 +59,7 @@ export default {
         this.finished = this.items.length >= this.total || !next.length
         this.page += 1
       } catch (error) {
-        uni.showToast({ title: errorMessage(error), icon: 'none' })
+        this.loadError = `作品加载失败：${errorMessage(error)}`
       } finally {
         this.loading = false
       }
@@ -63,9 +67,7 @@ export default {
     imageUrl(item) {
       return mediaUrl(item.thumbnail_file_url || item.file_url)
     },
-    displayTime(value) {
-      return value ? String(value).replace('T', ' ').slice(0, 16) : '-'
-    },
+    formatUploadTime,
     toggleItem(id) {
       if (!this.editing) return
       this.selectedIds = toggleImageSelection(this.selectedIds, id)
@@ -102,6 +104,7 @@ export default {
 .check { position: absolute; top: 9px; right: 9px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 4px; color: #fff; text-align: center; line-height: 21px; background: rgba(0, 0, 0, .2); }
 .check.selected { border-color: #be2d22; background: #be2d22; }
 .empty { padding-top: 90px; text-align: center; color: #928781; }
+.load-error { padding: 18px 8px; text-align: center; color: #be2d22; font-size: 13px; }
 .actions { position: fixed; z-index: 21; right: 12px; bottom: calc(66px + env(safe-area-inset-bottom)); left: 12px; display: flex; gap: 10px; padding: 10px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(54, 39, 32, .08); }
 .button { flex: 1; height: 40px; line-height: 40px; border-radius: 7px; font-size: 14px; }
 .ghost { color: #be2d22; background: #fff; border: 1px solid #be2d22; }

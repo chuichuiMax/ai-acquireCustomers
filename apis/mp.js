@@ -1,6 +1,5 @@
 import { getToken, request, setToken, uploadFile } from '../utils/request'
 import { employeeFromMe, hasMiniProgramAccess } from '../utils/internal-access-policy.mjs'
-import { matchEmployeeAccount } from '../utils/account-match.mjs'
 
 function isMissingApi(error) {
   const status = error && error.statusCode
@@ -73,6 +72,21 @@ async function tryPasswordLogin(url, data, extra) {
     if (!shouldFallbackPasswordLogin(error)) throw error
     return null
   }
+}
+
+function employeeFieldEquals(value, account) {
+  return String(value || '').trim() === account
+}
+
+function matchEmployeeAccount(employee, account) {
+  if (!employee || !account) return false
+  return (
+    employeeFieldEquals(employee.login_account, account) ||
+    employeeFieldEquals(employee.employee_code, account) ||
+    employeeFieldEquals(employee.phone_number, account) ||
+    employeeFieldEquals(employee.phone, account) ||
+    employeeFieldEquals(employee.uid, account)
+  )
 }
 
 async function findEmployeeByAccount(account) {
@@ -244,12 +258,18 @@ export const mpContentApi = {
   pricing: (frameArea) =>
     request({ url: `/api/mp/content/pricing?frame_area=${encodeURIComponent(frameArea)}` }),
   coverTemplates: () => request({ url: '/api/mp/content/cover-templates' }),
-  uploadCover: (filePath, category = 'uncategorized') =>
+  uploadCover: (filePath, category = 'uncategorized', folder = 'uploads') =>
     uploadFile({
       url: '/api/mp/content/uploads/cover',
       filePath,
-      formData: { category: category || 'uncategorized' }
+      formData: { category: category || 'uncategorized', folder }
     }),
+  myMaterialFolders: () => request({ url: '/api/mp/content/my-materials/folders' }),
+  myMaterialItems: (folder, page = 1, pageSize = 30, dateFrom = '', dateTo = '') => {
+    const dates = dateFrom && dateTo
+      ? `&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}` : ''
+    return request({ url: `/api/mp/content/my-materials/${encodeURIComponent(folder)}?page=${page}&page_size=${pageSize}${dates}` })
+  },
   galleries: (scope = '') =>
     request({ url: `/api/mp/content/galleries${scope ? `?scope=${encodeURIComponent(scope)}` : ''}` }),
   galleryItems: (category, scope = '', extra = {}) => {
