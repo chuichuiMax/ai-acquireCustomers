@@ -136,7 +136,7 @@
 
 ### `POST /api/mp/image-design/tasks`
 
-请求中包含 `workflow`、角色化 `images`、原始 `description`、`polished_prompt`、`refinement_id`、`ratio`、`count`（2 或 4）、`quality`（`1k` 或 `2k`）、`save_target`，跨空间迁移还包括目标空间、布局类型和附加元素数组。附加元素最多选择两个，`extra_element` 使用字符串数组格式；旧草稿中的单字符串值由前端兼容迁移为单元素数组。
+请求中包含 `workflow`、角色化 `images`、原始 `description`、`polished_prompt`、`refinement_id`、`ratio`、`count`（1、2 或 4，默认 2）、`quality`（`1k` 或 `2k`）、`save_target`，跨空间迁移还包括目标空间、布局类型和附加元素数组。附加元素最多选择两个，`extra_element` 使用字符串数组格式；旧草稿中的单字符串值由前端兼容迁移为单元素数组。
 
 原房换装使用以下预设风格：`现代轻奢`、`意式极简`、`新中式`、`现代法式`、`极简奶油风`、`现代简约`、`侘寂风`、`南洋复古风`、`美式现代`、`日式极简禅风`。若用户选择“使用补充描述作为风格提示词”，前端会省略 `style`，服务端应以 `description` 与 `polished_prompt` 作为风格指令，不得将该展示文案当作风格值校验。
 

@@ -7,6 +7,7 @@ import {
   createImageDesignDrafts,
   DESCRIPTION_STYLE_VALUE,
   draftCanGenerate,
+  IMAGE_COUNTS,
   IMAGE_DESIGN_STYLE_OPTIONS,
   normalizeTransferElements,
   imageDesignStyleForPayload,
@@ -266,6 +267,20 @@ test('a generation payload preserves role mapping and selected image settings', 
   assert.equal('save_target_id' in payload, false)
 })
 
+test('all image design workflows can submit one image while keeping two as the default', () => {
+  assert.deepEqual(IMAGE_COUNTS, [1, 2, 4])
+  const drafts = createImageDesignDrafts()
+  const images = {
+    redesign: { source: { id: 'source' } },
+    adapt: { reference: { id: 'reference' }, rough: { id: 'rough' } },
+    transfer: { reference: { id: 'reference' } }
+  }
+  for (const workflow of ['redesign', 'adapt', 'transfer']) {
+    assert.equal(drafts[workflow].count, 2)
+    assert.equal(buildImageDesignPayload(workflow, { ...drafts[workflow], ...images[workflow], count: 1 }).count, 1)
+  }
+})
+
 test('a generation payload sends transfer addons as an array', () => {
   const draft = {
     ...createImageDesignDrafts().transfer,
@@ -280,12 +295,12 @@ test('a generation payload sends transfer addons as an array', () => {
   assert.deepEqual(buildImageDesignPayload('transfer', draft).extra_element, ['落地窗旁休闲躺椅', '壁炉居中'])
 })
 
-test('legacy folder ids migrate only after their writable scope is available', () => {
-  const scopes = [{ scope: 'enterprise', label: '企业共享', can_write_root: true, folders: [{ id: 'legacy-folder', name: '案例', path: '项目 / 案例' }] }]
+test('legacy enterprise save targets are cleared after personal-root migration', () => {
+  const scopes = [{ scope: 'private', label: '我的素材', can_write_root: true, folders: [] }]
   const drafts = normalizeImageDesignDrafts({ redesign: { save_target_id: 'legacy-folder' }, adapt: { save_target_id: 'missing' } }, scopes)
-  assert.deepEqual(drafts.redesign.save_target, { scope: 'enterprise', gallery_id: 'legacy-folder' })
+  assert.equal(drafts.redesign.save_target, null)
   assert.equal(drafts.adapt.save_target, null)
   assert.equal('save_target_id' in drafts.redesign, false)
-  assert.equal(saveTargetLabel(drafts.redesign.save_target, scopes), '企业共享 / 项目 / 案例')
+  assert.equal(saveTargetLabel(drafts.redesign.save_target, scopes), '')
   assert.equal(normalizeSaveTarget({ scope: 'invalid', gallery_id: 'x' }), null)
 })

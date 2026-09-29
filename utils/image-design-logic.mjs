@@ -10,7 +10,7 @@ export const IMAGE_RATIOS = Object.freeze([
   Object.freeze({ key: 'square', label: '方图 1:1', pixels: '1024×1024' })
 ])
 
-export const IMAGE_COUNTS = Object.freeze([2, 4])
+export const IMAGE_COUNTS = Object.freeze([1, 2, 4])
 export const IMAGE_QUALITIES = Object.freeze([
   Object.freeze({ key: '1k', label: '1K 标清' }),
   Object.freeze({ key: '2k', label: '2K 高清' })
@@ -147,7 +147,10 @@ export function normalizeImageDesignDrafts(received, scopes = []) {
     next[key].description_keywords = normalizeDescriptionKeywords(next[key].description_keywords)
     if (next[key].polished_for !== imageDesignDescription(next[key])) next[key] = clearStalePolish(next[key])
     if (key === 'transfer') next[key].extra_element = normalizeTransferElements(next[key].extra_element)
-    next[key].save_target = normalizeSaveTarget(next[key].save_target) || migrateLegacySaveTarget(next[key], scopes)
+    const selectedTarget = normalizeSaveTarget(next[key].save_target) || migrateLegacySaveTarget(next[key], scopes)
+    next[key].save_target = scopes.length && !fixedSaveTargetOptions(scopes).some((option) =>
+      !option.disabled && option.scope === selectedTarget?.scope && option.gallery_id === selectedTarget?.gallery_id
+    ) ? null : selectedTarget
     delete next[key].save_target_id
   })
   if (!isSupportedImageDesignStyle(next.redesign.style)) {
@@ -221,12 +224,10 @@ export function normalizeSaveTarget(value) {
 }
 
 export function fixedSaveTargetOptions(scopes = []) {
-  const enterprise = scopes.find((scope) => scope.scope === 'enterprise')
-  const folders = (enterprise?.folders || []).filter((folder) => folder.id && folder.name === '生图图库' && !folder.parent_id)
-  const gallery = folders.length === 1 ? folders[0] : null
+  const personal = scopes.find((scope) => scope.scope === 'private')
   return [
-      { scope: 'enterprise', gallery_id: gallery?.id || null, label: '生图图库（企业内可见）', disabled: !gallery,
-      hint: gallery ? '保存到企业图库中的生图图库' : (enterprise?.error || '企业生图图库不可用，请联系管理员') }
+    { scope: 'private', gallery_id: null, label: '我的素材', disabled: !personal?.can_write_root,
+      hint: personal?.can_write_root ? '保存后，企业成员可在生图图库查看' : (personal?.error || '我的素材暂不可用') }
   ]
 }
 
