@@ -244,6 +244,59 @@ export function knockoutWhiteBackground(data) {
   return data
 }
 
+// Removes only bright pixels that are connected to an image edge. Unlike a
+// global white knockout, isolated white copy and icons remain opaque.
+export function clearEdgeConnectedWhiteBackground(data, width, height) {
+  if (!data || !width || !height) return data
+  const pixelWidth = Math.floor(width)
+  const pixelHeight = Math.floor(height)
+  const pixels = pixelWidth * pixelHeight
+  if (pixels <= 0 || data.length < pixels * 4) return data
+
+  const visited = new Uint8Array(pixels)
+  const queue = new Int32Array(pixels)
+  let head = 0
+  let tail = 0
+  const isNearWhite = (point) => {
+    const index = point * 4
+    return (
+      data[index + 3] > 0 &&
+      data[index] >= 245 &&
+      data[index + 1] >= 245 &&
+      data[index + 2] >= 245
+    )
+  }
+  const enqueue = (point) => {
+    if (point < 0 || point >= pixels || visited[point] || !isNearWhite(point)) return
+    visited[point] = 1
+    queue[tail] = point
+    tail += 1
+  }
+
+  for (let x = 0; x < pixelWidth; x += 1) {
+    enqueue(x)
+    enqueue((pixelHeight - 1) * pixelWidth + x)
+  }
+  for (let y = 1; y < pixelHeight - 1; y += 1) {
+    enqueue(y * pixelWidth)
+    enqueue(y * pixelWidth + pixelWidth - 1)
+  }
+
+  while (head < tail) {
+    const point = queue[head]
+    head += 1
+    const x = point % pixelWidth
+    const y = Math.floor(point / pixelWidth)
+    const index = point * 4
+    data[index + 3] = 0
+    if (x > 0) enqueue(point - 1)
+    if (x < pixelWidth - 1) enqueue(point + 1)
+    if (y > 0) enqueue(point - pixelWidth)
+    if (y < pixelHeight - 1) enqueue(point + pixelWidth)
+  }
+  return data
+}
+
 export function sourceOver(base, overlay) {
   if (!base || !overlay) return base
   const length = Math.min(base.length, overlay.length)

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   aspectFillSourceRect,
+  clearEdgeConnectedWhiteBackground,
   knockoutWhiteBackground,
   mergeCoverTemplates,
   overlayLooksOpaqueWhite,
@@ -83,6 +84,30 @@ test('white template backgrounds are punched out so type stays solid', () => {
   assert.equal(data[8], 32)
 })
 
+test('edge-connected white cleanup preserves isolated white template type', () => {
+  const width = 5
+  const height = 5
+  const data = new Uint8ClampedArray(width * height * 4)
+  for (let index = 0; index < data.length; index += 4) {
+    data[index] = 255
+    data[index + 1] = 255
+    data[index + 2] = 255
+    data[index + 3] = 255
+  }
+  const setPixel = (x, y, r, g, b) => {
+    const index = (y * width + x) * 4
+    data[index] = r
+    data[index + 1] = g
+    data[index + 2] = b
+  }
+  for (const point of [[1, 2], [2, 1], [3, 2], [2, 3]]) setPixel(point[0], point[1], 0, 0, 0)
+
+  clearEdgeConnectedWhiteBackground(data, width, height)
+
+  assert.equal(data[3], 0)
+  assert.equal(data[(2 * width + 2) * 4 + 3], 255)
+})
+
 test('source-over keeps opaque type on top of the cover photo', () => {
   const base = new Uint8ClampedArray([10, 20, 30, 255])
   const overlay = new Uint8ClampedArray([255, 255, 255, 255])
@@ -140,16 +165,22 @@ test('generate preview composites overlay on canvas without mix-blend-mode', () 
   assert.match(page, /drawCoverComposite/)
   assert.match(page, /aspectFillSourceRect/)
   assert.match(page, /knockoutWhiteBackground/)
+  assert.match(page, /clearEdgeConnectedWhiteBackground/)
+  assert.match(page, /templateThumbCanvas/)
+  assert.match(page, /prepareTemplateThumbnails/)
+  assert.match(page, /canvasToTempFilePath/)
   assert.match(page, /padWhiteTypeWithBlack/)
   assert.match(page, /templateCardSrc/)
-  assert.match(page, /tpl-thumb/)
-  assert.match(page, /\.tpl-preview,\s*\.tpl-thumb \{[\s\S]*height: 96px/)
   assert.match(page, /templateHasDedicatedOverlay/)
   assert.match(page, /if \(this\.templateHasDedicatedOverlay\) \{[\s\S]*?ctx\.drawImage\(overlayImage, 0, 0, width, height\)/)
   assert.match(page, /previewPhotoLocal/)
   assert.match(page, /previewError/)
   assert.match(page, /handleCoverPreviewImageError/)
   assert.match(page, /@error="handleCoverPreviewImageError"/)
+  assert.match(page, /<view class="tpl-preview">[\s\S]*?:src="templateCardSrc\(item\)"[\s\S]*?mode="aspectFit"/)
+  assert.match(page, /\.tpl-preview\s*\{[\s\S]*?background:\s*#d9d9d9/)
+  assert.doesNotMatch(page, /class="tpl-thumb"/)
+  assert.doesNotMatch(page, /thumbUrl\(item\.preview_urls/)
   assert.match(page, /globalCompositeOperation = 'source-over'/)
   assert.doesNotMatch(page, /mix-blend-mode/)
   assert.doesNotMatch(page, /overlayUsesMultiply/)

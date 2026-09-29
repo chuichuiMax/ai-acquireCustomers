@@ -4,6 +4,7 @@
     class="page"
     :class="{ 'page-type-selection': !typeStepDone && isHomeDecor }"
   >
+    <canvas type="2d" id="templateThumbCanvas" class="template-thumb-canvas"></canvas>
     <view class="entries">
       <view
         v-for="item in entries"
@@ -166,14 +167,11 @@
               :class="{ active: coverTemplateId === item.id }"
               @click="coverTemplateId = item.id"
             >
-              <view class="tpl-thumb">
-                <image :src="templateCardSrc(item)" mode="aspectFit" lazy-load />
-              </view>
               <view class="tpl-preview">
                 <image
                   class="tpl-image"
-                  :src="thumbUrl(item.preview_urls && item.preview_urls[0], 360)"
-                  mode="aspectFill"
+                  :src="templateCardSrc(item)"
+                  mode="aspectFit"
                   lazy-load
                 />
               </view>
@@ -317,6 +315,7 @@ import {
   preserveOverlayAlpha,
   resolveTemplateOverlay,
   aspectFillSourceRect,
+  clearEdgeConnectedWhiteBackground,
   knockoutWhiteBackground,
   overlayLooksOpaqueWhite,
   padWhiteTypeWithBlack,
@@ -479,7 +478,9 @@ export default {
       compositeToken: 0,
       previewPhotoLocal: '',
       previewError: '',
-      homeTypeCardSize: null
+      homeTypeCardSize: null,
+      templateThumbnailSources: {},
+      templateThumbnailPending: {}
     }
   },
   computed: {
@@ -673,11 +674,80 @@ export default {
     thumbUrl,
     galleryThumbUrl,
     templateCardSrc(item) {
+      const source = this.templateCardOriginalSrc(item)
+      if (!source) return ''
+      const key = this.templateThumbnailKey(item, source)
+      return this.templateThumbnailSources[key] || source
+    },
+    templateCardOriginalSrc(item) {
       if (!item) return ''
       const overlay = resolveTemplateOverlay(item)
       const preview = (item.preview_urls && item.preview_urls[0]) || item.preview_url || ''
       const path = preserveOverlayAlpha((overlay && overlay.path) || preview)
       return path ? mediaUrl(path, { width: 360 }) : ''
+    },
+    templateThumbnailKey(item, source) {
+      return `${String((item && item.id) || '')}:${String(source || '')}`
+    },
+    async prepareTemplateThumbnails(templates) {
+      const list = Array.isArray(templates) ? templates : []
+      for (const item of list) {
+        await this.prepareTemplateThumbnail(item)
+      }
+    },
+    async prepareTemplateThumbnail(item) {
+      const source = this.templateCardOriginalSrc(item)
+      const key = this.templateThumbnailKey(item, source)
+      if (!source || this.templateThumbnailSources[key] || this.templateThumbnailPending[key]) return
+      this.$set(this.templateThumbnailPending, key, true)
+      try {
+        const path = await this.renderTemplateThumbnail(source)
+        if (path) this.$set(this.templateThumbnailSources, key, path)
+      } catch (error) {
+        // Keep the original preview when Canvas processing is unavailable.
+      } finally {
+        this.$delete(this.templateThumbnailPending, key)
+      }
+    },
+    renderTemplateThumbnail(source) {
+      return new Promise((resolve) => {
+        const query = uni.createSelectorQuery().in(this)
+        query
+          .select('#templateThumbCanvas')
+          .fields({ node: true, size: true })
+          .exec(async (res) => {
+            const target = res && res[0]
+            const canvas = target && target.node
+            if (!canvas) {
+              resolve('')
+              return
+            }
+            try {
+              const width = 216
+              const height = 288
+              canvas.width = width
+              canvas.height = height
+              const ctx = canvas.getContext('2d')
+              ctx.setTransform(1, 0, 0, 1, 0, 0)
+              ctx.clearRect(0, 0, width, height)
+              const result = await this.loadCanvasImage(canvas, source)
+              ctx.drawImage(result.image, 0, 0, width, height)
+              const imageData = ctx.getImageData(0, 0, width, height)
+              clearEdgeConnectedWhiteBackground(imageData.data, width, height)
+              ctx.putImageData(imageData, 0, 0)
+              uni.canvasToTempFilePath({
+                canvas,
+                fileType: 'png',
+                destWidth: width,
+                destHeight: height,
+                success: (output) => resolve((output && output.tempFilePath) || ''),
+                fail: () => resolve('')
+              })
+            } catch (error) {
+              resolve('')
+            }
+          })
+      })
     },
     queueCoverComposite() {
       if (!this.coverPhotoSrc) return
@@ -1058,6 +1128,7 @@ export default {
     applyHycanvasTemplates(templates) {
       const mergedTemplates = mergeCoverTemplates(templates, this.hycanvasTemplateExtras)
       this.schema = { ...this.schema, hycanvas_templates: mergedTemplates }
+      this.prepareTemplateThumbnails(mergedTemplates)
       const builtins = mergedTemplates.filter((item) => item && item.zone !== 'featured')
       if (this.coverMode === 'builtin') {
         if (!this.coverTemplateId || !builtins.some((item) => item.id === this.coverTemplateId)) {
@@ -2022,7 +2093,6 @@ input,
 }
 .templates {
   margin-top: 10px;
-  height: 132px;
   white-space: nowrap;
 }
 .cover-mode-head {
@@ -2082,7 +2152,6 @@ input,
   max-width: 48%;
 }
 .tpl {
-  position: relative;
   display: inline-block;
   width: 72px;
   margin-right: 8px;
@@ -2094,20 +2163,21 @@ input,
 .tpl.active {
   border-color: #BE2D22;
 }
-.tpl-preview,
-.tpl-thumb {
+.tpl-preview {
   width: 72px;
   height: 96px;
   overflow: hidden;
-  background: #111;
+  background: #d9d9d9;
 }
-.tpl-thumb {
-  position: absolute;
-  left: 0;
-  top: 0;
-  background: transparent;
+.template-thumb-canvas {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  width: 216px;
+  height: 288px;
+  opacity: 0;
+  pointer-events: none;
 }
-.tpl-thumb image,
 .tpl-image {
   display: block;
   width: 100%;
