@@ -69,7 +69,7 @@
 		{
 			"path": "pages/mine/uploads",
 			"style": {
-				"navigationBarTitleText": "我的上传"
+				"navigationBarTitleText": "我的素材"
 			}
 		},
 		{

@@ -12,6 +12,7 @@ import {
   imageDesignStyleForPayload,
   isSupportedImageDesignStyle,
   normalizeImageDesignDrafts,
+  normalizeImageSourceFolders,
   normalizeSaveTarget,
   requiredImageRoles,
   saveTargetLabel,
@@ -164,38 +165,31 @@ test('save path options keep concrete writable gallery ids and PC scope prefixes
   ])
 })
 
-test('each workflow slot uses the confirmed enterprise and personal material entries', () => {
+test('every workflow image slot lists all visible first-level personal and enterprise galleries', () => {
   assert.equal(typeof imageDesignLogic.imageSourceEntries, 'function')
   const { imageSourceEntries } = imageDesignLogic
   const galleries = [
-    { id: 'case-root', name: '可重命名的案例库', visibility: 'enterprise', image_design_role: 'reference' },
-    { id: 'rough-root', name: '可重命名的毛坯库', visibility: 'enterprise', image_design_role: 'rough' },
+    { id: 'case-root', name: '案例图库', visibility: 'enterprise', image_design_role: 'reference' },
+    { id: 'rough-root', name: '毛坯图库', visibility: 'enterprise', image_design_role: 'rough' },
+    { id: 'shared-root', name: '其他共享图库', visibility: 'enterprise' },
     { id: 'case-child', name: '案例子图库', visibility: 'enterprise', image_design_role: 'reference', parent_id: 'case-root' },
     { id: 'uncategorized', name: '未分类', visibility: 'private', is_system: true },
     { id: 'personal-root', name: '我的客厅', visibility: 'private' },
-    { id: 'personal-child', name: '卧室', visibility: 'private', parent_id: 'personal-root' }
+    { id: 'personal-child', name: '卧室', visibility: 'private', parent_id: 'personal-root' },
+    { id: 'storage-root', name: '存储根', visibility: 'internal' }
   ]
 
-  assert.deepEqual(imageSourceEntries('source', galleries).map((item) => [item.key, item.folderId, item.badge]), [
-    ['reference', 'case-root', '企业'],
-    ['rough', 'rough-root', '企业'],
-    ['uncategorized', 'uncategorized', '个人']
-  ])
-  assert.equal(imageSourceEntries('source', galleries)[2].sourceRole, 'source')
-  const referenceEntries = imageSourceEntries('reference', galleries)
-  assert.deepEqual(referenceEntries.map((item) => [item.key, item.label, item.badge]), [
-    ['reference', '案例图库', '企业'],
-    ['my-materials', '我的素材', '个人']
-  ])
-  assert.equal(referenceEntries[1].pickerMode, 'personal-folders')
-  assert.equal(referenceEntries[1].disabled, false)
-  assert.deepEqual(referenceEntries[1].folders.map((item) => item.id).sort(), ['personal-root', 'uncategorized'])
-  assert.equal(referenceEntries[1].sourceRole, 'reference')
-  const roughEntries = imageSourceEntries('rough', galleries)
-  assert.deepEqual(roughEntries.map((item) => item.key), ['rough', 'my-materials'])
-  assert.equal(roughEntries[1].pickerMode, 'personal-folders')
-  assert.deepEqual(roughEntries[1].folders.map((item) => item.id).sort(), ['personal-root', 'uncategorized'])
-  assert.equal(roughEntries[1].sourceRole, 'rough')
+  const expectedIds = ['case-root', 'personal-root', 'rough-root', 'shared-root', 'uncategorized']
+  for (const slot of ['source', 'reference', 'rough']) {
+    const entries = imageSourceEntries(slot, galleries)
+    assert.deepEqual(entries.map((item) => item.folderId).sort(), expectedIds)
+    assert(entries.every((item) => item.sourceRole === slot))
+    assert(entries.every((item) => item.folder.id === item.folderId))
+    assert.deepEqual(entries.map((item) => item.scopeLabel), [
+      '我的素材', '我的素材', '企业共享', '企业共享', '企业共享'
+    ])
+    assert.deepEqual(entries.map((item) => item.badge), ['个人', '个人', '企业', '企业', '企业'])
+  }
 })
 
 test('image-design picker preserves each gallery level instead of flattening descendants', () => {
@@ -210,14 +204,34 @@ test('image-design picker preserves each gallery level instead of flattening des
   assert.deepEqual(childFolders(folders, 'child-a').map((item) => item.id), ['grandchild'])
 })
 
-test('missing configured galleries stay visible but disabled', () => {
+test('an empty gallery response produces no fake folder entries', () => {
   assert.equal(typeof imageDesignLogic.imageSourceEntries, 'function')
   const { imageSourceEntries } = imageDesignLogic
-  const entries = imageSourceEntries('reference', [])
-  assert.deepEqual(entries.map((item) => [item.label, item.disabled]), [
-    ['案例图库', true],
-    ['我的素材', true]
+  assert.deepEqual(imageSourceEntries('reference', []), [])
+})
+
+test('image source folders match current PC galleries even with a legacy MP response', () => {
+  const folders = normalizeImageSourceFolders([
+    { id: 'background', name: '背景', visibility: 'private', is_system: true },
+    { id: 'scene', name: '场景', visibility: 'private', is_system: true },
+    { id: 'people', name: '人物', visibility: 'private', is_system: true },
+    { id: 'decoration', name: '装饰', visibility: 'private', is_system: true },
+    { id: 'brand', name: '品牌', visibility: 'private', is_system: true },
+    { id: 'old-child', name: '旧子图库', visibility: 'private', parent_id: 'scene' },
+    { id: 'product', name: '产品商品', visibility: 'private', is_system: true },
+    { id: 'uncategorized', name: '未分类', visibility: 'private', is_system: true },
+    { id: 'mine', name: '自建图库', visibility: 'private', is_system: false },
+    { id: 'mine-child', name: '自建子图库', visibility: 'private', parent_id: 'mine' },
+    { id: 'shared', name: '企业图库', visibility: 'enterprise' }
   ])
+
+  assert.deepEqual(folders.map((folder) => folder.id).sort(),
+    ['product', 'uncategorized', 'mine', 'mine-child', 'shared'].sort())
+  assert.equal(folders.find((folder) => folder.id === 'product').name, 'AI生图图库')
+  assert.equal(folders.find((folder) => folder.id === 'uncategorized').name, '我的图库')
+  assert.deepEqual(imageDesignLogic.imageSourceEntries('rough', folders).map((entry) => entry.folderId).sort(),
+    ['product', 'uncategorized', 'mine', 'shared'].sort())
+  assert.deepEqual(childFolders(folders, 'mine').map((folder) => folder.id), ['mine-child'])
 })
 
 test('gallery pagination appends new images without duplicating existing ids', () => {

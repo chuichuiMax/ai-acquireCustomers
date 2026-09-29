@@ -12,8 +12,7 @@ test('fixed options never expose arbitrary folders or the enterprise root', () =
     { scope: 'enterprise', can_write_root: true, folders: [{ id: 'case', name: '案例图库' }, { id: 'generated', name: '生图图库' }] }
   ])
   assert.deepEqual(options.map(({ scope, gallery_id, label, disabled }) => ({ scope, gallery_id, label, disabled })), [
-    { scope: 'private', gallery_id: null, label: '我的素材/AI生图图库', disabled: false },
-    { scope: 'enterprise', gallery_id: 'generated', label: '企业共享 / 生图图库', disabled: false }
+    { scope: 'enterprise', gallery_id: 'generated', label: '生图图库（企业内可见）', disabled: false }
   ])
 })
 
@@ -29,13 +28,14 @@ test('dropdown refuses disabled selections and immediately emits only a fixed ta
   const script = component.match(/<script>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '').replace('export default', 'return')
   const definition = new Function('fixedSaveTargetOptions', script)(fixedSaveTargetOptions)
   const emitted = []
-  const vm = { scopes: [{ scope: 'private', can_write_root: true }], value: null, $emit: (...args) => emitted.push(args) }
+  const vm = { scopes: [{ scope: 'enterprise', folders: [] }], value: null, $emit: (...args) => emitted.push(args) }
   for (const [name, method] of Object.entries(definition.methods)) vm[name] = method.bind(vm)
   for (const [name, getter] of Object.entries(definition.computed)) Object.defineProperty(vm, name, { get: getter.bind(vm) })
-  vm.selectOption(vm.options[1])
-  assert.deepEqual(emitted, [])
   vm.selectOption(vm.options[0])
-  assert.deepEqual(emitted, [['confirm', { scope: 'private', gallery_id: null }]])
+  assert.deepEqual(emitted, [])
+  vm.scopes = [{ scope: 'enterprise', folders: [{ id: 'generated', name: '生图图库' }] }]
+  vm.selectOption(vm.options[0])
+  assert.deepEqual(emitted, [['confirm', { scope: 'enterprise', gallery_id: 'generated' }]])
 })
 
 test('save target picker is an inline dropdown without a full-screen selection page', () => {

@@ -5,7 +5,7 @@ import { imageDesignLibraryDate, normalizeImageDesignLibraryItem, mergeGalleryIt
 
 const page = readFileSync(new URL('../pages/cover/cover.vue', import.meta.url), 'utf8')
 function loader(api) {
-  const method = page.match(/async loadDesignLibrary\(reset = true\) \{[\s\S]*?\n    \},(?=\n    loadMoreDesignLibrary)/)[0]
+  const method = page.match(/async loadDesignLibrary\(reset = true\) \{[\s\S]*?\r?\n    \},(?=\r?\n    loadMoreDesignLibrary)/)[0]
   return new Function('mpImageDesignApi', 'normalizeImageDesignLibraryItem', 'mergeGalleryItems', `return ({${method}}).loadDesignLibrary`)(api, normalizeImageDesignLibraryItem, mergeGalleryItems)
 }
 function state() { return { libraryRequestId: 0, libraryPage: 0, libraryHasMore: false, designLibrary: [] } }
