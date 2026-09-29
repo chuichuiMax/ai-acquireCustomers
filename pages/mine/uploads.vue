@@ -5,7 +5,10 @@
     <view v-if="activeGallery" class="back" @click="backGallery">‹ 返回我的素材</view>
     <view v-if="!activeGallery" class="folder-grid">
       <view v-for="gallery in galleries" :key="gallery.id" class="folder" @click="openGallery(gallery)">
-        <view class="folder-icon"><view class="folder-tab" /></view>
+        <view class="folder-icon">
+          <image v-if="folderCoverUrl(gallery)" class="folder-preview" :src="folderCoverUrl(gallery)" mode="aspectFill" lazy-load />
+          <view class="folder-tab" />
+        </view>
         <text>{{ gallery.name }}</text>
         <text class="folder-count">{{ gallery.count === null ? (loadingFolders ? '正在加载…' : '未加载') : `${gallery.count} 张` }}</text>
       </view>
@@ -69,7 +72,8 @@
 <script>
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi, mpImageApi } from '../../apis/mp'
-import { errorMessage, galleryThumbUrl } from '../../utils/request'
+import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
+import { galleryCoverPath } from '../../utils/materials-logic.mjs'
 import { createImageSelection, formatUploadTime, nextDateRangeSelection, toggleImageSelection, uploadDateKey } from '../../utils/mine-library-logic.mjs'
 import { legacyFolderCount, legacyMaterialSources, mergeLegacyMaterialItems } from '../../utils/my-materials-compat.mjs'
 import { loadAllGalleryItems } from '../../utils/gallery-items.mjs'
@@ -119,7 +123,9 @@ export default {
       this.libraryNotice = ''
       this.legacyMode = false
       this.legacySources = {}
-      this.galleries = this.galleries.map((gallery) => ({ ...gallery, count: null }))
+      this.galleries = this.galleries.map((gallery) => ({
+        ...gallery, count: null, cover_thumbnail_file_url: null, cover_file_url: null
+      }))
       try {
         const data = await mpContentApi.myMaterialFolders()
         const folders = data?.folders
@@ -129,7 +135,12 @@ export default {
           return !Number.isInteger(count) || count < 0
         })
         if (invalid) this.loadError = '图库返回数据不完整'
-        else this.galleries = this.galleries.map((gallery) => ({ ...gallery, count: byId.get(gallery.id).count }))
+        else this.galleries = this.galleries.map((gallery) => ({
+          ...gallery,
+          count: byId.get(gallery.id).count,
+          cover_thumbnail_file_url: byId.get(gallery.id).cover_thumbnail_file_url,
+          cover_file_url: byId.get(gallery.id).cover_file_url
+        }))
       } catch (error) {
         if (error?.statusCode === 404) {
           try {
@@ -237,6 +248,9 @@ export default {
     imageUrl(item) {
       return galleryThumbUrl(item, 720)
     },
+    folderCoverUrl(gallery) {
+      return mediaUrl(galleryCoverPath(gallery))
+    },
     formatUploadTime,
     openCalendar() {
       this.draftDateFrom = this.dateFrom
@@ -333,8 +347,10 @@ export default {
 .page { min-height: 100vh; box-sizing: border-box; padding: 16px 16px calc(148px + env(safe-area-inset-bottom)); background: #f4f1ee; }
 .folder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 18px; }
 .folder { min-width: 0; text-align: center; color: #3b312d; font-size: 14px; }
-.folder-icon { position: relative; width: 90px; height: 64px; margin: 0 auto 8px; border-radius: 4px 8px 8px 8px; background: #deb44a; }
-.folder-tab { position: absolute; top: -7px; left: 8px; width: 38px; height: 12px; border-radius: 5px 5px 0 0; background: #e8c661; }
+.folder-icon { position: relative; width: 90px; height: 64px; margin: 0 auto 8px; overflow: visible; --folder-back-color: #ffc238; border-radius: 0 7px 9px 9px; background: var(--folder-back-color); box-shadow: 0 2px 5px rgba(177, 120, 8, .18); }
+.folder-icon::before { position: absolute; z-index: 0; top: -7px; left: 0; width: 43px; height: 14px; -webkit-clip-path: polygon(0 0, 70% 0, 100% 100%, 0 100%); clip-path: polygon(0 0, 70% 0, 100% 100%, 0 100%); border-radius: 6px 0 0 0; background: var(--folder-back-color); content: ''; }
+.folder-preview { position: absolute; z-index: 1; top: 5px; right: 3px; left: 3px; width: auto; height: 45px; border-radius: 4px 4px 5px 5px; background: #f3eee5; }
+.folder-tab { position: absolute; z-index: 2; top: 34px; right: 0; left: 0; height: 30px; border-radius: 6px 7px 8px 8px; background: linear-gradient(180deg, #ffe9a3 0%, #ffdc79 55%, #ffd15a 100%); box-shadow: inset 0 1px 0 rgba(255, 249, 220, .85), inset 0 -2px 0 rgba(235, 168, 28, .22), 0 2px 4px rgba(177, 120, 8, .14); }
 .folder-count { display: block; margin-top: 3px; color: #988d84; font-size: 11px; }
 .library-notice { margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; background: #fff6dc; color: #755919; font-size: 12px; line-height: 1.5; }
 .library-error { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #fff; color: #be2d22; font-size: 12px; line-height: 1.5; }
