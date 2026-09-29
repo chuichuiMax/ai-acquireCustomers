@@ -22,6 +22,8 @@ function appendQuery(url, extra) {
 
 function applyImageOptimize(url, { format = '', width = 0, quality = 0 } = {}) {
   if (!url || ALREADY_OPTIMIZED_RE.test(url)) return url
+  // 后端代理的 /api/.../file、thumbnail、overlay 不支持 CDN 变换参数；带上 format=webp 只会干扰本地/鉴权下载。
+  if (/\/api\//i.test(url)) return url
   const w = width ? Math.round(width) : 0
   const q = quality ? Math.round(quality) : 0
 
@@ -49,11 +51,7 @@ function applyImageOptimize(url, { format = '', width = 0, quality = 0 } = {}) {
     return appendQuery(url, parts.join('/'))
   }
 
-  const params = []
-  if (format) params.push(`format=${encodeURIComponent(format)}`)
-  if (w) params.push(`w=${w}`)
-  if (q) params.push(`q=${q}`)
-  return appendQuery(url, params.join('&'))
+  return url
 }
 
 export function mediaUrl(path, options = {}) {
@@ -102,7 +100,17 @@ export function publicMediaUrl(path) {
 export function errorMessage(res) {
   const detail = res && res.data && res.data.detail
   if (typeof detail === 'string') return detail
-  if (detail && detail.error && detail.error.message) return detail.error.message
+  if (detail && detail.error && detail.error.message) {
+    const fields = detail.error.fields || detail.fields
+    if (Array.isArray(fields) && fields.length) {
+      const labels = fields
+        .map((item) => (item && (item.label || item.field)) || '')
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+      if (labels.length) return `${detail.error.message}：${labels.join('、')}`
+    }
+    return detail.error.message
+  }
   if (res && res.data && res.data.message) return res.data.message
   const errMsg = String((res && (res.errMsg || res.message)) || '')
   if (/timeout/i.test(errMsg)) return '请求超时，请稍后重试'
@@ -111,7 +119,16 @@ export function errorMessage(res) {
   return '请求失败'
 }
 
-export function request({ url, method = 'GET', data, header = {}, requiresAuth = true, timeout = 60000 }) {
+export function request({
+  url,
+  method = 'GET',
+  data,
+  header = {},
+  requiresAuth = true,
+  timeout = 60000,
+  // 启动身份探测会依次试多个 /me；401 时不要边查边 reLaunch，避免卡在入口页。
+  silentAuth = false
+}) {
   return new Promise((resolve, reject) => {
     uni.request({
       url: `${BASE_URL}${url}`,
@@ -126,10 +143,12 @@ export function request({ url, method = 'GET', data, header = {}, requiresAuth =
       success: (res) => {
         if (requiresAuth && res.statusCode === 401) {
           setToken('')
-          const pages = getCurrentPages()
-          const route = pages.length ? pages[pages.length - 1].route : ''
-          if (route !== 'pages/login/login') {
-            uni.reLaunch({ url: '/pages/login/login' })
+          if (!silentAuth) {
+            const pages = getCurrentPages()
+            const route = pages.length ? pages[pages.length - 1].route : ''
+            if (route !== 'pages/login/login') {
+              uni.reLaunch({ url: '/pages/login/login' })
+            }
           }
           reject(res)
           return

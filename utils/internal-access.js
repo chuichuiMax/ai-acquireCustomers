@@ -50,7 +50,7 @@ export async function requireInternalAccess({ redirect = true } = {}) {
       accessEvaluator.evaluate(getToken(), function () {
         return mpMeApi.get()
       }),
-      8000
+      6000
     )
 
     if (decision.clearToken) {

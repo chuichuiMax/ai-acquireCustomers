@@ -8,6 +8,7 @@ const WORKSPACE_URL = '/pages/generate/generate'
 const LOGIN_URL = '/pages/login/login'
 const SHARED_CASE_ROUTE = 'pages/materials/shared-case'
 const SHARE_SCENES = new Set([1007, 1008, 1044])
+const ENTRY_ROUTE = 'pages/index/index'
 
 function currentRoute() {
 	try {
@@ -80,34 +81,52 @@ function checkMiniProgramUpdate() {
 
 export default {
 	data() {
-		return { routingEntry: false }
+		return {
+			routingEntry: false,
+			routingEntryUntil: 0
+		}
 	},
 	onLaunch() {
 		checkMiniProgramUpdate()
 	},
 	async onShow(options = {}) {
-		// 聊天中的案例分享是最高优先级：平台用户也必须先停留在案例页。
+		// 聊天分享：若停在入口页，必须主动跳到案例页，不能直接 return 卡住「验证员工身份」。
 		const shareId = shareIdFromLaunch(options)
-		if (shareId || (SHARE_SCENES.has(Number(options.scene)) && currentRoute() === SHARED_CASE_ROUTE)) return
-		if (this.routingEntry) return
+		const route = currentRoute()
+		if (shareId) {
+			if (route !== SHARED_CASE_ROUTE) uni.reLaunch({ url: buildSharedCasePath(shareId) })
+			return
+		}
+		if (SHARE_SCENES.has(Number(options.scene)) && route === SHARED_CASE_ROUTE) return
+
+		const now = Date.now()
+		// 防止上一次身份校验挂死把 routingEntry 永久锁死
+		if (this.routingEntry && now < this.routingEntryUntil) return
 
 		this.routingEntry = true
+		this.routingEntryUntil = now + 12000
 		try {
 			const allowed = await requireInternalAccess({ redirect: false })
-			const route = currentRoute()
+			const current = currentRoute()
 			if (allowed) {
-				const resumeUrl = resolveAllowedShowUrl(route, getActiveGeneration())
-				if (resumeUrl) uni.reLaunch({ url: resumeUrl })
+				const resumeUrl = resolveAllowedShowUrl(current, getActiveGeneration())
+				if (resumeUrl) {
+					uni.reLaunch({ url: resumeUrl })
+				} else if (current === ENTRY_ROUTE || !current) {
+					uni.reLaunch({ url: WORKSPACE_URL })
+				}
 				return
 			}
 
 			const lastShareId = getLastShareId()
 			if (lastShareId) {
-				if (route !== SHARED_CASE_ROUTE) uni.reLaunch({ url: buildSharedCasePath(lastShareId) })
+				if (current !== SHARED_CASE_ROUTE) uni.reLaunch({ url: buildSharedCasePath(lastShareId) })
 				return
 			}
 
-			if (route !== 'pages/login/login') uni.reLaunch({ url: LOGIN_URL })
+			if (current !== 'pages/login/login') uni.reLaunch({ url: LOGIN_URL })
+		} catch (error) {
+			if (currentRoute() !== 'pages/login/login') uni.reLaunch({ url: LOGIN_URL })
 		} finally {
 			this.routingEntry = false
 		}

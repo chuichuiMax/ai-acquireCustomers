@@ -79,7 +79,11 @@ async function findEmployeeByAccount(account) {
   const keyword = String(account || '').trim()
   if (!keyword) return null
   try {
-    const data = await request({ url: '/api/employees?keyword=' + encodeURIComponent(keyword) })
+    const data = await request({
+      url: '/api/employees?keyword=' + encodeURIComponent(keyword),
+      timeout: 5000,
+      silentAuth: true
+    })
     const list = (data && data.employees) || []
     for (let index = 0; index < list.length; index += 1) {
       if (matchEmployeeAccount(list[index], keyword)) return list[index]
@@ -88,6 +92,7 @@ async function findEmployeeByAccount(account) {
     return null
   } catch (error) {
     if (isMissingApi(error) || (error && (error.statusCode === 401 || error.statusCode === 403))) return null
+    if (error && error.statusCode === 408) return null
     throw error
   }
 }
@@ -199,7 +204,9 @@ export const mpAuthApi = {
 
 function canUsePasswordIdentity(error) {
   const status = error && error.statusCode
-  return status === 401 || status === 403 || status === 404 || status === 405
+  if (status === 401 || status === 403 || status === 404 || status === 405 || status === 408) return true
+  const errMsg = String((error && (error.errMsg || error.message)) || '')
+  return /timeout|fail|网络/i.test(errMsg)
 }
 
 async function loadFirstIdentity(urls) {
@@ -207,7 +214,11 @@ async function loadFirstIdentity(urls) {
   let fallback = null
   for (let index = 0; index < urls.length; index += 1) {
     try {
-      const data = await request({ url: urls[index] })
+      const data = await request({
+        url: urls[index],
+        timeout: 5000,
+        silentAuth: true
+      })
       if (hasMiniProgramAccess(data)) return data
       if (!fallback) fallback = data
     } catch (error) {

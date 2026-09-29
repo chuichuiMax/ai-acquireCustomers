@@ -57,10 +57,12 @@ test('app stays on current workspace page after unlock and only restores generat
   const locked = readFileSync(resolve(import.meta.dirname, '../pages/generate/locked.vue'), 'utf8')
   const entry = readFileSync(resolve(import.meta.dirname, '../pages/index/index.vue'), 'utf8')
 
-  assert.match(app, /resolveAllowedShowUrl\(route, getActiveGeneration\(\)\)/)
+  assert.match(app, /resolveAllowedShowUrl\(route, getActiveGeneration\(\)\)|resolveAllowedShowUrl\(current, getActiveGeneration\(\)\)/)
   assert.doesNotMatch(app, /if \(route !== 'pages\/generate\/generate'\) uni\.reLaunch/)
+  assert.match(app, /routingEntryUntil/)
   assert.match(locked, /saveActiveGeneration\(this\.taskId, this\.serviceEntry\)/)
   assert.match(locked, /clearActiveGeneration\(\)/)
   assert.match(locked, /onShow\(\) \{/)
   assert.doesNotMatch(entry, /enterInternalWorkspace\(/)
+  assert.match(entry, /leaveWatchdog/)
 })

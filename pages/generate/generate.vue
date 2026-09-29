@@ -60,12 +60,14 @@
           <view class="field">
             <text class="label"><text class="req">*</text><text class="label-text">外框面积</text></text>
             <view class="field-control">
-              <picker :range="frameAreaLabels" @change="onFrameArea">
-                <view class="picker">
-                  <text class="picker-text" :class="{ placeholder: !formValues['外框面积'] }">{{ formValues['外框面积'] || '请选择外框面积' }}</text>
-                  <text class="picker-arrow">▾</text>
-                </view>
-              </picker>
+              <input
+                :value="formValues['外框面积']"
+                placeholder="请输入外框面积，如 120"
+                placeholder-class="input-placeholder"
+                placeholder-style="color:#b8b0aa;font-size:13px;font-weight:400;"
+                @input="onFrameAreaInput"
+                @blur="onFrameAreaBlur"
+              />
             </view>
           </view>
           <view v-if="quoteSummary.length" class="quote-summary">
@@ -135,32 +137,56 @@
         <view class="cover-actions">
           <view class="cover-action" @click="chooseCover">上传图片</view>
         </view>
-        <text class="block-title">小红书封面模板 *</text>
-        <scroll-view class="templates" scroll-x>
-          <view
-            v-for="item in schema.hycanvas_templates"
-            :key="item.id"
-            class="tpl"
-            :class="{ active: coverTemplateId === item.id }"
-            @click="coverTemplateId = item.id"
-          >
-            <view class="tpl-thumb">
-              <image :src="templateCardSrc(item)" mode="aspectFit" lazy-load />
-            </view>
-            <view class="tpl-preview">
-              <image
-                class="tpl-image"
-                :src="thumbUrl(item.preview_urls && item.preview_urls[0], 360)"
-                mode="aspectFill"
-                lazy-load
-              />
-            </view>
-            <text class="tpl-title">{{ item.title }}</text>
+        <view class="cover-mode-head">
+          <text class="block-title">封面方式 *</text>
+          <view class="cover-mode-tabs">
+            <text
+              class="cover-mode-tab"
+              :class="{ active: coverMode === 'builtin' }"
+              @click="setCoverMode('builtin')"
+            >内置封面</text>
+            <text
+              class="cover-mode-tab"
+              :class="{ active: coverMode === 'ai' }"
+              @click="setCoverMode('ai')"
+            >AI 封面</text>
           </view>
-        </scroll-view>
+        </view>
+        <view v-if="coverMode === 'ai'" class="ai-cover-note">
+          <text class="ai-cover-note-title">使用智能生成封面</text>
+          <text class="ai-cover-note-text">只使用上方选择的封面原图，不叠加模板；生成时由封面 Agent 自动排版标题、副标题和标签。</text>
+        </view>
+        <template v-else>
+          <text class="block-title cover-template-title">小红书封面模板 *</text>
+          <scroll-view class="templates" scroll-x>
+            <view
+              v-for="item in builtinCoverTemplates"
+              :key="item.id"
+              class="tpl"
+              :class="{ active: coverTemplateId === item.id }"
+              @click="coverTemplateId = item.id"
+            >
+              <view class="tpl-thumb">
+                <image :src="templateCardSrc(item)" mode="aspectFit" lazy-load />
+              </view>
+              <view class="tpl-preview">
+                <image
+                  class="tpl-image"
+                  :src="thumbUrl(item.preview_urls && item.preview_urls[0], 360)"
+                  mode="aspectFill"
+                  lazy-load
+                />
+              </view>
+              <text class="tpl-title">{{ item.title }}</text>
+            </view>
+          </scroll-view>
+          <view v-if="!builtinCoverTemplates.length" class="ai-cover-note">
+            <text class="ai-cover-note-text">暂无内置封面模板，可改用 AI 封面，或稍后重试。</text>
+          </view>
+        </template>
         <view v-if="coverPhotoSrc" class="xhs-preview">
           <text class="block-title">小红书封面预览</text>
-          <view class="xhs-pair">
+          <view class="xhs-pair" :class="{ 'xhs-pair-single': coverMode === 'ai' }">
             <view class="xhs-card">
               <view class="xhs-preview-frame">
                 <image
@@ -172,7 +198,7 @@
               </view>
               <text class="xhs-card-label">封面原图</text>
             </view>
-            <view class="xhs-card">
+            <view v-if="coverMode === 'builtin'" class="xhs-card">
               <view class="xhs-preview-frame">
                 <image class="xhs-preview-image" :src="previewPhotoSrc" mode="aspectFill" />
                 <canvas
@@ -330,6 +356,34 @@ function groupRegionNames(names) {
     .map((letter) => ({ letter, items: groups[letter] }))
 }
 
+const FRAME_AREA_BOUNDS = [
+  { value: '50-70㎡', min: 50, max: 70 },
+  { value: '90-110㎡', min: 90, max: 110 },
+  { value: '110-130㎡', min: 110, max: 130 },
+  { value: '130-150㎡', min: 130, max: 150 },
+  { value: '150-200㎡', min: 150, max: 200 },
+  { value: '200-300㎡', min: 200, max: 300 },
+  { value: '300㎡以上', min: 300, max: null }
+]
+
+function matchFrameAreaValue(text) {
+  const raw = String(text || '').trim()
+  const exact = FRAME_AREA_BOUNDS.find((item) => item.value === raw)
+  if (exact) return exact.value
+  const matched = raw.match(/^(\d+(?:\.\d+)?)\s*(㎡|m²|m2|平米|平)?$/i)
+  if (!matched) return ''
+  const number = Number(matched[1])
+  if (!isFinite(number)) return ''
+  const hits = FRAME_AREA_BOUNDS.filter((item) => {
+    if (number < item.min) return false
+    if (item.max !== null && number > item.max) return false
+    return true
+  })
+  if (!hits.length) return ''
+  hits.sort((a, b) => b.min - a.min)
+  return hits[0].value
+}
+
 function matchRegionCity(value, tree) {
   const current = String(value || '').trim()
   if (!current) return ''
@@ -399,9 +453,11 @@ export default {
       regionCity: '',
       contentTypeCode: '',
       formValues: {},
+      frameAreaBand: '',
       coverLocal: '',
       coverAssetId: '',
       coverTemplateId: '',
+      coverMode: 'builtin',
       imageItemId: '',
       coverName: '',
       coverCategory: '',
@@ -459,9 +515,6 @@ export default {
         list = this.schema.variables || []
       }
       return this.prioritizeFormFields(list)
-    },
-    frameAreaLabels() {
-      return (this.schema.frame_areas || []).map((item) => item.label)
     },
     quoteVariables() {
       return this.variables.filter((item) => this.isQuoteField(this.fieldName(item)))
@@ -538,6 +591,9 @@ export default {
     selectedTemplate() {
       return (this.schema.hycanvas_templates || []).find((item) => item.id === this.coverTemplateId) || null
     },
+    builtinCoverTemplates() {
+      return (this.schema.hycanvas_templates || []).filter((item) => item && item.zone !== 'featured')
+    },
     selectedTemplateTitle() {
       return (this.selectedTemplate && this.selectedTemplate.title) || ''
     },
@@ -548,6 +604,7 @@ export default {
       return this.previewPhotoLocal || this.coverPhotoSrc
     },
     templateOverlay() {
+      if (this.coverMode !== 'builtin') return { path: '', multiply: false }
       return resolveTemplateOverlay(this.selectedTemplate)
     },
     templateOverlaySrc() {
@@ -603,6 +660,12 @@ export default {
     templateOverlaySrc() {
       this.previewError = ''
       this.queueCoverComposite()
+    },
+    coverMode() {
+      this.previewError = ''
+      this.previewPhotoLocal = ''
+      this.compositeFallback = this.coverMode !== 'builtin'
+      this.queueCoverComposite()
     }
   },
   methods: {
@@ -618,12 +681,28 @@ export default {
     },
     queueCoverComposite() {
       if (!this.coverPhotoSrc) return
+      if (this.coverMode !== 'builtin') {
+        this.compositeFallback = true
+        this.previewError = ''
+        this.previewPhotoLocal = ''
+        return
+      }
       const token = this.compositeToken + 1
       this.compositeToken = token
       this.compositeFallback = false
       this.$nextTick(() => {
         this.drawCoverComposite(token)
       })
+    },
+    setCoverMode(mode) {
+      if (mode !== 'builtin' && mode !== 'ai') return
+      if (this.coverMode === mode) return
+      this.coverMode = mode
+      if (mode === 'ai') {
+        this.coverTemplateId = ''
+      } else if (!this.coverTemplateId && this.builtinCoverTemplates.length) {
+        this.coverTemplateId = this.builtinCoverTemplates[0].id
+      }
     },
     loadLocalImage(src) {
       return new Promise((resolve, reject) => {
@@ -635,19 +714,25 @@ export default {
           resolve(src)
           return
         }
+        const downloadThenResolve = () => {
+          uni.downloadFile({
+            url: src,
+            success: (res) => {
+              if (res.statusCode === 200 && res.tempFilePath) resolve(res.tempFilePath)
+              else reject(new Error('download failed'))
+            },
+            fail: reject
+          })
+        }
+        // 带 access_token 的本地/线上代理图：优先 downloadFile，getImageInfo 在模拟器对 127.0.0.1 更不稳定。
+        if (/^https?:\/\//i.test(src) && /access_token=|\/api\//i.test(src)) {
+          downloadThenResolve()
+          return
+        }
         uni.getImageInfo({
           src,
           success: (info) => resolve((info && info.path) || src),
-          fail: () => {
-            uni.downloadFile({
-              url: src,
-              success: (res) => {
-                if (res.statusCode === 200 && res.tempFilePath) resolve(res.tempFilePath)
-                else reject(new Error('download failed'))
-              },
-              fail: reject
-            })
-          }
+          fail: downloadThenResolve
         })
       })
     },
@@ -916,6 +1001,7 @@ export default {
       this.coverLocal = ''
       this.coverAssetId = ''
       this.coverTemplateId = ''
+      this.coverMode = 'builtin'
       this.clearCover()
       this.closeGallery()
       this.closeRegion()
@@ -972,8 +1058,13 @@ export default {
     applyHycanvasTemplates(templates) {
       const mergedTemplates = mergeCoverTemplates(templates, this.hycanvasTemplateExtras)
       this.schema = { ...this.schema, hycanvas_templates: mergedTemplates }
-      if (!this.coverTemplateId || !mergedTemplates.some((item) => item.id === this.coverTemplateId)) {
-        this.coverTemplateId = mergedTemplates.length ? mergedTemplates[0].id : ''
+      const builtins = mergedTemplates.filter((item) => item && item.zone !== 'featured')
+      if (this.coverMode === 'builtin') {
+        if (!this.coverTemplateId || !builtins.some((item) => item.id === this.coverTemplateId)) {
+          this.coverTemplateId = builtins.length ? builtins[0].id : ''
+        }
+      } else {
+        this.coverTemplateId = ''
       }
     },
     async loadHycanvasTemplates(serviceEntry) {
@@ -992,9 +1083,13 @@ export default {
         this.applyHycanvasTemplates(this.schema.hycanvas_templates || [])
       } catch (error) {}
     },
-    onFrameArea(event) {
-      const item = this.schema.frame_areas[event.detail.value]
-      if (!item) return
+    matchFrameArea(text) {
+      const band = matchFrameAreaValue(text)
+      if (!band) return null
+      const areas = this.schema.frame_areas || []
+      return areas.find((item) => item.value === band || item.label === band) || { value: band, quote_choices: {} }
+    },
+    fillFrameAreaQuotes(item) {
       const quotes = {}
       const quoteKeys = this.quoteVariables.map((entry) => this.fieldName(entry)).filter(Boolean)
       for (const key of quoteKeys) {
@@ -1002,7 +1097,45 @@ export default {
         if (!choices.length) continue
         quotes[key] = choices[Math.floor(Math.random() * choices.length)]
       }
-      this.formValues = { ...this.formValues, 外框面积: item.value, ...quotes }
+      return quotes
+    },
+    clearFrameAreaQuotes() {
+      const quotes = {}
+      const quoteKeys = this.quoteVariables.map((entry) => this.fieldName(entry)).filter(Boolean)
+      for (const key of quoteKeys) quotes[key] = ''
+      return quotes
+    },
+    syncFrameAreaQuotes(value, warn) {
+      const item = this.matchFrameArea(value)
+      if (!item) {
+        const quotes = this.frameAreaBand ? this.clearFrameAreaQuotes() : {}
+        this.frameAreaBand = ''
+        this.formValues = { ...this.formValues, 外框面积: value, ...quotes }
+        if (warn && String(value || '').trim()) {
+          uni.showToast({ title: '外框面积不在报价范围内', icon: 'none' })
+        }
+        return
+      }
+      if (item.value === this.frameAreaBand) {
+        this.formValues = { ...this.formValues, 外框面积: value }
+        return
+      }
+      const quotesAlreadyFilled = this.quoteVariables.some((entry) =>
+        String(this.formValues[this.fieldName(entry)] || '').trim()
+      )
+      if (!this.frameAreaBand && quotesAlreadyFilled) {
+        this.frameAreaBand = item.value
+        this.formValues = { ...this.formValues, 外框面积: value }
+        return
+      }
+      this.frameAreaBand = item.value
+      this.formValues = { ...this.formValues, 外框面积: value, ...this.fillFrameAreaQuotes(item) }
+    },
+    onFrameAreaInput(event) {
+      this.syncFrameAreaQuotes(event.detail.value, false)
+    },
+    onFrameAreaBlur(event) {
+      this.syncFrameAreaQuotes(event.detail.value, true)
     },
     onQuoteInput(name, event) {
       this.formValues = { ...this.formValues, [name]: event.detail.value }
@@ -1243,11 +1376,17 @@ export default {
         return
       }
       if (this.isHomeDecor) {
-        for (const label of ['外框面积', '设计风格']) {
-          if (!this.formValues[label]) {
-            uni.showToast({ title: `请选择${label}`, icon: 'none' })
-            return
-          }
+        if (!String(this.formValues['外框面积'] || '').trim()) {
+          uni.showToast({ title: '请填写外框面积', icon: 'none' })
+          return
+        }
+        if (!this.matchFrameArea(this.formValues['外框面积'])) {
+          uni.showToast({ title: '外框面积不在报价范围内', icon: 'none' })
+          return
+        }
+        if (!this.formValues['设计风格']) {
+          uni.showToast({ title: '请选择设计风格', icon: 'none' })
+          return
         }
         for (const item of this.quoteVariables) {
           if (!this.isRequired(item)) continue
@@ -1261,7 +1400,7 @@ export default {
           uni.showToast({ title: '请选择图库图片或上传封面图', icon: 'none' })
           return
         }
-        if (!this.coverTemplateId) {
+        if (this.coverMode === 'builtin' && !this.coverTemplateId) {
           uni.showToast({ title: '请选择小红书封面模板', icon: 'none' })
           return
         }
@@ -1288,7 +1427,9 @@ export default {
           payload.cover_asset_id = coverAssetIds[0]
           payload.cover_asset_ids = coverAssetIds
           payload.image_item_id = this.imageItemId || undefined
-          payload.hycanvas_template_id = this.coverTemplateId || undefined
+          payload.cover_mode = this.coverMode === 'ai' ? 'ai' : 'builtin'
+          payload.hycanvas_template_id =
+            payload.cover_mode === 'builtin' ? this.coverTemplateId || undefined : null
           formValues.cover_asset_ids = coverAssetIds
         }
         const data = await mpContentApi.compileBrief(payload)
@@ -1883,6 +2024,62 @@ input,
   margin-top: 10px;
   height: 132px;
   white-space: nowrap;
+}
+.cover-mode-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+.cover-mode-head .block-title {
+  margin: 0;
+}
+.cover-mode-tabs {
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid #e4ddd8;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.cover-mode-tab {
+  min-width: 72px;
+  padding: 6px 10px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 18px;
+  color: #6f6763;
+  background: #fff;
+}
+.cover-mode-tab.active {
+  color: #fff;
+  background: #BE2D22;
+}
+.cover-template-title {
+  margin-top: 14px;
+}
+.ai-cover-note {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #faf6f3;
+}
+.ai-cover-note-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2b2422;
+  margin-bottom: 4px;
+}
+.ai-cover-note-text {
+  display: block;
+  font-size: 12px;
+  line-height: 18px;
+  color: #6f6763;
+}
+.xhs-pair-single .xhs-card {
+  max-width: 48%;
 }
 .tpl {
   position: relative;

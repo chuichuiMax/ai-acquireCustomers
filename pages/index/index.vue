@@ -6,8 +6,43 @@
 </template>
 
 <script>
+	import { LOGIN_PATH } from '../../utils/internal-access'
+
 	export default {
-		// App.onShow 统一处理普通入口、平台用户工作台和业主最近案例恢复。
+		data() {
+			return {
+				leaveWatchdog: null
+			}
+		},
+		onShow() {
+			// App.onShow 负责正常分流；这里只做兜底，避免一直停在验证文案。
+			this.clearLeaveWatchdog()
+			this.leaveWatchdog = setTimeout(() => {
+				try {
+					const pages = getCurrentPages()
+					const route = pages.length ? pages[pages.length - 1].route : ''
+					if (route === 'pages/index/index') {
+						uni.reLaunch({ url: LOGIN_PATH })
+					}
+				} catch (error) {
+					uni.reLaunch({ url: LOGIN_PATH })
+				}
+			}, 9000)
+		},
+		onHide() {
+			this.clearLeaveWatchdog()
+		},
+		onUnload() {
+			this.clearLeaveWatchdog()
+		},
+		methods: {
+			clearLeaveWatchdog() {
+				if (this.leaveWatchdog) {
+					clearTimeout(this.leaveWatchdog)
+					this.leaveWatchdog = null
+				}
+			}
+		}
 	}
 </script>
 
