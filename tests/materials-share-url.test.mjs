@@ -24,6 +24,13 @@ test('gallery request errors are distinct from an empty gallery list', () => {
   assert.match(page, /案例加载失败/)
 })
 
+test('case page requests enterprise galleries and enterprise gallery items only', () => {
+  const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
+
+  assert.match(page, /mpContentApi\.galleries\('enterprise'\)/)
+  assert.match(page, /mpContentApi\.galleryItems\(galleryId, 'enterprise'\)/)
+})
+
 test('materials views share the space above the tab bar', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
 

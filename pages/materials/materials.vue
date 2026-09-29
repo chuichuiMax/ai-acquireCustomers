@@ -208,7 +208,7 @@ export default {
       this.loadingGalleries = true
       this.galleriesError = false
       try {
-        const data = await mpContentApi.galleries()
+        const data = await mpContentApi.galleries('enterprise')
         this.galleries = data.galleries || []
       } catch (error) {
         this.galleries = []
@@ -225,7 +225,7 @@ export default {
       this.invalidateShareSnapshot()
       this.loadingItems = true
       try {
-        const data = await mpContentApi.galleryItems(galleryId)
+        const data = await mpContentApi.galleryItems(galleryId, 'enterprise')
         this.items = (data.items || []).map((item) => ({ ...item, galleryId }))
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
