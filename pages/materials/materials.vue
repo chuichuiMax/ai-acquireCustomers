@@ -90,27 +90,23 @@
       <view class="share-sheet" @click.stop>
         <view class="sheet-close" @click="closeShareSheet">×</view>
         <text class="sheet-title">分享案例</text>
-        <view v-if="sharePreparing" class="share-preparing">
-          <view class="share-preparing-spinner" />
-          <text>正在准备分享…</text>
-        </view>
-        <view v-else-if="shareSnapshot" class="share-options">
-          <button class="share-option native-share-option" open-type="share">
+        <view class="share-options">
+          <button
+            class="share-option native-share-option"
+            :open-type="shareSnapshot ? 'share' : ''"
+            @click="shareToWechat"
+          >
             <image class="share-channel-icon" src="/static/share-icons/wechat.png" mode="aspectFit" />
             <text>微信</text>
           </button>
           <button
             class="share-option native-share-option"
-            :open-type="isWorkWechatHost() ? 'share' : ''"
+            :open-type="isWorkWechatHost() && shareSnapshot ? 'share' : ''"
             @click="shareToWorkWechat"
           >
             <image class="share-channel-icon" src="/static/share-icons/wecom.png" mode="aspectFit" />
             <text>企业微信</text>
           </button>
-        </view>
-        <view v-else class="share-prepare-error">
-          <text>分享准备失败，请重试</text>
-          <button class="share-retry" @click="prepareShareForSheet">重新准备</button>
         </view>
       </view>
     </view>
@@ -152,7 +148,7 @@ export default {
       loadingItems: false,
       shareSheetVisible: false,
       shareSnapshot: null,
-      sharePreparing: false
+      sharePrepareError: ''
     }
   },
   computed: {
@@ -261,30 +257,38 @@ export default {
         uni.showToast({ title: error.message, icon: 'none' })
       }
     },
-    async openShareSheet() {
-      if (!this.selectedIds.length || !this.activeGallery || this.sharePreparing) return
+    openShareSheet() {
+      if (!this.selectedIds.length || !this.activeGallery) return
       this.shareSheetVisible = true
-      await this.prepareShareForSheet()
+      this.prepareShareForSheet()
     },
     currentShareSelectionKey() {
       return shareSelectionKey(this.activeGalleryId, this.selectedIds)
     },
     invalidateShareSnapshot() {
       this.shareSnapshot = null
+      this.sharePrepareError = ''
       this.hideWechatShareMenu()
     },
     async prepareShareForSheet() {
-      if (!this.selectedIds.length || !this.activeGallery || this.sharePreparing) return false
+      if (!this.selectedIds.length || !this.activeGallery) return false
       const selectionKey = this.currentShareSelectionKey()
       if (this.shareSnapshot?.selectionKey === selectionKey) return true
+      if (this._sharePreparePromise) {
+        const pendingKey = this._sharePrepareKey
+        const result = await this._sharePreparePromise
+        return pendingKey === this.currentShareSelectionKey() ? result : this.prepareShareForSheet()
+      }
 
-      this.sharePreparing = true
       this.shareSnapshot = null
+      this.sharePrepareError = ''
       this.hideWechatShareMenu()
+      this._sharePrepareKey = selectionKey
+      this._sharePreparePromise = this.prepareWechatShare(selectionKey)
       try {
-        return await this.prepareWechatShare(selectionKey)
+        return await this._sharePreparePromise
       } finally {
-        this.sharePreparing = false
+        this._sharePreparePromise = null
       }
     },
     closeShareSheet() {
@@ -308,7 +312,7 @@ export default {
         const cardCoverUrl = publicMediaUrl(
           share.card_cover_url || share.image_url || share.cover_url || share.cover_file_url || ''
         )
-        const coverLocalPath = await this.downloadWechatShareCover(cardCoverUrl)
+        if (!cardCoverUrl) throw new Error('服务端未返回分享封面')
         if (selectionKey !== this.currentShareSelectionKey()) return false
         this.shareSnapshot = {
           ...localSnapshot,
@@ -317,7 +321,6 @@ export default {
           title: share.title || '',
           shareUrl: share.page_url || share.pageUrl || share.url || share.share_url || '',
           coverUrl: cardCoverUrl,
-          coverLocalPath,
           images: localSnapshot.images.map((item, index) => ({
             ...item,
             public_url: index === 0 ? cardCoverUrl : ''
@@ -325,28 +328,26 @@ export default {
         }
         return true
       } catch (error) {
-        uni.showToast({ title: errorMessage(error), icon: 'none' })
+        if (selectionKey === this.currentShareSelectionKey()) this.sharePrepareError = errorMessage(error)
         return false
       }
     },
-    downloadWechatShareCover(url) {
-      if (!url) return Promise.reject(new Error('服务端未返回分享封面'))
-      return new Promise((resolve, reject) => {
-        uni.downloadFile({
-          url,
-          success: (response) => {
-            if (response.statusCode === 200 && response.tempFilePath) {
-              resolve(response.tempFilePath)
-              return
-            }
-            reject(new Error('分享封面下载失败'))
-          },
-          fail: () => reject(new Error('分享封面下载失败，请检查网络或小程序下载合法域名'))
-        })
-      })
+    shareToWechat() {
+      if (this.shareSnapshot) return
+      if (this.sharePrepareError) {
+        uni.showToast({ title: this.sharePrepareError, icon: 'none' })
+      }
+      this.prepareShareForSheet()
     },
     async shareToWorkWechat() {
-      if (this.isWorkWechatHost()) return
+      if (this.isWorkWechatHost()) {
+        this.shareToWechat()
+        return
+      }
+      if (!(await this.prepareShareForSheet())) {
+        uni.showToast({ title: this.sharePrepareError || '分享准备失败，请重试', icon: 'none' })
+        return
+      }
       if (!this.shareSnapshot?.shareUrl) return
       try {
         await new Promise((resolve, reject) => {
@@ -706,46 +707,6 @@ export default {
   color: #332e2a;
   font-size: 13px;
   text-align: center;
-}
-.share-preparing,
-.share-prepare-error {
-  min-height: 96px;
-  margin-top: 28px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #756d67;
-  font-size: 13px;
-}
-.share-preparing-spinner {
-  width: 24px;
-  height: 24px;
-  margin-bottom: 10px;
-  border: 3px solid #d9e7fb;
-  border-top-color: #287cf0;
-  border-radius: 50%;
-  box-sizing: border-box;
-  animation: share-preparing-spin 0.8s linear infinite;
-}
-.share-retry {
-  min-width: 100px;
-  margin-top: 12px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 18px;
-  color: #287cf0;
-  font-size: 13px;
-  line-height: 34px;
-  background: #edf5ff;
-}
-.share-retry::after {
-  border: 0;
-}
-@keyframes share-preparing-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .share-option::after {
   border: 0;

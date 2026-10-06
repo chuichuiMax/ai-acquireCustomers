@@ -126,13 +126,16 @@
           <view
             v-for="item in rootGalleries"
             :key="item.id"
-            class="gallery-card"
+            class="gallery-card gallery-card-scoped"
             :class="{ active: selectedGalleryRootId === item.id }"
             @click="openGallery(item.id)"
           >
             <text class="gallery-name">{{ item.name }}</text>
             <text class="gallery-count">{{ item.count }}张图片素材</text>
             <text v-if="selectedGalleryRootId === item.id" class="gallery-badge">已选择</text>
+            <text class="gallery-scope-badge" :class="{ 'is-enterprise': item.visibility === 'enterprise' }">
+              {{ item.visibility === 'enterprise' ? '企业' : '个人' }}
+            </text>
           </view>
         </view>
         <view class="cover-actions">
@@ -1825,6 +1828,24 @@ export default {
 }
 .gallery-card.active {
   border-color: #BE2D22;
+}
+.gallery-card-scoped {
+  padding-bottom: 34px;
+}
+.gallery-scope-badge {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  padding: 0 6px;
+  border: 1px solid #ead2cf;
+  border-radius: 5px;
+  background: #fff;
+  color: #a95047;
+  font-size: 10px;
+  line-height: 18px;
+}
+.gallery-scope-badge.is-enterprise {
+  background: #f5e5e2;
 }
 .gallery-name {
   display: block;

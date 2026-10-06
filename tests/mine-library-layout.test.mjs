@@ -12,6 +12,12 @@ for (const page of pages) {
     const source = await readFile(new URL(page, import.meta.url), 'utf8')
 
     assert.match(source, /padding:\s*16px\s+(?:12px|16px)\s+calc\(148px \+ env\(safe-area-inset-bottom\)\)/)
-    assert.match(source, /\.actions\s*\{[^}]*bottom:\s*calc\(66px \+ env\(safe-area-inset-bottom\)\)/s)
+    if (page.endsWith('/uploads.vue')) {
+      assert.match(source, /class="actions"\s+:style="\{ bottom: \(53 \+ safeBottom\) \+ 'px' \}"/)
+      assert.match(source, /this\.safeBottom = info\.safeAreaInsets \? info\.safeAreaInsets\.bottom : 0/)
+      assert.match(source, /\.actions\s*\{[^}]*border-radius:\s*12px 12px 0 0;/s)
+    } else {
+      assert.match(source, /\.actions\s*\{[^}]*bottom:\s*calc\(66px \+ env\(safe-area-inset-bottom\)\)/s)
+    }
   })
 }

@@ -56,7 +56,7 @@
         </view>
       </view>
     </view>
-    <view v-if="activeGallery" class="actions">
+    <view v-if="activeGallery" class="actions" :style="{ bottom: (53 + safeBottom) + 'px' }">
       <button v-if="activeGallery.can_upload && !editing" class="button primary" :loading="uploading" @click="chooseImages">上传</button>
       <button v-if="!editing" class="button ghost" @click="editing = true">编辑</button>
       <template v-if="editing">
@@ -87,11 +87,15 @@ export default {
       { id: 'works', name: '我的作品', count: null, can_upload: false }
     ], activeGallery: null, items: [], page: 1, total: 0, loading: false, loadingFolders: false, uploading: false,
     editing: false, selectedIds: createImageSelection(),
-    pendingReload: false,
+    pendingReload: false, safeBottom: 0,
     loadError: '', itemError: '',
     dateFrom: '', dateTo: '', draftDateFrom: '', draftDateTo: '', calendarOpen: false,
     calendarYear: new Date().getFullYear(), calendarMonth: new Date().getMonth() + 1,
     weekDays: ['一', '二', '三', '四', '五', '六', '日'] }
+  },
+  created() {
+    const info = uni.getSystemInfoSync()
+    this.safeBottom = info.safeAreaInsets ? info.safeAreaInsets.bottom : 0
   },
   computed: {
     calendarCells() {
@@ -318,7 +322,7 @@ export default {
 .check { position: absolute; top: 9px; right: 9px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 4px; color: #fff; text-align: center; line-height: 21px; background: rgba(0, 0, 0, .2); }
 .check.selected { border-color: #be2d22; background: #be2d22; }
 .empty { display: block; padding-top: 72px; text-align: center; color: #928781; }
-.actions { position: fixed; z-index: 21; right: 12px; bottom: calc(66px + env(safe-area-inset-bottom)); left: 12px; display: flex; gap: 10px; padding: 10px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(54, 39, 32, .08); }
+.actions { position: fixed; z-index: 21; right: 12px; left: 12px; display: flex; gap: 10px; padding: 10px; background: #fff; border-radius: 12px 12px 0 0; box-shadow: 0 2px 12px rgba(54, 39, 32, .08); }
 .button { flex: 1; height: 40px; line-height: 40px; border-radius: 7px; font-size: 14px; }
 .ghost { color: #be2d22; background: #fff; border: 1px solid #be2d22; }
 .primary, .danger { color: #fff; background: #be2d22; }

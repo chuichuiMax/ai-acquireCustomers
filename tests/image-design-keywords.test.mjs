@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import * as logic from '../utils/image-design-logic.mjs'
 
-const defaults = ['高级质感', '空间合理', '专业空间摄影构图']
+const defaults = ['高级质感', '空间合理', '原图杂物不要显示', '符合装修后实景图', '专业空间摄影构图']
 
 function readyDraft() {
   const draft = {
@@ -36,17 +36,19 @@ function createPage(api = {}) {
   return { instance, toasts }
 }
 
-test('all new workflows receive independent copies of the three default keywords', () => {
+test('all new workflows receive independent copies of the five default keywords in the requested display order', () => {
   const drafts = logic.createImageDesignDrafts()
   for (const draft of Object.values(drafts)) assert.deepEqual(draft.description_keywords, defaults)
   drafts.redesign.description_keywords.pop()
   assert.deepEqual(drafts.adapt.description_keywords, defaults)
   assert.deepEqual(drafts.transfer.description_keywords, defaults)
+  const { instance } = createPage()
+  assert.deepEqual(Array.from(instance.displayDescriptionKeywords), ['专业空间摄影构图', '高级质感', '空间合理', '原图杂物不要显示', '符合装修后实景图'])
 })
 
 test('keywords and text form one canonical description for validation and task submission', () => {
   const draft = readyDraft()
-  const expected = '高级质感、空间合理、专业空间摄影构图。增加阅读角'
+  const expected = '高级质感、空间合理、原图杂物不要显示、符合装修后实景图、专业空间摄影构图。增加阅读角'
   assert.equal(logic.imageDesignDescription(draft), expected)
   assert.equal(logic.buildImageDesignPayload('redesign', draft).description, expected)
   assert.equal(logic.draftCanGenerate('redesign', draft), true)
@@ -85,6 +87,23 @@ test('legacy drafts gain defaults without losing text or retaining stale polish'
   assert.deepEqual(instance.activeDraft.description_keywords, defaults)
   assert.equal(instance.activeDraft.description, '增加阅读角')
   assert.equal(instance.activeDraft.refinement_id, '')
+  const previous = { ...readyDraft(), description_keywords: ['高级质感', '空间合理', '专业空间摄影构图'] }
+  previous.polished_for = logic.imageDesignDescription(previous)
+  instance.applyDrafts({ redesign: previous })
+  assert.deepEqual(instance.activeDraft.description_keywords, defaults)
+  assert.equal(instance.activeDraft.description, '增加阅读角')
+  assert.equal(instance.activeDraft.refinement_id, '')
+})
+
+test('removing the new keywords excludes them from submission and invalidates polish', () => {
+  const { instance } = createPage()
+  instance.drafts.redesign = readyDraft()
+  instance.removeDescriptionKeyword('原图杂物不要显示')
+  instance.removeDescriptionKeyword('符合装修后实景图')
+  assert.deepEqual(instance.activeDraft.description_keywords, ['高级质感', '空间合理', '专业空间摄影构图'])
+  assert.equal(logic.buildImageDesignPayload('redesign', instance.activeDraft).description, '高级质感、空间合理、专业空间摄影构图。增加阅读角')
+  assert.equal(instance.activeDraft.refinement_id, '')
+  assert.equal(logic.draftCanGenerate('redesign', instance.activeDraft), false)
 })
 
 test('custom keyword controls reject blanks and duplicates, preserve edits, and isolate workflows', () => {

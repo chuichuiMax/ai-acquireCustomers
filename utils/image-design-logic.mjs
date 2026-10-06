@@ -43,7 +43,7 @@ export const TRANSFER_ELEMENTS = Object.freeze([
   '开放式层板展示架', '地毯划分沙发区', '壁炉居中'
 ])
 export const MAX_TRANSFER_ELEMENTS = 2
-export const DEFAULT_DESCRIPTION_KEYWORDS = Object.freeze(['高级质感', '空间合理', '专业空间摄影构图'])
+export const DEFAULT_DESCRIPTION_KEYWORDS = Object.freeze(['高级质感', '空间合理', '原图杂物不要显示', '符合装修后实景图', '专业空间摄影构图'])
 
 export function createImageDesignDrafts() {
   return {

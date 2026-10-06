@@ -23,7 +23,8 @@ test('AI cover mode skips template overlay composite', () => {
     page,
     /v-for="item in schema\.hycanvas_templates"/
   )
-  assert.doesNotMatch(page, /loadHycanvasTemplates/)
+  assert.doesNotMatch(page, /this\.loadHycanvasTemplates\(/)
+  assert.doesNotMatch(page, /this\.loadCoverTemplateExtras\(/)
 })
 
 test('AI cover mode does not require Xiaohongshu cover template', () => {
