@@ -138,50 +138,10 @@
         <view class="cover-actions">
           <view class="cover-action" @click="chooseCover">上传图片</view>
         </view>
-        <view class="cover-mode-head">
-          <text class="block-title">封面方式 *</text>
-          <view class="cover-mode-tabs">
-            <text
-              class="cover-mode-tab"
-              :class="{ active: coverMode === 'builtin' }"
-              @click="setCoverMode('builtin')"
-            >内置封面</text>
-            <text
-              class="cover-mode-tab"
-              :class="{ active: coverMode === 'ai' }"
-              @click="setCoverMode('ai')"
-            >AI 封面</text>
-          </view>
-        </view>
-        <view v-if="coverMode === 'ai'" class="ai-cover-note">
+        <view class="ai-cover-note">
           <text class="ai-cover-note-title">使用智能生成封面</text>
           <text class="ai-cover-note-text">只使用上方选择的封面原图，不叠加模板；生成时由封面 Agent 自动排版标题、副标题和标签。</text>
         </view>
-        <template v-else>
-          <text class="block-title cover-template-title">小红书封面模板 *</text>
-          <scroll-view class="templates" scroll-x>
-            <view
-              v-for="item in builtinCoverTemplates"
-              :key="item.id"
-              class="tpl"
-              :class="{ active: coverTemplateId === item.id }"
-              @click="coverTemplateId = item.id"
-            >
-              <view class="tpl-preview">
-                <image
-                  class="tpl-image"
-                  :src="templateCardSrc(item)"
-                  mode="aspectFit"
-                  lazy-load
-                />
-              </view>
-              <text class="tpl-title">{{ item.title }}</text>
-            </view>
-          </scroll-view>
-          <view v-if="!builtinCoverTemplates.length" class="ai-cover-note">
-            <text class="ai-cover-note-text">暂无内置封面模板，可改用 AI 封面，或稍后重试。</text>
-          </view>
-        </template>
         <view v-if="coverPhotoSrc" class="xhs-preview">
           <text class="block-title">小红书封面预览</text>
           <view class="xhs-pair" :class="{ 'xhs-pair-single': coverMode === 'ai' }">
@@ -305,8 +265,8 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
-import { mpContentApi } from '../../apis/mp'
-import { errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
+import { mpContentApi, mpMeApi } from '../../apis/mp'
+import { downloadMediaToTempFile, errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { contentTypeIcon } from '../../utils/generate-content-type-icons'
 import {
@@ -314,6 +274,8 @@ import {
   mergeCoverTemplates,
   preserveOverlayAlpha,
   resolveTemplateOverlay,
+  templateOverlayPreviewFallbackPath,
+  templatePreviewCardPath,
   aspectFillSourceRect,
   clearEdgeConnectedWhiteBackground,
   knockoutWhiteBackground,
@@ -325,6 +287,8 @@ import {
 } from '../../utils/cover-overlay.mjs'
 import { isGalleryItemUsed, loadAllGalleryItems } from '../../utils/gallery-items.mjs'
 import { saveActiveGeneration } from '../../utils/active-generation.mjs'
+import { formatContentRequestJson } from '../../utils/content-request-payload.mjs'
+import { buildDirectProductionSelection, mapNrlxToCtCode } from '../../utils/mp-direct-production.mjs'
 
 const REGION_INITIAL = {
   '芙': 'F', '天': 'T', '岳': 'Y', '开': 'K', '雨': 'Y', '望': 'W', '长': 'C', '浏': 'L', '宁': 'N',
@@ -454,9 +418,10 @@ export default {
       formValues: {},
       frameAreaBand: '',
       coverLocal: '',
+      coverRemoteUrl: '',
       coverAssetId: '',
       coverTemplateId: '',
-      coverMode: 'builtin',
+      coverMode: 'ai',
       imageItemId: '',
       coverName: '',
       coverCategory: '',
@@ -480,7 +445,9 @@ export default {
       previewError: '',
       homeTypeCardSize: null,
       templateThumbnailSources: {},
-      templateThumbnailPending: {}
+      templateThumbnailPending: {},
+      directProduction: null,
+      directProductionLoading: false
     }
   },
   computed: {
@@ -599,7 +566,13 @@ export default {
       return (this.selectedTemplate && this.selectedTemplate.title) || ''
     },
     coverPhotoSrc() {
-      return this.coverLocal || ''
+      return this.coverLocal || this.coverRemoteUrl || ''
+    },
+    templateOverlayFallbackSrc() {
+      if (this.coverMode !== 'builtin') return ''
+      const fallback = templateOverlayPreviewFallbackPath(this.selectedTemplate)
+      const path = preserveOverlayAlpha(fallback.path)
+      return path ? this.mediaUrl(path) : ''
     },
     previewPhotoSrc() {
       return this.previewPhotoLocal || this.coverPhotoSrc
@@ -681,9 +654,7 @@ export default {
     },
     templateCardOriginalSrc(item) {
       if (!item) return ''
-      const overlay = resolveTemplateOverlay(item)
-      const preview = (item.preview_urls && item.preview_urls[0]) || item.preview_url || ''
-      const path = preserveOverlayAlpha((overlay && overlay.path) || preview)
+      const path = preserveOverlayAlpha(templatePreviewCardPath(item))
       return path ? mediaUrl(path, { width: 360 }) : ''
     },
     templateThumbnailKey(item, source) {
@@ -785,14 +756,7 @@ export default {
           return
         }
         const downloadThenResolve = () => {
-          uni.downloadFile({
-            url: src,
-            success: (res) => {
-              if (res.statusCode === 200 && res.tempFilePath) resolve(res.tempFilePath)
-              else reject(new Error('download failed'))
-            },
-            fail: reject
-          })
+          downloadMediaToTempFile(src).then(resolve).catch(reject)
         }
         // 带 access_token 的本地/线上代理图：优先 downloadFile，getImageInfo 在模拟器对 127.0.0.1 更不稳定。
         if (/^https?:\/\//i.test(src) && /access_token=|\/api\//i.test(src)) {
@@ -860,14 +824,27 @@ export default {
             this.previewError = '当前模板没有可用的叠加图，请更换模板'
             return
           }
-          const overlayResult = await this.loadCanvasImage(canvas, overlaySrc)
+          let overlayResult
+          let useDedicatedOverlay = false
+          try {
+            overlayResult = await this.loadCanvasImage(canvas, overlaySrc)
+            useDedicatedOverlay = this.templateHasDedicatedOverlay
+          } catch (overlayError) {
+            const fallbackSrc = this.templateOverlayFallbackSrc
+            if (fallbackSrc && fallbackSrc !== overlaySrc) {
+              overlayResult = await this.loadCanvasImage(canvas, fallbackSrc)
+              useDedicatedOverlay = false
+            } else {
+              throw overlayError
+            }
+          }
           if (token !== this.compositeToken) return
           const overlayImage = overlayResult.image
           ctx.clearRect(0, 0, width, height)
           ctx.globalCompositeOperation = 'source-over'
           const rect = aspectFillSourceRect(photo.width, photo.height, width, height)
           ctx.drawImage(photo, rect.sx, rect.sy, rect.sw, rect.sh, 0, 0, width, height)
-          if (this.templateHasDedicatedOverlay) {
+          if (useDedicatedOverlay) {
             ctx.drawImage(overlayImage, 0, 0, width, height)
             this.compositeFallback = false
             return
@@ -922,26 +899,69 @@ export default {
     typeCardIcon(item) {
       return contentTypeIcon(item)
     },
-    selectContentType(typeCode) {
+    async selectContentType(typeCode) {
       if (!typeCode) {
         uni.showToast({ title: '请选择内容类型', icon: 'none' })
         return
       }
-      this.contentTypeCode = typeCode
       if (this._typeSelectTimer) {
         clearTimeout(this._typeSelectTimer)
         this._typeSelectTimer = null
       }
+      this.contentTypeCode = typeCode
+      this.directProduction = null
+      let directReady = true
+      if (this.isHomeDecor) {
+        directReady = await this.prepareDirectProduction(typeCode)
+        if (!directReady) {
+          this.contentTypeCode = ''
+          return
+        }
+      }
       // 先高亮卡片，再进入业务变量步骤
       this._typeSelectTimer = setTimeout(() => {
-        if (this.schemaLoaded && this.contentTypes.some((item) => item.type_code === this.contentTypeCode)) {
+        if (
+          this.schemaLoaded &&
+          this.contentTypes.some((item) => item.type_code === this.contentTypeCode) &&
+          (!this.isHomeDecor || this.directProduction)
+        ) {
           this.typeStepDone = true
         } else {
           this.contentTypeCode = ''
+          this.directProduction = null
           uni.showToast({ title: '内容类型加载失败，请稍后重试', icon: 'none' })
         }
         this._typeSelectTimer = null
       }, 220)
+    },
+    async prepareDirectProduction(typeCode) {
+      const selected = this.contentTypes.find((item) => item.type_code === typeCode)
+      if (!selected) return false
+      this.directProductionLoading = true
+      try {
+        const ctCode = mapNrlxToCtCode(typeCode, selected.name)
+        if (!ctCode) {
+          uni.showToast({ title: '内容类型无法用于生产', icon: 'none' })
+          return false
+        }
+        const data = await mpContentApi.viralAssets({ content_type_code: ctCode })
+        const selection = buildDirectProductionSelection({
+          typeCode,
+          typeName: selected.name,
+          viralItems: (data && data.items) || []
+        })
+        if (!selection) {
+          uni.showToast({ title: '暂无可用爆款原文，请稍后再试', icon: 'none' })
+          return false
+        }
+        this.directProduction = selection
+        return true
+      } catch (error) {
+        uni.showToast({ title: errorMessage(error), icon: 'none' })
+        return false
+      } finally {
+        this.directProductionLoading = false
+      }
     },
     backToTypeStep() {
       if (this._typeSelectTimer) {
@@ -949,6 +969,7 @@ export default {
         this._typeSelectTimer = null
       }
       this.typeStepDone = false
+      this.directProduction = null
     },
     isQuoteField(name) {
       return ['基础', '木制品', '主材'].includes(name)
@@ -1064,6 +1085,7 @@ export default {
       }
       this.serviceEntry = value
       this.typeStepDone = false
+      this.directProduction = null
       this.contentTypeCode = ''
       this.formValues = {}
       this.photos = []
@@ -1071,7 +1093,7 @@ export default {
       this.coverLocal = ''
       this.coverAssetId = ''
       this.coverTemplateId = ''
-      this.coverMode = 'builtin'
+      this.coverMode = 'ai'
       this.clearCover()
       this.closeGallery()
       this.closeRegion()
@@ -1113,8 +1135,6 @@ export default {
           if (name && next[name] === undefined) next[name] = ''
         }
         this.formValues = next
-        this.loadHycanvasTemplates(serviceEntry)
-        this.loadCoverTemplateExtras(serviceEntry)
         this.loadGalleries()
         this.ensureUploadCategory()
         return true
@@ -1286,6 +1306,7 @@ export default {
     },
     clearCover() {
       this.coverLocal = ''
+      this.coverRemoteUrl = ''
       this.coverAssetId = ''
       this.imageItemId = ''
       this.coverName = ''
@@ -1330,7 +1351,8 @@ export default {
       this.coverName = item.name || item.file_name || ''
       this.coverCategory = item.category_name || (this.activeGallery && this.activeGallery.name) || ''
       this.coverGalleryId = this.galleryId
-      this.coverLocal = this.mediaUrl(item.file_url, { format: 'webp', width: 1080, quality: 80 })
+      this.coverRemoteUrl = this.mediaUrl(item.file_url || item.thumbnail_file_url)
+      this.coverLocal = ''
       this.closeGallery()
     },
     closeRegion() {
@@ -1365,6 +1387,7 @@ export default {
         success: async (res) => {
           const filePath = res.tempFilePaths[0]
           this.coverLocal = filePath
+          this.coverRemoteUrl = ''
           try {
             await this.assertUploadableImage(filePath)
             const uploadPath = await this.prepareUploadImage(filePath)
@@ -1493,6 +1516,21 @@ export default {
           form_values: formValues
         }
         if (this.isHomeDecor) {
+          if (!this.directProduction || !this.directProduction.viralAssetId) {
+            uni.showToast({ title: '创作配置未就绪，请重新选择内容类型', icon: 'none' })
+            return
+          }
+          const selectedType = this.contentTypes.find((item) => item.type_code === this.contentTypeCode)
+          const profile = await mpMeApi.get()
+          payload.user_request = formatContentRequestJson({
+            employee: profile && profile.employee,
+            user: profile || {},
+            contentType: selectedType,
+            businessVariables: formValues
+          })
+          payload.generation_prompt = this.directProduction.generationPrompt
+          payload.creative_style = this.directProduction.creativeStyle || undefined
+          payload.viral_asset_id = this.directProduction.viralAssetId
           const coverAssetIds = this.coverAssetId ? [this.coverAssetId] : []
           payload.content_type_code = this.contentTypeCode
           payload.cover_asset_id = coverAssetIds[0]

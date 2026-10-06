@@ -4,6 +4,30 @@ export function getToken() {
   return uni.getStorageSync(TOKEN_KEY) || ''
 }
 
+export function authMediaHeaders() {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+/** 小程序 Canvas 需本地路径；鉴权图同时带 query token 与 Authorization。 */
+export function downloadMediaToTempFile(url) {
+  return new Promise((resolve, reject) => {
+    if (!url) {
+      reject(new Error('missing url'))
+      return
+    }
+    uni.downloadFile({
+      url,
+      header: authMediaHeaders(),
+      success: (res) => {
+        if (res.statusCode === 200 && res.tempFilePath) resolve(res.tempFilePath)
+        else reject(new Error(`download failed: ${res.statusCode || 'unknown'}`))
+      },
+      fail: reject
+    })
+  })
+}
+
 export function setToken(token) {
   if (token) {
     uni.setStorageSync(TOKEN_KEY, token)

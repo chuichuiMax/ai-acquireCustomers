@@ -11,10 +11,21 @@ import {
   resolveTemplateOverlay,
   shouldPadWhiteType,
   sourceOver,
-  templateOverlayPath
+  templateOverlayPath,
+  templatePreviewCardPath
 } from '../utils/cover-overlay.mjs'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+
+test('template preview cards prefer preview urls over overlay endpoints', () => {
+  assert.equal(
+    templatePreviewCardPath({
+      overlay_url: '/api/mp/content/hycanvas-templates/t1/overlay',
+      preview_urls: ['/api/mp/content/hycanvas-templates/t1/preview']
+    }),
+    '/api/mp/content/hycanvas-templates/t1/preview'
+  )
+})
 
 test('template overlay selection prefers explicit overlay media over template previews', () => {
   const path = templateOverlayPath({

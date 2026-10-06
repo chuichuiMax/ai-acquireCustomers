@@ -298,9 +298,17 @@ export const mpContentApi = {
   getShare: (shareId) =>
     request({ url: `/api/material-library/shares/${encodeURIComponent(shareId)}`, requiresAuth: false }),
   compileBrief: (data) => request({ url: '/api/mp/content/compile-brief', method: 'POST', data }),
+  viralAssets: ({ content_type_code, ready_only = true } = {}) => {
+    const query = []
+    if (content_type_code) query.push(`content_type_code=${encodeURIComponent(content_type_code)}`)
+    if (ready_only) query.push('ready_only=true')
+    return request({ url: `/api/mp/content/viral-assets${query.length ? `?${query.join('&')}` : ''}` })
+  },
   getTask: (taskId) => request({ url: `/api/mp/content/tasks/${taskId}` }),
   startRun: (taskId, data = {}) =>
     request({ url: `/api/mp/content/tasks/${taskId}/runs`, method: 'POST', data }),
+  startDirectRun: (taskId, data = {}) =>
+    request({ url: `/api/mp/content/tasks/${taskId}/direct-generate`, method: 'POST', data }),
   getRun: (runId) => request({ url: `/api/mp/content/runs/${runId}` }),
   resumeRun: (runId, data) =>
     request({ url: `/api/mp/content/runs/${runId}/resume`, method: 'POST', data }),

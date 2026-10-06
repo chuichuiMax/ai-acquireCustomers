@@ -23,7 +23,7 @@ test('login page only exposes one-click login and the employee-only notice', () 
   assert.match(pagesConfig, /"navigationBarTitleText": "登录"/)
 })
 
-test('developer tools and real devices use the test API', () => {
+test('developer tools and real devices use the test API when useTestServer is true', () => {
   const script = config.replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const baseUrl = (platform) =>
     runInNewContext(`${script}\nBASE_URL`, {

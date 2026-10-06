@@ -44,6 +44,7 @@ import { errorMessage } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { clearActiveGeneration, saveActiveGeneration } from '../../utils/active-generation.mjs'
 import { buildGenerationProcess, normalizeRunSnapshot, shouldAutoPassInterrupt } from '../../utils/generation-process.mjs'
+import { isDecorationDirectBrief } from '../../utils/mp-direct-production.mjs'
 
 const MAX_AUTO_RETRY = 5
 
@@ -75,6 +76,7 @@ export default {
       selectedTitleId: '',
       selectedCoverAssetId: '',
       fromManage: false,
+      useDirectRun: false,
       timer: null,
       tickTimer: null,
       startedAt: 0,
@@ -236,6 +238,7 @@ export default {
         const brief = (data.task && data.task.brief) || {}
         const values = brief.form_values || {}
         this.serviceEntry = values.mp_service_entry || this.serviceEntry
+        this.useDirectRun = isDecorationDirectBrief(brief)
         const runId = data.task && data.task.latest_run_id
         const taskStatus = String((data.task && data.task.status) || '').toLowerCase()
         if (runId) {
@@ -260,7 +263,12 @@ export default {
       this.starting = true
       this.markStarted()
       try {
-        const data = await mpContentApi.startRun(this.taskId, {})
+        let data
+        if (this.useDirectRun) {
+          data = await mpContentApi.startDirectRun(this.taskId, {})
+        } else {
+          data = await mpContentApi.startRun(this.taskId, {})
+        }
         this.applyRunSnapshot(data)
         this.poll()
       } catch (error) {

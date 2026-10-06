@@ -103,12 +103,12 @@ test('selecting an available content type does not wait for schema or gallery re
   assert.match(loadSchema[1], /this\.loadGalleries\(\)/)
 })
 
-test('the first-screen schema skips remote HyCanvas templates and loads them in the background', () => {
+test('the first-screen schema skips HyCanvas templates when using AI cover only', () => {
   const loadSchema = page.match(/async loadSchema\(\) \{([\s\S]*?)\r?\n    \},\r?\n    applyHycanvasTemplates/)
 
   assert.ok(loadSchema)
   assert.match(loadSchema[1], /formSchema\(serviceEntry, \{ includeHycanvasTemplates: false \}\)/)
-  assert.match(loadSchema[1], /this\.loadHycanvasTemplates\(serviceEntry\)/)
-  assert.match(loadSchema[1], /this\.loadCoverTemplateExtras\(serviceEntry\)/)
+  assert.doesNotMatch(loadSchema[1], /this\.loadHycanvasTemplates\(serviceEntry\)/)
+  assert.doesNotMatch(loadSchema[1], /this\.loadCoverTemplateExtras\(serviceEntry\)/)
   assert.doesNotMatch(loadSchema[1], /await mpContentApi\.hycanvasTemplates\(/)
 })

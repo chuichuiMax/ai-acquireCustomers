@@ -3,7 +3,7 @@ import { resolveApiBaseUrl } from './utils/api-base-url.mjs'
 const LOCAL_BASE_URL = 'http://127.0.0.1:5050'
 const TEST_BASE_URL = 'http://124.232.148.28:8080'
 const ONLINE_BASE_URL = 'https://ai.hi-run.net'
-// 当前连测试服务器；改回线上把 useTestServer 设为 false。
+// 连测试服时 useTestServer=true；上线改为 false。
 const isDevelopment = true
 const useTestServer = true
 

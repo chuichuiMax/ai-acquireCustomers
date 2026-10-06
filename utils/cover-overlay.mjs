@@ -73,6 +73,19 @@ export function templateOverlayPath(template) {
   return resolved.path
 }
 
+/** 模板横向列表只用 preview/file，避免 overlay 渲染慢或失败导致条带全挂。 */
+export function templatePreviewCardPath(template) {
+  if (!template) return ''
+  const previews = Array.isArray(template.preview_urls) ? template.preview_urls : []
+  return firstOverlayPath(...previews, template.preview_url, template.cover_url, template.file_url)
+}
+
+export function templateOverlayPreviewFallbackPath(template) {
+  const preview = templatePreviewCardPath(template)
+  if (!preview) return { path: '', multiply: false }
+  return { path: preview, multiply: !isPngPath(preview) }
+}
+
 export function resolveTemplateOverlay(template) {
   if (!template) return { path: '', multiply: false }
   const dedicated = dedicatedOverlayPath(template)
