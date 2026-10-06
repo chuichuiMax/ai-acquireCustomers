@@ -2,46 +2,70 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
-
-const componentPath = resolve(import.meta.dirname, '../components/image-design/SaveTargetSheet.vue')
 import { fixedSaveTargetOptions } from '../utils/image-design-logic.mjs'
 
-test('fixed options save only to the PC personal-material root', () => {
-  const options = fixedSaveTargetOptions([
-    { scope: 'private', can_write_root: true, folders: [{ id: 'uncategorized', name: '未分类' }] },
-    { scope: 'enterprise', can_write_root: true, folders: [{ id: 'case', name: '案例图库' }, { id: 'generated', name: '生图图库' }] }
-  ])
-  assert.deepEqual(options.map(({ scope, gallery_id, label, disabled }) => ({ scope, gallery_id, label, disabled })), [
-    { scope: 'private', gallery_id: null, label: '我的素材', disabled: false }
+const component = readFileSync(resolve(import.meta.dirname, '../components/image-design/SaveTargetSheet.vue'), 'utf8')
+const scopes = [
+  { scope: 'private', can_write_root: true, folders: [{ id: 'product', personal_folder: 'generated' }] },
+  { scope: 'enterprise', can_write_root: false, folders: [{ id: 'shared', name: '生图图库', can_write: true }] }
+]
+
+test('both fixed paths carry actual gallery IDs and exact labels', () => {
+  assert.deepEqual(fixedSaveTargetOptions(scopes).map(({ scope, gallery_id, label, disabled }) => ({ scope, gallery_id, label, disabled })), [
+    { scope: 'private', gallery_id: 'product', label: '我的素材/AI生图图库', disabled: false },
+    { scope: 'enterprise', gallery_id: 'shared', label: '企业共享 / 生图图库', disabled: false }
   ])
 })
 
-test('the personal root must be explicitly writable', () => {
-  assert.equal(fixedSaveTargetOptions([])[0].disabled, true)
-  assert.equal(fixedSaveTargetOptions([{ scope: 'private', can_write_root: false, folders: [] }])[0].disabled, true)
-  assert.equal(fixedSaveTargetOptions([{ scope: 'enterprise', can_write_root: true, folders: [] }])[0].disabled, true)
+test('missing, nonwritable and ambiguous galleries are unavailable', () => {
+  assert.ok(fixedSaveTargetOptions([]).every(option => option.disabled))
+  assert.equal(fixedSaveTargetOptions([{ ...scopes[0], can_write_root: false }])[0].disabled, true)
+  for (const folders of [[], [{ id: 'a', name: '生图图库' }], [
+    { id: 'a', name: '生图图库', can_write: true }, { id: 'b', name: '生图图库', can_write: true }
+  ], [{ id: 'a', name: '生图图库', parent_id: 'nested', can_write: true }]]) {
+    assert.equal(fixedSaveTargetOptions([{ scope: 'enterprise', folders }])[1].disabled, true)
+  }
+  assert.equal(fixedSaveTargetOptions([{ ...scopes[1], error: '图库不可用' }])[1].hint, '图库不可用')
 })
 
-test('dropdown refuses disabled selections and immediately emits only a fixed target', () => {
-  const component = readFileSync(componentPath, 'utf8')
+function pickerVm() {
   const script = component.match(/<script>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '').replace('export default', 'return')
   const definition = new Function('fixedSaveTargetOptions', script)(fixedSaveTargetOptions)
   const emitted = []
-  const vm = { scopes: [{ scope: 'private', can_write_root: false, folders: [] }], value: null, $emit: (...args) => emitted.push(args) }
+  const vm = { scopes, value: { scope: 'private', gallery_id: 'product' }, loading: false, error: '', $emit: (...args) => emitted.push(args) }
   for (const [name, method] of Object.entries(definition.methods)) vm[name] = method.bind(vm)
   for (const [name, getter] of Object.entries(definition.computed)) Object.defineProperty(vm, name, { get: getter.bind(vm) })
-  vm.selectOption(vm.options[0])
-  assert.deepEqual(emitted, [])
-  vm.scopes = [{ scope: 'private', can_write_root: true, folders: [] }]
-  vm.selectOption(vm.options[0])
-  assert.deepEqual(emitted, [['confirm', { scope: 'private', gallery_id: null }]])
+  return { vm, emitted }
+}
+
+test('native wheel confirmation commits the selected target and cancel preserves the value', () => {
+  const { vm, emitted } = pickerVm()
+  assert.equal(vm.selectedIndex, 0)
+  vm.cancelSelection()
+  assert.deepEqual(emitted, [['cancel']])
+  assert.deepEqual(vm.value, { scope: 'private', gallery_id: 'product' })
+  vm.confirmSelection({ detail: { value: '1' } })
+  assert.deepEqual(emitted[1], ['confirm', { scope: 'enterprise', gallery_id: 'shared' }])
+  vm.value = { scope: 'enterprise', gallery_id: 'shared' }
+  assert.equal(vm.selectedIndex, 1)
 })
 
-test('save target picker is an inline dropdown without a full-screen selection page', () => {
-  const component = readFileSync(componentPath, 'utf8')
-  assert.match(component, /class="save-target-popover"/)
-  assert.match(component, /class="save-target-backdrop" @click="close"/)
-  assert.doesNotMatch(component, /class="save-target-layer"/)
-  assert.doesNotMatch(component, /选择保存位置<\/text>/)
-  assert.doesNotMatch(component, /<button[^>]*>确定<\/button>/)
+test('selecting an unavailable option reports the reason without a confirm event', () => {
+  const { vm, emitted } = pickerVm()
+  vm.scopes = [scopes[0], { scope: 'enterprise', folders: [], error: '尚未配置' }]
+  vm.confirmSelection({ detail: { value: '1' } })
+  assert.deepEqual(emitted, [['unavailable', '尚未配置']])
+  assert.deepEqual(vm.value, { scope: 'private', gallery_id: 'product' })
+  vm.loading = true
+  vm.confirmSelection({ detail: { value: '0' } })
+  assert.equal(emitted.length, 1)
+})
+
+test('save path uses the native bottom selector with a trigger slot', () => {
+  assert.match(component, /<picker mode="selector"/)
+  assert.match(component, /:range="pickerLabels"/)
+  assert.match(component, /@change="confirmSelection"/)
+  assert.match(component, /@cancel="cancelSelection"/)
+  assert.match(component, /<slot/)
+  assert.doesNotMatch(component, /save-target-popover/)
 })

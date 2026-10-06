@@ -113,24 +113,24 @@
 
 ### `GET /api/mp/image-design/save-targets`
 
-只返回“我的素材”和“企业共享 / 生图图库”两个保存位置，与输入图片的源图库浏览独立：
+返回“我的素材/AI生图图库”和“企业共享 / 生图图库”两个固定保存位置。三个工作流共用原生底部滚动选择框，点击确定才更新账号级路径，取消保持原选择：
 
 ```json
 {
   "scopes": [
     { "scope": "private", "label": "我的素材", "can_write_root": true,
-      "folders": [] },
-    { "scope": "enterprise", "label": "企业共享", "can_write_root": false, "error": "",
-      "folders": [{ "id": "existing-generated-gallery-id", "name": "生图图库", "path": "生图图库", "parent_id": null }] }
+      "folders": [{ "id": "existing-personal-gallery-id", "name": "AI生图图库", "personal_folder": "generated" }] },
+    { "scope": "enterprise", "label": "企业共享", "can_write_root": false, "error": null,
+      "folders": [{ "id": "existing-generated-gallery-id", "name": "生图图库", "can_write": true, "image_design_role": "generated" }] }
   ]
 }
 ```
 
-新草稿和任务使用 `save_target`：个人为 `{ "scope": "private", "gallery_id": null }`；企业为 `{ "scope": "enterprise", "gallery_id": "existing-generated-gallery-id" }`。旧草稿中的其他文件夹和企业根目录不再允许提交，须重新选择。
+新草稿和任务使用 `save_target`：个人为 `{ "scope": "private", "gallery_id": "existing-personal-gallery-id" }`；企业为 `{ "scope": "enterprise", "gallery_id": "existing-generated-gallery-id" }`。个人必须是当前用户实际 AI生图图库，企业必须是接口返回的实际生图图库；不会跨范围重定向。旧个人根目录草稿（空 ID 或 `private-root`）转换为实际个人 AI 图库，其他失效路径须重新选择。
 
-个人根目录使用独立内部分类 `private-root`，PC 根页直接展示其中图片；保留 `uncategorized` 文件夹及普通历史素材。访问个人根目录时，仅将明确记录 `source=image_design`、`resolved_save_target={scope:private,gallery_id:null}` 的旧根目录生成结果从 `uncategorized` 迁移，并同步引用中的分类。其他素材不移动。迁移后的记录、新生成记录和用户主动移动的记录标记 `save_target_version=2`，避免之后再次迁移或撤销用户主动移动。
+复用已有个人 AI生图图库的 ID（包括名为 AI生图图库的旧 `product`）；`product/产品商品` 不属于 AI 图库，原名称、ID 和图片保留。没有 AI 图库时按用户补建独立实体 `mp-generated-private`，不改造产品商品。历史 `private-root`/`uncategorized` 中有明确生成来源的个人图片继续可读，不批量搬动历史图片。
 
-企业选项绑定当前唯一、有效、顶层且名为“生图图库”的企业图片图库；没有或重名时该选项禁用并返回原因，不创建替代图库。后端任务入口和 worker 均校验固定目标，小程序新任务携带内部 `mp_fixed_target` 标记；目标失效必须报错，不能回退企业根目录。PC 通用文件夹管理仍保持原有能力。
+企业选项绑定当前唯一、有效且顶层的企业图片图库：角色为 `generated`，或未设角色且名称为“生图图库”。缺失或多个候选时返回空 folders 和 error，前端显示暂不可用，选择时说明原因并保留原路径，不创建替代图库。后端任务入口和 worker 均校验固定目标，小程序新任务携带内部 `mp_fixed_target` 标记；目标失效报错，不回退根目录或个人图库。生成素材及生图库引用在同一事务中保存，重试保留已有落点且不重复入库。PC 通用文件夹管理保持原有能力。
 
 ## 异步生成
 

@@ -23,7 +23,7 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
-import { mpImageApi } from '../../apis/mp'
+import { mpImageApi, mpContentApi } from '../../apis/mp'
 import { errorMessage, mediaUrl } from '../../utils/request'
 import { createImageSelection, formatUploadTime, toggleImageSelection } from '../../utils/mine-library-logic.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
@@ -83,7 +83,10 @@ export default {
         content: `确定从“我的作品”中移除 ${this.selectedIds.length} 张图片吗？生成记录将保留。`,
         success: async ({ confirm }) => {
           if (!confirm) return
-          const results = await Promise.allSettled(this.selectedIds.map((id) => mpImageApi.hideWork(id)))
+          const results = await Promise.allSettled(this.selectedIds.map((id) => {
+            const item = this.items.find((row) => row.id === id)
+            return item?.work_asset_id ? mpImageApi.hideWork(item.work_asset_id) : mpContentApi.deleteGalleryItem(id)
+          }))
           const failed = results.filter((result) => result.status === 'rejected')
           this.cancelEdit()
           await this.load(true)
