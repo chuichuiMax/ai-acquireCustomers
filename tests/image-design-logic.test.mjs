@@ -295,7 +295,14 @@ test('a generation payload sends transfer addons as an array', () => {
   assert.deepEqual(buildImageDesignPayload('transfer', draft).extra_element, ['落地窗旁休闲躺椅', '壁炉居中'])
 })
 
-test('legacy enterprise save targets are cleared after personal-root migration', () => {
+test('legacy private root drafts resolve to the actual personal generated gallery', () => {
+  const scopes = [{ scope: 'private', can_write_root: true, folders: [{ id: 'actual-generated', personal_folder: 'generated' }] }]
+  const drafts = normalizeImageDesignDrafts({ redesign: { save_target: { scope: 'private', gallery_id: null } } }, scopes)
+  assert.deepEqual(drafts.redesign.save_target, { scope: 'private', gallery_id: 'actual-generated' })
+  assert.deepEqual(normalizeImageDesignDrafts(drafts, scopes).redesign.save_target, drafts.redesign.save_target)
+})
+
+test('legacy enterprise save targets are cleared after personal gallery migration', () => {
   const scopes = [{ scope: 'private', label: '我的素材', can_write_root: true, folders: [] }]
   const drafts = normalizeImageDesignDrafts({ redesign: { save_target_id: 'legacy-folder' }, adapt: { save_target_id: 'missing' } }, scopes)
   assert.equal(drafts.redesign.save_target, null)
@@ -303,4 +310,19 @@ test('legacy enterprise save targets are cleared after personal-root migration',
   assert.equal('save_target_id' in drafts.redesign, false)
   assert.equal(saveTargetLabel(drafts.redesign.save_target, scopes), '')
   assert.equal(normalizeSaveTarget({ scope: 'invalid', gallery_id: 'x' }), null)
+})
+
+test('enterprise drafts retain their actual target across all three workflows', () => {
+  const scopes = [{ scope: 'enterprise', folders: [{ id: 'shared-real', name: '生图图库', can_write: true }] }]
+  const received = Object.fromEntries(['redesign', 'adapt', 'transfer'].map(workflow => [workflow, { save_target: { scope: 'enterprise', gallery_id: 'shared-real' } }]))
+  const drafts = normalizeImageDesignDrafts(received, scopes)
+  for (const draft of Object.values(drafts)) assert.deepEqual(draft.save_target, { scope: 'enterprise', gallery_id: 'shared-real' })
+  const unavailable = normalizeImageDesignDrafts(received, [{ scope: 'enterprise', folders: [], error: '重复图库' }])
+  for (const draft of Object.values(unavailable)) assert.equal(draft.save_target, null)
+})
+
+test('explicit legacy private-root resolves to the real AI gallery', () => {
+  const scopes = [{ scope: 'private', can_write_root: true, folders: [{ id: 'ai-real', personal_folder: 'generated' }] }]
+  const drafts = normalizeImageDesignDrafts({ transfer: { save_target: { scope: 'private', gallery_id: 'private-root' } } }, scopes)
+  assert.deepEqual(drafts.transfer.save_target, { scope: 'private', gallery_id: 'ai-real' })
 })

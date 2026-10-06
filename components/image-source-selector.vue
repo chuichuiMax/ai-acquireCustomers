@@ -57,9 +57,10 @@ export default {
 
 <style scoped>
 .image-source-selector { margin-top: 14px; }
-.source-tabs { display: flex; align-items: center; gap: 8px; height: 38px; }
-.source-tab { min-width: 96px; height: 38px; box-sizing: border-box; padding: 0 13px; border: 1px solid #d8d0ca; border-radius: 19px; color: #8a817c; font-size: 15px; line-height: 36px; text-align: center; background: #fff; }
-.source-tab.active { border-color: #be2d22; color: #fff; font-weight: 700; background: #be2d22; }
+.source-tabs { display: flex; align-items: center; gap: 8px; height: 38px; border-bottom: 1px solid #eee8e3; }
+.source-tab { position: relative; min-width: 96px; height: 38px; box-sizing: border-box; padding: 0 13px; color: #8a817c; font-size: 15px; line-height: 38px; text-align: center; }
+.source-tab.active { color: #be2d22; font-weight: 700; }
+.source-tab.active::after { position: absolute; bottom: -1px; left: 50%; width: 28px; height: 3px; border-radius: 2px; background: #be2d22; transform: translateX(-50%); content: ''; }
 .source-entry-scroll { width: 100%; margin-top: 14px; white-space: nowrap; }
 .source-entry-row { display: inline-flex; align-items: flex-start; gap: 12px; padding: 10px 4px 8px; }
 .source-entry { flex: none; width: 100px; text-align: center; }

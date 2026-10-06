@@ -1,6 +1,5 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
-    <view v-if="libraryNotice" class="library-notice">{{ libraryNotice }}</view>
     <view v-if="loadError && !activeGallery" class="library-error" @click="loadGalleries">{{ loadError }}，点击重试</view>
     <view v-if="activeGallery" class="back" @click="backGallery">‹ 返回我的素材</view>
     <view v-if="!activeGallery" class="folder-grid">
@@ -53,7 +52,7 @@
           <image class="image" :src="imageUrl(item)" mode="aspectFill" lazy-load />
           <view v-if="editing && item.can_manage" class="check" :class="{ selected: selectedIds.includes(item.id) }">{{ selectedIds.includes(item.id) ? '✓' : '' }}</view>
           <text v-if="activeGallery.id !== 'generated'" class="image-detail">文件名称：{{ item.file_name || '-' }}</text>
-          <text class="image-detail">上传时间：{{ formatUploadTime(item.uploaded_at || (legacyMode ? item.created_at : '')) }}</text>
+          <text class="image-detail">上传时间：{{ formatUploadTime(item.uploaded_at || item.created_at) }}</text>
         </view>
       </view>
     </view>
@@ -74,9 +73,7 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi, mpImageApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { galleryCoverPath } from '../../utils/materials-logic.mjs'
-import { createImageSelection, formatUploadTime, nextDateRangeSelection, toggleImageSelection, uploadDateKey } from '../../utils/mine-library-logic.mjs'
-import { legacyFolderCount, legacyMaterialSources, mergeLegacyMaterialItems } from '../../utils/my-materials-compat.mjs'
-import { loadAllGalleryItems } from '../../utils/gallery-items.mjs'
+import { createImageSelection, formatUploadTime, nextDateRangeSelection, toggleImageSelection } from '../../utils/mine-library-logic.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
@@ -85,13 +82,13 @@ export default {
   data() {
     return { galleries: [
       { id: 'rough', name: '毛坯房图库', count: null, can_upload: true },
-      { id: 'generated', name: '生图图库', count: null, can_upload: false },
+      { id: 'generated', name: 'AI生图图库', count: null, can_upload: false },
       { id: 'uploads', name: '我的上传', count: null, can_upload: true },
       { id: 'works', name: '我的作品', count: null, can_upload: false }
     ], activeGallery: null, items: [], page: 1, total: 0, loading: false, loadingFolders: false, uploading: false,
-    editing: false, selectedIds: createImageSelection(), legacyMode: false, legacySources: {},
+    editing: false, selectedIds: createImageSelection(),
     pendingReload: false,
-    legacyAllItems: [], libraryNotice: '', loadError: '', itemError: '',
+    loadError: '', itemError: '',
     dateFrom: '', dateTo: '', draftDateFrom: '', draftDateTo: '', calendarOpen: false,
     calendarYear: new Date().getFullYear(), calendarMonth: new Date().getMonth() + 1,
     weekDays: ['一', '二', '三', '四', '五', '六', '日'] }
@@ -120,56 +117,19 @@ export default {
       if (this.loadingFolders) return
       this.loadingFolders = true
       this.loadError = ''
-      this.libraryNotice = ''
-      this.legacyMode = false
-      this.legacySources = {}
       this.galleries = this.galleries.map((gallery) => ({
         ...gallery, count: null, cover_thumbnail_file_url: null, cover_file_url: null
       }))
       try {
         const data = await mpContentApi.myMaterialFolders()
         const folders = data?.folders
-        const byId = new Map(Array.isArray(folders) ? folders.map((folder) => [folder.id, folder]) : [])
-        const invalid = byId.size !== this.galleries.length || this.galleries.some((gallery) => {
-          const count = byId.get(gallery.id)?.count
-          return !Number.isInteger(count) || count < 0
-        })
-        if (invalid) this.loadError = '图库返回数据不完整'
-        else this.galleries = this.galleries.map((gallery) => ({
-          ...gallery,
-          count: byId.get(gallery.id).count,
-          cover_thumbnail_file_url: byId.get(gallery.id).cover_thumbnail_file_url,
-          cover_file_url: byId.get(gallery.id).cover_file_url
-        }))
-      } catch (error) {
-        if (error?.statusCode === 404) {
-          try {
-            const data = await mpContentApi.galleries()
-            this.legacySources = legacyMaterialSources(data.galleries)
-            const root = await mpContentApi.galleryItems('private-root', 'private', { page: 1, page_size: 1 }).catch(() => null)
-            const privateRoot = this.legacySources.uploads.find((item) => item.id === 'private-root')
-            if (privateRoot && root && Number.isFinite(Number(root.total))) privateRoot.count = Number(root.total)
-            this.legacyMode = true
-            this.libraryNotice = '线上图库服务尚未更新，当前显示可读取的旧图库；共享图片需完成服务更新和历史整理。'
-            this.galleries = this.galleries.map((gallery) => ({ ...gallery,
-              count: gallery.id === 'works' ? gallery.count : legacyFolderCount(this.legacySources[gallery.id] || [])
-            }))
-          } catch (legacyError) {
-            this.loadError = `图库加载失败：${errorMessage(legacyError)}`
-          }
+        if (!Array.isArray(folders) || folders.some((folder) => !Number.isInteger(folder.count) || folder.count < 0)) {
+          this.loadError = '图库返回数据不完整'
         } else {
-          this.loadError = `图库加载失败：${errorMessage(error)}`
+          this.galleries = folders
         }
-      }
-      if (this.legacyMode) {
-        try {
-          const works = await mpImageApi.works({ page: 1, page_size: 1 })
-          const count = Number(works.total)
-          this.galleries = this.galleries.map((gallery) => gallery.id === 'works'
-            ? { ...gallery, count: Number.isInteger(count) && count >= 0 ? count : null } : gallery)
-        } catch (error) {
-          this.galleries = this.galleries.map((gallery) => gallery.id === 'works' ? { ...gallery, count: null } : gallery)
-        }
+      } catch (error) {
+        this.loadError = `图库加载失败：${errorMessage(error)}`
       }
       this.loadingFolders = false
     },
@@ -197,32 +157,9 @@ export default {
       this.loading = true
       this.itemError = ''
       try {
-        if (this.legacyMode) {
-          if (reset) {
-            const sources = this.legacySources[this.activeGallery.id] || []
-            if (!sources.length) {
-              this.itemError = '线上旧图库暂未提供这个分类'
-              return
-            }
-            const responses = await Promise.allSettled(sources.map((source) => loadAllGalleryItems((params) =>
-              mpContentApi.galleryItems(source.id, source.scope, params))))
-            const successful = responses.filter((result) => result.status === 'fulfilled')
-            if (!successful.length && responses.length) throw responses[0].reason
-            this.legacyAllItems = mergeLegacyMaterialItems(successful.map((result) => result.value))
-            if (successful.length !== responses.length) this.itemError = '部分图片加载失败'
-          }
-          const filtered = this.dateFrom && this.dateTo
-            ? this.legacyAllItems.filter((item) => {
-              const day = uploadDateKey(item.uploaded_at || item.created_at)
-              return day >= this.dateFrom && day <= this.dateTo
-            }) : this.legacyAllItems
-          this.total = filtered.length
-          this.items = filtered.slice(0, this.page * 30)
-        } else {
-          const data = await mpContentApi.myMaterialItems(this.activeGallery.id, this.page, 30, this.dateFrom, this.dateTo)
-          this.items = reset ? (data.items || []) : [...this.items, ...(data.items || [])]
-          this.total = data.total || 0
-        }
+        const data = await mpContentApi.myMaterialItems(this.activeGallery.id, this.page, 30, this.dateFrom, this.dateTo)
+        this.items = reset ? (data.items || []) : [...this.items, ...(data.items || [])]
+        this.total = data.total || 0
         this.page += 1
       } catch (error) {
         this.itemError = `图片加载失败：${errorMessage(error)}`
@@ -295,12 +232,6 @@ export default {
     },
     chooseImages() {
       if (!this.activeGallery || this.uploading) return
-      const legacyRough = this.legacyMode && this.activeGallery.id === 'rough'
-        ? (this.legacySources.rough || []).find((item) => item.scope === 'private') : null
-      if (this.legacyMode && this.activeGallery.id === 'rough' && !legacyRough) {
-        uni.showToast({ title: '线上服务未更新，暂不能向毛坯房图库上传', icon: 'none' })
-        return
-      }
       uni.chooseImage({
         count: 9,
         sizeType: ['compressed'],
@@ -309,7 +240,7 @@ export default {
           const results = []
           for (const filePath of tempFilePaths || []) {
             try {
-              await mpContentApi.uploadCover(filePath, legacyRough?.id || 'uncategorized', this.activeGallery.id === 'rough' ? 'rough' : 'uploads')
+              await mpContentApi.uploadCover(filePath, this.activeGallery.gallery_id || 'uncategorized', this.activeGallery.id === 'rough' ? 'rough' : 'uploads')
               results.push(true)
             } catch (error) {
               results.push(false)

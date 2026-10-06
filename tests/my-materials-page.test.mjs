@@ -82,3 +82,27 @@ test('upload and delete reload the first page of the selected folder', async () 
 
   assert.deepEqual(reloads, [true, true])
 })
+
+test('extra superadmin folders remain visible and uploads use their actual gallery ID', async () => {
+  const folders = ['rough', 'uploads', 'generated', 'works', 'super-extra'].map((id) => ({
+    id, gallery_id: `actual-${id}`, name: id, count: 0, can_upload: id === 'super-extra'
+  }))
+  const calls = []
+  let finish
+  const done = new Promise((resolve) => { finish = resolve })
+  const methods = pageMethods({
+    myMaterialFolders: async () => ({ folders }),
+    uploadCover: async (...args) => calls.push(args)
+  }, {
+    chooseImage: ({ success }) => success({ tempFilePaths: ['new.png'] }),
+    showToast: () => finish()
+  })
+  const vm = { galleries: [], loadingFolders: false, loadError: '', uploading: false,
+    loadItems: async () => {}, loadGalleries: async () => {} }
+  await methods.loadGalleries.call(vm)
+  assert.equal(vm.galleries.length, 5)
+  vm.activeGallery = vm.galleries[4]
+  methods.chooseImages.call(vm)
+  await done
+  assert.deepEqual(calls, [['new.png', 'actual-super-extra', 'uploads']])
+})

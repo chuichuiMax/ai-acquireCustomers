@@ -147,7 +147,11 @@ export function normalizeImageDesignDrafts(received, scopes = []) {
     next[key].description_keywords = normalizeDescriptionKeywords(next[key].description_keywords)
     if (next[key].polished_for !== imageDesignDescription(next[key])) next[key] = clearStalePolish(next[key])
     if (key === 'transfer') next[key].extra_element = normalizeTransferElements(next[key].extra_element)
-    const selectedTarget = normalizeSaveTarget(next[key].save_target) || migrateLegacySaveTarget(next[key], scopes)
+    let selectedTarget = normalizeSaveTarget(next[key].save_target) || migrateLegacySaveTarget(next[key], scopes)
+    if (selectedTarget?.scope === 'private' && (!selectedTarget.gallery_id || selectedTarget.gallery_id === 'private-root') && scopes.length) {
+      const generated = scopes.find((scope) => scope.scope === 'private')?.folders?.find((folder) => folder.personal_folder === 'generated')
+      if (generated) selectedTarget = { scope: 'private', gallery_id: generated.id }
+    }
     next[key].save_target = scopes.length && !fixedSaveTargetOptions(scopes).some((option) =>
       !option.disabled && option.scope === selectedTarget?.scope && option.gallery_id === selectedTarget?.gallery_id
     ) ? null : selectedTarget
@@ -225,9 +229,17 @@ export function normalizeSaveTarget(value) {
 
 export function fixedSaveTargetOptions(scopes = []) {
   const personal = scopes.find((scope) => scope.scope === 'private')
+  const personalCandidates = personal?.folders?.filter((folder) => folder.personal_folder === 'generated') || []
+  const generated = personalCandidates.length === 1 ? personalCandidates[0] : null
+  const enterprise = scopes.find((scope) => scope.scope === 'enterprise')
+  const sharedCandidates = enterprise?.folders?.filter((folder) => !folder.parent_id &&
+    (folder.image_design_role === 'generated' || (!folder.image_design_role && folder.name === '生图图库'))) || []
+  const shared = sharedCandidates.length === 1 ? sharedCandidates[0] : null
   return [
-    { scope: 'private', gallery_id: null, label: '我的素材', disabled: !personal?.can_write_root,
-      hint: personal?.can_write_root ? '保存后，企业成员可在生图图库查看' : (personal?.error || '我的素材暂不可用') }
+    { scope: 'private', gallery_id: generated?.id || null, label: '我的素材/AI生图图库', disabled: !generated || !personal.can_write_root,
+      hint: personal?.error || 'AI生图图库暂不可用' },
+    { scope: 'enterprise', gallery_id: shared?.id || null, label: '企业共享 / 生图图库', disabled: !shared || shared.can_write !== true || !!enterprise?.error,
+      hint: enterprise?.error || (sharedCandidates.length > 1 ? '企业生图图库存在多个候选，请联系管理员核对' : '企业生图图库尚未配置或不可写') }
   ]
 }
 
