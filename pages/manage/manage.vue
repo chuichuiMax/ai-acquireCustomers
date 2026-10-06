@@ -21,20 +21,14 @@
         <text class="label">模块类型</text>
         <text class="value">{{ item.service_entry || '-' }}</text>
       </view>
-      <template v-if="item.service_entry === '装修家居'">
-        <view class="row">
-          <text class="label">创作手法</text>
-          <text class="value">{{ item.creation_methods || item.method || '-' }}</text>
-        </view>
-        <view class="row">
-          <text class="label">爆款标题</text>
-          <text class="value">{{ item.viral_title_formula || '-' }}</text>
-        </view>
-        <view class="row">
-          <text class="label">内容公式</text>
-          <text class="value">{{ item.content_formula || item.formula || '-' }}</text>
-        </view>
-      </template>
+      <view class="row">
+        <text class="label">爆款标题</text>
+        <text class="value ellipsis">{{ listTitle(item) }}</text>
+      </view>
+      <view class="row">
+        <text class="label">正文</text>
+        <text class="value ellipsis">{{ listBody(item) }}</text>
+      </view>
       <view class="row">
         <text class="label">状态</text>
         <text class="value" :class="statusClass(item)">{{ displayStatus(item) }}</text>
@@ -74,20 +68,7 @@ import { mpContentApi } from '../../apis/mp'
 import { errorMessage, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { saveActiveGeneration } from '../../utils/active-generation.mjs'
-
-const STATUS_LABELS = {
-  draft: '草稿',
-  brief_ready: '简报完成',
-  strategy_ready: '策略完成',
-  queued: '排队中',
-  running: '排队中',
-  waiting_human: '等待人工',
-  failed: '失败',
-  reviewed: '已审核',
-  review_blocked: '审核阻断',
-  completed: '已完成',
-  cancelled: '已取消'
-}
+import { resolveProductionStatusLabel } from '../../utils/manage-production-status.mjs'
 
 export default {
   components: { TabBar },
@@ -113,35 +94,36 @@ export default {
     statusKey(item) {
       return String((item && item.status) || '').toLowerCase()
     },
+    listTitle(item) {
+      const text = String((item && item.title) || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+      return text || '-'
+    },
+    listBody(item) {
+      const text = String((item && item.body) || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+      return text || '-'
+    },
     displayStatus(item) {
-      const status = this.statusKey(item)
-      if (STATUS_LABELS[status]) return STATUS_LABELS[status]
-      if (item && item.status_label) return item.status_label
-      return status || '-'
+      return resolveProductionStatusLabel(this.statusKey(item))
     },
     statusClass(item) {
-      const status = this.statusKey(item)
-      if (status === 'failed' || status === 'cancelled' || status === 'review_blocked') return 'is-failed'
-      if (status === 'queued' || status === 'running') return 'is-queued'
-      if (status === 'waiting_human') return 'is-waiting'
-      if (status === 'reviewed' || status === 'completed') return 'is-reviewed'
-      if (status === 'draft' || status === 'brief_ready' || status === 'strategy_ready') return 'is-draft'
-      return ''
+      const label = this.displayStatus(item)
+      if (label === '失败') return 'is-failed'
+      if (label === '已审核') return 'is-reviewed'
+      return 'is-queued'
     },
     canRegenerate(item) {
-      const status = this.statusKey(item)
-      const label = `${item && item.status_label ? item.status_label : ''}${this.displayStatus(item)}`
-      if (['draft', 'brief_ready', 'strategy_ready', 'queued', 'failed', 'cancelled'].includes(status)) {
-        return true
-      }
-      return /失败|排队中|草稿/.test(label)
+      const label = this.displayStatus(item)
+      return label === '失败' || label === '排队中'
     },
     taskIdOf(item) {
       return (item && (item.task_id || item.id)) || ''
     },
     canView(item) {
-      const status = this.statusKey(item)
-      return status === 'reviewed' || status === 'completed' || Boolean(item && item.content_code)
+      return this.displayStatus(item) === '已审核' || Boolean(item && item.content_code)
     },
     formatCreatedAt(value) {
       if (!value) return '-'
@@ -238,10 +220,17 @@ export default {
 }
 .value {
   flex: 1;
+  min-width: 0;
   color: #2b2422;
   font-size: 13px;
   line-height: 20px;
   word-break: break-all;
+}
+.value.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: normal;
 }
 .value.muted {
   color: #b8b0aa;
@@ -256,10 +245,7 @@ export default {
   color: #b45309;
 }
 .value.is-reviewed {
-  color: #2f855a;
-}
-.value.is-draft {
-  color: #b45309;
+  color: #2b6cb0;
 }
 .cover-row {
   align-items: center;
