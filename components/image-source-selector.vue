@@ -19,7 +19,7 @@
               lazy-load
             />
             <view class="folder-tab" />
-            <text class="scope-badge">{{ entry.badge }}</text>
+            <text class="scope-badge" :class="{ 'is-enterprise': entry.folder.visibility === 'enterprise' }">{{ entry.badge }}</text>
           </view>
           <text class="entry-label">{{ entry.label }}</text>
         </view>
@@ -69,7 +69,8 @@ export default {
 .yellow-folder::before { position: absolute; z-index: 0; top: -7px; left: 0; width: 40px; height: 14px; -webkit-clip-path: polygon(0 0, 70% 0, 100% 100%, 0 100%); clip-path: polygon(0 0, 70% 0, 100% 100%, 0 100%); border-radius: 6px 0 0 0; background: var(--folder-back-color); content: ''; }
 .folder-preview { position: absolute; z-index: 1; top: 5px; right: 3px; left: 3px; width: auto; height: 45px; border-radius: 4px 4px 5px 5px; background: #f3eee5; }
 .folder-tab { position: absolute; z-index: 2; right: 0; top: 34px; left: 0; height: 30px; border-radius: 6px 7px 8px 8px; background: linear-gradient(180deg, #ffe9a3 0%, #ffdc79 55%, #ffd15a 100%); box-shadow: inset 0 1px 0 rgba(255, 249, 220, .85), inset 0 -2px 0 rgba(235, 168, 28, .22), 0 2px 4px rgba(177, 120, 8, .14); }
-.scope-badge { position: absolute; z-index: 3; right: -7px; bottom: -8px; min-width: 33px; height: 23px; padding: 0 6px; box-sizing: border-box; border: 1px solid #be2d22; border-radius: 12px; color: #fff; font-size: 12px; line-height: 21px; text-align: center; background: #be2d22; }
+.scope-badge { position: absolute; z-index: 3; right: -7px; bottom: -8px; padding: 0 6px; box-sizing: border-box; border: 1px solid #ead2cf; border-radius: 5px; color: #a95047; font-size: 10px; line-height: 18px; text-align: center; background: #fff; }
+.scope-badge.is-enterprise { background: #f5e5e2; }
 .entry-label { display: block; overflow: hidden; color: #302a26; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
 .upload-panel { min-height: 86px; margin-top: 18px; padding: 15px 16px; box-sizing: border-box; display: flex; align-items: center; border: 1px dashed #d2c9c2; border-radius: 8px; background: #faf8f6; }
 .upload-plus { width: 42px; height: 42px; margin-right: 13px; border-radius: 50%; color: #be2d22; font-size: 31px; line-height: 39px; text-align: center; background: #f5e4e1; }

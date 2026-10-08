@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
+import { resolveAllowedShowUrl } from '../utils/active-generation.mjs'
 import {
   LAST_SHARE_MAX_AGE_MS,
   buildSharedCasePath,
@@ -52,4 +54,173 @@ test('app and entry pages keep share routing ahead of workspace routing', () => 
   assert.match(entry, /leaveWatchdog/)
   assert.match(entry, /LOGIN_PATH/)
   assert.match(sharedCase, /saveLastShareId\(this\.shareId\)/)
+})
+
+function loadApp({ route = 'pages/materials/shared-case', shareId = 'case-A', allowed = true, storage = {} } = {}) {
+  const jumps = []
+  let checks = 0
+  let page = { route, options: { shareId } }
+  const context = {
+    resolveAllowedShowUrl,
+    getActiveGeneration: () => storage.mp_active_generation || null,
+    requireInternalAccess: async () => {
+      checks += 1
+      return typeof allowed === 'function' ? allowed() : allowed
+    },
+    getCurrentPages: () => [page],
+    uni: {
+      getStorageSync: (key) => storage[key],
+      setStorageSync: (key, value) => { storage[key] = value },
+      removeStorageSync: (key) => { delete storage[key] },
+      reLaunch: ({ url }) => {
+        jumps.push(url)
+        const [path, query = ''] = url.split('?')
+        page = { route: path.replace(/^\//, ''), options: Object.fromEntries(new URLSearchParams(query)) }
+      }
+    }
+  }
+  const shareSource = readFileSync(resolve(import.meta.dirname, '../utils/share-entry.mjs'), 'utf8')
+    .replace(/export /g, '')
+  const appSource = readFileSync(resolve(import.meta.dirname, '../App.vue'), 'utf8')
+    .match(/<script>([\s\S]*?)<\/script>/)[1]
+    .replace(/^import .*$/gm, '')
+    .replace('export default', 'globalThis.app =')
+  runInNewContext(shareSource, context)
+  runInNewContext(appSource, context)
+  const instance = context.app.data()
+  return { context, instance, jumps, show: (options) => context.app.onShow.call(instance, options), get checks() { return checks } }
+}
+
+for (const scene of [1001, 1089]) {
+  for (const route of ['pages/materials/materials', 'pages/materials/shared-case']) {
+    test(`validated user reopening ${route} through scene ${scene} enters home`, async () => {
+      const app = loadApp({ route })
+      await app.show({ scene, path: route, query: {} })
+      assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+      assert.equal(app.checks, 1)
+    })
+  }
+}
+
+test('a normal case entry ignores retained share parameters after identity validation', async () => {
+  const app = loadApp()
+  await app.show({ scene: 1089, path: 'pages/materials/shared-case', query: { shareId: 'case-A' } })
+  assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+  assert.equal(app.checks, 1)
+})
+
+test('a visitor reopening a viewed case keeps the existing public case behavior', async () => {
+  const app = loadApp({ allowed: false, storage: { last_owner_share: { shareId: 'case-A', savedAt: Date.now() } } })
+  await app.show({ scene: 1089, path: 'pages/materials/shared-case', query: {} })
+  assert.deepEqual(app.jumps, [])
+})
+
+for (const allowed of [true, false]) {
+  test(`a share card keeps its case without internal validation when allowed=${allowed}`, async () => {
+    const app = loadApp({ allowed })
+    await app.show({ scene: 1007, path: 'pages/materials/shared-case', query: { shareId: 'case-A' } })
+    assert.deepEqual(app.jumps, [])
+    assert.equal(app.checks, 0)
+  })
+}
+
+test('a second card opens its own case when the previous case page is still present', async () => {
+  const app = loadApp()
+  await app.show({ scene: 1008, path: 'pages/materials/shared-case', query: { shareId: 'case-B' } })
+  assert.deepEqual(app.jumps, ['/pages/materials/shared-case?shareId=case-B'])
+})
+
+test('an earlier identity check cannot redirect a newer share-card entry', async () => {
+  let finish
+  const app = loadApp({ route: 'pages/materials/materials', allowed: () => new Promise((resolve) => { finish = resolve }) })
+  const previous = app.show({ scene: 1089, query: {} })
+  await app.show({ scene: 1007, query: { shareId: 'case-B' } })
+  finish(true)
+  await previous
+  assert.deepEqual(app.jumps, ['/pages/materials/shared-case?shareId=case-B'])
+})
+
+test('normal entry on a generation page keeps the existing generation behavior', async () => {
+  const app = loadApp({ route: 'pages/generate/locked', storage: { mp_active_generation: { taskId: 'task-9' } } })
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, [])
+})
+
+test('cold neutral entry still restores an active generation task', async () => {
+  const app = loadApp({ route: 'pages/index/index', storage: { mp_active_generation: { taskId: 'task-9' } } })
+  await app.show({ scene: 1089, path: 'pages/index/index', query: {} })
+  assert.deepEqual(app.jumps, ['/pages/generate/locked?task_id=task-9&service_entry='])
+})
+
+test('a visitor with retained share parameters can view the case before recent-share storage exists', async () => {
+  const app = loadApp({ allowed: false })
+  await app.show({ scene: 1089, path: 'pages/materials/shared-case', query: { shareId: 'case-A' } })
+  assert.deepEqual(app.jumps, [])
+})
+
+test('a visitor with no case history uses the existing login entry', async () => {
+  const app = loadApp({ allowed: false, route: 'pages/materials/materials' })
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, ['/pages/login/login'])
+})
+
+test('a cold ordinary entry carrying an old case path enters home after validation', async () => {
+  const app = loadApp({ route: 'pages/index/index' })
+  await app.show({ scene: 1089, path: '/pages/materials/shared-case?shareId=case-A', query: {} })
+  assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+})
+
+test('a validation rejection from an older entry cannot replace a new share card with login', async () => {
+  let fail
+  const app = loadApp({ route: 'pages/materials/materials', allowed: () => new Promise((resolve, reject) => { fail = reject }) })
+  const previous = app.show({ scene: 1089, query: {} })
+  await app.show({ scene: 1044, query: { shareId: 'case-B' } })
+  fail(new Error('old validation failed'))
+  await previous
+  assert.deepEqual(app.jumps, ['/pages/materials/shared-case?shareId=case-B'])
+})
+
+for (const route of ['pages/materials/materials', 'pages/materials/shared-case']) {
+  for (const completeBeforeShow of [true, false]) {
+    test(`preview return on ${route} preserves the page with completeBeforeShow=${completeBeforeShow}`, async () => {
+      const app = loadApp({ route })
+      let nativeOptions
+      app.context.uni.previewImage = (options) => { nativeOptions = options }
+      app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+      app.context.app.onHide.call(app.instance)
+      if (completeBeforeShow) nativeOptions.complete({ errMsg: 'previewImage:ok' })
+      await app.show({ scene: 1089, query: {} })
+      if (!completeBeforeShow) nativeOptions.complete({ errMsg: 'previewImage:ok' })
+      assert.deepEqual(app.jumps, [])
+      assert.equal(app.checks, 0)
+      await app.show({ scene: 1089, query: {} })
+      assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+    })
+  }
+}
+
+test('a cancelled phone operation that never hides the app does not suppress normal entry', async () => {
+  const app = loadApp()
+  app.context.uni.makePhoneCall = (options) => options.complete({ errMsg: 'makePhoneCall:fail cancel' })
+  app.context.openCaseSystemPage('makePhoneCall', { phoneNumber: '19900000001' })
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+})
+
+test('returning from a case phone call preserves the case page', async () => {
+  const app = loadApp()
+  app.context.uni.makePhoneCall = () => {}
+  app.context.openCaseSystemPage('makePhoneCall', { phoneNumber: '19900000001' })
+  app.context.app.onHide.call(app.instance)
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, [])
+})
+
+test('a fresh share card still opens its target after a system operation hid the case page', async () => {
+  const app = loadApp()
+  app.context.uni.previewImage = () => {}
+  app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+  app.context.app.onHide.call(app.instance)
+  await app.show({ scene: 1007, query: { shareId: 'case-B' } })
+  assert.deepEqual(app.jumps, ['/pages/materials/shared-case?shareId=case-B'])
 })

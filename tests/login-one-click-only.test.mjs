@@ -23,9 +23,7 @@ test('login page only exposes one-click login and the employee-only notice', () 
   assert.match(pagesConfig, /"navigationBarTitleText": "登录"/)
 })
 
-test('config points mini program API at test server 124.232.148.28:8080', () => {
-  assert.match(config, /useTestServer = true/)
-
+test('online login uses the HTTPS API in developer tools and on devices', () => {
   const script = config.replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const baseUrl = (platform) =>
     runInNewContext(`${script}\nBASE_URL`, {
@@ -33,9 +31,9 @@ test('config points mini program API at test server 124.232.148.28:8080', () => 
       uni: { getSystemInfoSync: () => ({ platform }) }
     })
 
-  assert.equal(baseUrl('devtools'), 'http://124.232.148.28:8080')
-  assert.equal(baseUrl('android'), 'http://124.232.148.28:8080')
-  assert.equal(baseUrl('ios'), 'http://124.232.148.28:8080')
+  assert.equal(baseUrl('devtools'), 'https://ai.hi-run.net')
+  assert.equal(baseUrl('android'), 'https://ai.hi-run.net')
+  assert.equal(baseUrl('ios'), 'https://ai.hi-run.net')
 })
 
 test('WeChat mini-program login still offers one-click phone authorization', () => {

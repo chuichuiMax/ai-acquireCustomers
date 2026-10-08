@@ -18,7 +18,7 @@
         <view v-else class="cover-placeholder" />
       </view>
 
-      <view v-if="metaItems.length" class="project-card">
+      <view v-if="metaItems.length || caseInfo.sharerPhone" class="project-card">
         <view
           v-for="item in metaItems"
           :key="item.label"
@@ -27,6 +27,10 @@
         >
           <text class="field-label">{{ item.label }}：</text>
           <text class="field-value">{{ item.value }}</text>
+        </view>
+        <view v-if="caseInfo.sharerPhone" class="project-field share-phone" @click="callSharer">
+          <text class="field-label">电话：</text>
+          <text class="field-value">{{ caseInfo.sharerPhone }} {{ caseInfo.sharerName }}</text>
         </view>
       </view>
 
@@ -50,7 +54,7 @@
 import { mpContentApi } from '../../apis/mp'
 import { buildSharedCaseImages, formatArea } from '../../utils/materials-logic.mjs'
 import { errorMessage, publicMediaUrl } from '../../utils/request'
-import { saveLastShareId } from '../../utils/share-entry.mjs'
+import { openCaseSystemPage, saveLastShareId } from '../../utils/share-entry.mjs'
 
 export default {
   data() {
@@ -62,7 +66,9 @@ export default {
         title: '案例分享',
         building: '',
         area: '',
-        style: ''
+        style: '',
+        sharerName: '',
+        sharerPhone: ''
       },
       coverUrl: '',
       coverPreviewUrl: '',
@@ -78,7 +84,7 @@ export default {
           label: '面积',
           value: formatArea(this.caseInfo.area)
         },
-        { label: '风格', value: this.caseInfo.style, wide: true }
+        { label: '风格', value: this.caseInfo.style, wide: !this.caseInfo.sharerPhone }
       ].filter((item) => Boolean(item.value))
     }
   },
@@ -125,7 +131,9 @@ export default {
           title: share.title || share.gallery_name || gallery.name || '案例分享',
           building: share.building_name || share.building || gallery.building_name || gallery.building || '',
           area: share.area || gallery.area || '',
-          style: share.design_style || share.style || gallery.design_style || gallery.style || gallery.style_name || ''
+          style: share.design_style || share.style || gallery.design_style || gallery.style || gallery.style_name || '',
+          sharerName: share.sharer_name || '',
+          sharerPhone: share.sharer_phone || ''
         }
         saveLastShareId(this.shareId)
         uni.setNavigationBarTitle({ title: this.caseInfo.title })
@@ -136,10 +144,13 @@ export default {
         this.loading = false
       }
     },
+    callSharer() {
+      openCaseSystemPage('makePhoneCall', { phoneNumber: this.caseInfo.sharerPhone })
+    },
     previewImage(index) {
       const urls = this.images.map((image) => image.previewUrl)
       if (!urls.length) return
-      uni.previewImage({ current: urls[index], urls })
+      openCaseSystemPage('previewImage', { current: urls[index], urls })
     }
   }
 }
@@ -216,6 +227,16 @@ export default {
 .project-field.wide {
   width: 100%;
   padding-bottom: 0;
+}
+.project-field:nth-child(n + 3) {
+  padding-bottom: 0;
+}
+.share-phone {
+  color: #000;
+  overflow-wrap: anywhere;
+}
+.share-phone:only-child {
+  width: 100%;
 }
 .field-label,
 .field-value {
