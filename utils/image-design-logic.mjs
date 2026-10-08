@@ -11,6 +11,8 @@ export const IMAGE_RATIOS = Object.freeze([
 ])
 
 export const IMAGE_COUNTS = Object.freeze([1, 2, 4])
+export const IMAGE_DESIGN_DEFAULT_COUNT = 1
+export const IMAGE_DESIGN_LEGACY_DEFAULT_COUNT = 2
 export const IMAGE_QUALITIES = Object.freeze([
   Object.freeze({ key: '1k', label: '1K 标清' }),
   Object.freeze({ key: '2k', label: '2K 高清' })
@@ -69,7 +71,7 @@ function createDraft() {
     polished_for: '',
     refinement_id: '',
     ratio: 'portrait',
-    count: 2,
+    count: IMAGE_DESIGN_DEFAULT_COUNT,
     quality: '1k',
     save_target: null
   }
@@ -139,11 +141,29 @@ function clearStalePolish(draft) {
   return { ...draft, polished_prompt: '', polished_for: '', refinement_id: '' }
 }
 
+export function migrateLegacyDefaultImageCount(drafts) {
+  const next = {}
+  for (const key of Object.keys(drafts || {})) {
+    const draft = { ...(drafts[key] || {}) }
+    if (Number(draft.count) === IMAGE_DESIGN_LEGACY_DEFAULT_COUNT) {
+      draft.count = IMAGE_DESIGN_DEFAULT_COUNT
+    }
+    if (!IMAGE_COUNTS.includes(Number(draft.count))) {
+      draft.count = IMAGE_DESIGN_DEFAULT_COUNT
+    }
+    next[key] = draft
+  }
+  return next
+}
+
 export function normalizeImageDesignDrafts(received, scopes = []) {
   const initial = createImageDesignDrafts()
   const next = {}
   Object.keys(initial).forEach((key) => {
     next[key] = { ...initial[key], ...((received && received[key]) || {}) }
+    if (!IMAGE_COUNTS.includes(Number(next[key].count))) {
+      next[key].count = IMAGE_DESIGN_DEFAULT_COUNT
+    }
     next[key].description_keywords = normalizeDescriptionKeywords(next[key].description_keywords)
     if (next[key].polished_for !== imageDesignDescription(next[key])) next[key] = clearStalePolish(next[key])
     if (key === 'transfer') next[key].extra_element = normalizeTransferElements(next[key].extra_element)

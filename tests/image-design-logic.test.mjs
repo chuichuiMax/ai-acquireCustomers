@@ -12,6 +12,7 @@ import {
   normalizeTransferElements,
   imageDesignStyleForPayload,
   isSupportedImageDesignStyle,
+  migrateLegacyDefaultImageCount,
   normalizeImageDesignDrafts,
   normalizeImageSourceFolders,
   normalizeSaveTarget,
@@ -267,7 +268,16 @@ test('a generation payload preserves role mapping and selected image settings', 
   assert.equal('save_target_id' in payload, false)
 })
 
-test('all image design workflows can submit one image while keeping two as the default', () => {
+test('legacy default count 2 migrates to 1', () => {
+  const drafts = createImageDesignDrafts()
+  drafts.redesign.count = 2
+  drafts.adapt.count = 4
+  const migrated = migrateLegacyDefaultImageCount(drafts)
+  assert.equal(migrated.redesign.count, 1)
+  assert.equal(migrated.adapt.count, 4)
+})
+
+test('all image design workflows can submit one image while keeping one as the default', () => {
   assert.deepEqual(IMAGE_COUNTS, [1, 2, 4])
   const drafts = createImageDesignDrafts()
   const images = {
@@ -276,7 +286,7 @@ test('all image design workflows can submit one image while keeping two as the d
     transfer: { reference: { id: 'reference' } }
   }
   for (const workflow of ['redesign', 'adapt', 'transfer']) {
-    assert.equal(drafts[workflow].count, 2)
+    assert.equal(drafts[workflow].count, 1)
     assert.equal(buildImageDesignPayload(workflow, { ...drafts[workflow], ...images[workflow], count: 1 }).count, 1)
   }
 })

@@ -138,6 +138,7 @@ import { internalPageMixin } from '../../utils/internal-access'
 import {
   IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
   buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
+  migrateLegacyDefaultImageCount,
   fixedSaveTargetOptions, imageDesignLibraryDate,
   imageDesignStyleForPayload, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
   imageDesignDescription, restoreImageDesignDraftKeywords, updateImageDesignDraftKeywords,
@@ -145,7 +146,8 @@ import {
   updateImageDesignDraftDescription, updateImageDesignDraftImage, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
-const DRAFT_CACHE_KEY = 'image-design-drafts-v1'
+const DRAFT_CACHE_KEY = 'image-design-drafts-v2'
+const DRAFT_COUNT_MIGRATION_KEY = 'image-design-default-count-v2'
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 export default {
@@ -311,9 +313,26 @@ export default {
     loadCachedDrafts() { try { const raw = uni.getStorageSync(DRAFT_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch (error) { return null } },
     applyDrafts(received) {
       if (!received || typeof received !== 'object') return
-      const drafts = normalizeImageDesignDrafts(received, this.saveTargetScopes)
+      let drafts = normalizeImageDesignDrafts(received, this.saveTargetScopes)
+      const { drafts: migratedDrafts, didMigrate } = this.applyDraftCountMigration(drafts)
+      drafts = migratedDrafts
       Object.keys(drafts).forEach((key) => { drafts[key] = restoreImageDesignDraftKeywords(drafts[key]) })
-      this.drafts = drafts; this.closeKeywordInput()
+      this.drafts = drafts
+      this.closeKeywordInput()
+      if (didMigrate) this.scheduleDraftSave()
+    },
+    applyDraftCountMigration(drafts) {
+      try {
+        if (uni.getStorageSync(DRAFT_COUNT_MIGRATION_KEY)) return { drafts, didMigrate: false }
+      } catch (error) {
+        return { drafts, didMigrate: false }
+      }
+      try {
+        uni.setStorageSync(DRAFT_COUNT_MIGRATION_KEY, '1')
+      } catch (error) {
+        return { drafts, didMigrate: false }
+      }
+      return { drafts: migrateLegacyDefaultImageCount(drafts), didMigrate: true }
     },
     scheduleDraftSave() { if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer); this.draftSaveTimer = setTimeout(() => this.persistDraftsNow(), 700) },
     async persistDraftsNow() {
