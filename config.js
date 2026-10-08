@@ -5,7 +5,7 @@ const TEST_BASE_URL = 'http://124.232.148.28:8080'
 const ONLINE_BASE_URL = 'https://ai.hi-run.net'
 // 连测试服时 useTestServer=true；线上 https://ai.hi-run.net 时 useTestServer=false。
 const isDevelopment = false
-const useTestServer = false
+const useTestServer = true
 
 function currentPlatform() {
   // #ifdef MP-WEIXIN

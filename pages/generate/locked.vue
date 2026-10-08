@@ -1,13 +1,28 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
-    <view v-if="isGenerating" class="card process-card">
-      <text class="phase-title">{{ generationProcess.title }}</text>
-      <text v-for="line in generationProcess.lines" :key="line.id" class="process-line">{{ line.text }}</text>
-      <view v-if="generationProcess.thinking" class="thinking">
-        <view class="spinner"></view>
-        <text>正在思考...</text>
-      </view>
-      <text class="elapsed">已等待 {{ elapsedText }}</text>
+    <view v-if="isGenerating" class="card process-card" :class="{ 'process-card-stream': showDirectStream }">
+      <direct-stream-preview
+        v-if="showDirectStream"
+        :header-text="directStreamHeading"
+        :footer-text="directStreamProgressText"
+        :title="directStream.title"
+        :body="directStream.body"
+        :topics="directStream.topics"
+        :show-header="showDirectStreamHeader"
+        :show-footer="showDirectStreamFooter"
+        :footer-animating="directStreamFooterAnimating"
+        :scroll-top="streamScrollTop"
+        :show-body-placeholder="directStreamShowBodyPlaceholder"
+      />
+      <template v-else>
+        <text class="phase-title">{{ generationProcess.title }}</text>
+        <text v-for="line in generationProcess.lines" :key="line.id" class="process-line">{{ line.text }}</text>
+        <view v-if="generationProcess.thinking" class="thinking">
+          <view class="spinner"></view>
+          <text>正在思考...</text>
+        </view>
+      </template>
+      <text class="elapsed" :class="{ 'elapsed-stream': showDirectStream }">已等待 {{ elapsedText }}</text>
     </view>
     <view v-else class="card">
       <text class="badge">{{ autoRun ? '正在生成内容' : '策略和证据已锁定' }}</text>
@@ -45,6 +60,18 @@ import { internalPageMixin } from '../../utils/internal-access'
 import { clearActiveGeneration, saveActiveGeneration } from '../../utils/active-generation.mjs'
 import { buildGenerationProcess, normalizeRunSnapshot, shouldAutoPassInterrupt } from '../../utils/generation-process.mjs'
 import { isDecorationDirectBrief } from '../../utils/mp-direct-production.mjs'
+import {
+  applyDirectStreamEvent,
+  createDirectStreamState,
+  directStreamHeading,
+  directStreamProgressText,
+  directStreamShowHeader as shouldShowDirectStreamHeader,
+  refreshDirectStreamFromRunEvents,
+  shouldShowDirectStreamUi,
+  unwrapRunEventPayload
+} from '../../utils/direct-stream.mjs'
+import { subscribeMpRunEvents } from '../../utils/mp-run-stream.mjs'
+import DirectStreamPreview from '../../components/direct-stream-preview/direct-stream-preview.vue'
 
 const MAX_AUTO_RETRY = 5
 
@@ -60,6 +87,7 @@ function formatDuration(seconds) {
 
 export default {
   mixins: [internalPageMixin],
+  components: { DirectStreamPreview },
   data() {
     return {
       taskId: '',
@@ -73,6 +101,12 @@ export default {
       interrupt: null,
       runNodes: [],
       runEvents: [],
+      directStream: createDirectStreamState(false),
+      lastEventSeq: '0-0',
+      streamScrollTop: 0,
+      streamScrollTick: 0,
+      streamAbort: null,
+      pollIntervalMs: 2000,
       selectedTitleId: '',
       selectedCoverAssetId: '',
       fromManage: false,
@@ -128,6 +162,35 @@ export default {
     elapsedText() {
       return formatDuration(this.elapsedSeconds)
     },
+    showDirectStream() {
+      return shouldShowDirectStreamUi({
+        isGenerating: this.isGenerating,
+        useDirectRun: this.useDirectRun,
+        directStream: this.directStream,
+        runEvents: this.runEvents
+      })
+    },
+    showDirectStreamHeader() {
+      return shouldShowDirectStreamHeader(this.directStream)
+    },
+    showDirectStreamFooter() {
+      const phase = this.directStream.phase
+      return phase !== 'completed' && phase !== 'failed'
+    },
+    directStreamFooterAnimating() {
+      const phase = this.directStream.phase
+      return phase === 'generating' || phase === 'cover' || phase === 'completing'
+    },
+    directStreamHeading() {
+      return directStreamHeading(this.directStream)
+    },
+    directStreamProgressText() {
+      return directStreamProgressText(this.directStream)
+    },
+    directStreamShowBodyPlaceholder() {
+      const phase = this.directStream.phase
+      return phase === 'generating' || phase === 'idle'
+    },
     statusText() {
       if (this.autoRun) return '生成中'
       if (this.interrupt && this.interrupt.interrupt_type === 'external_wait') return '封面生成中'
@@ -180,6 +243,7 @@ export default {
   onUnload() {
     this.stopPoll()
     this.stopTick()
+    this.stopRunStream()
     clearActiveGeneration()
   },
   methods: {
@@ -206,6 +270,68 @@ export default {
         this.timer = null
       }
     },
+    stopRunStream() {
+      if (this.streamAbort) {
+        this.streamAbort()
+        this.streamAbort = null
+      }
+    },
+    latestEventSeq(events) {
+      const list = Array.isArray(events) ? events : []
+      for (let index = list.length - 1; index >= 0; index -= 1) {
+        const seq = list[index] && list[index].seq
+        if (seq) return String(seq)
+      }
+      return this.lastEventSeq || '0-0'
+    },
+    bumpStreamScroll() {
+      this.streamScrollTick += 1
+      this.streamScrollTop = 8000 + this.streamScrollTick
+    },
+    syncDirectStreamFromEvents(events) {
+      const next = refreshDirectStreamFromRunEvents(this.directStream, events, {
+        useDirectRun: this.useDirectRun
+      })
+      if (next === this.directStream) return
+      this.directStream = next
+      this.bumpStreamScroll()
+    },
+    handleStreamEvent(eventType, payload, eventId) {
+      if (eventId) this.lastEventSeq = eventId
+      const inner = unwrapRunEventPayload(payload)
+      this.runEvents = this.runEvents.concat([{ event_type: eventType, payload: inner, seq: eventId }])
+      if (
+        eventType === 'content.direct.delta' ||
+        eventType === 'content.generated' ||
+        eventType === 'content.cover.started' ||
+        eventType === 'content.cover.completed' ||
+        eventType === 'error' ||
+        eventType === 'end'
+      ) {
+        this.directStream = applyDirectStreamEvent(this.directStream, eventType, inner)
+        this.bumpStreamScroll()
+      }
+    },
+    startRunStream() {
+      this.stopRunStream()
+      if (!this.runId || !this.isGenerating) return
+      this.streamAbort = subscribeMpRunEvents({
+        runId: this.runId,
+        afterSeq: this.lastEventSeq,
+        onEvent: ({ eventType, payload, eventId }) => {
+          this.handleStreamEvent(eventType, payload, eventId)
+          if (eventType === 'end') this.stopRunStream()
+        },
+        onComplete: () => {
+          this.streamAbort = null
+          if (this.isGenerating && this.runId) this.startRunStream()
+        },
+        onError: () => {
+          this.streamAbort = null
+          this.pollIntervalMs = 800
+        }
+      })
+    },
     applyRunSnapshot(data) {
       const snapshot = normalizeRunSnapshot(data)
       if (snapshot.runId) this.runId = snapshot.runId
@@ -214,6 +340,9 @@ export default {
       this.errorMessage = this.autoRun ? '' : snapshot.errorMessage
       this.runNodes = snapshot.nodes
       this.runEvents = snapshot.events
+      this.lastEventSeq = this.latestEventSeq(snapshot.events)
+      this.syncDirectStreamFromEvents(snapshot.events)
+      if (this.showDirectStream) this.pollIntervalMs = 800
       if (
         snapshot.interrupt &&
         snapshot.interrupt.interrupt_type === 'cover_selection' &&
@@ -226,6 +355,7 @@ export default {
     },
     goResult() {
       this.stopPoll()
+      this.stopRunStream()
       clearActiveGeneration()
       uni.redirectTo({
         url: `/pages/generate/result?task_id=${this.taskId}&service_entry=${encodeURIComponent(this.serviceEntry || '')}`
@@ -239,6 +369,10 @@ export default {
         const values = brief.form_values || {}
         this.serviceEntry = values.mp_service_entry || this.serviceEntry
         this.useDirectRun = isDecorationDirectBrief(brief)
+        if (this.useDirectRun) {
+          this.directStream = createDirectStreamState(true)
+          this.pollIntervalMs = 800
+        }
         const runId = data.task && data.task.latest_run_id
         const taskStatus = String((data.task && data.task.status) || '').toLowerCase()
         if (runId) {
@@ -281,7 +415,9 @@ export default {
       this.markStarted()
       this.startTick()
       this.stopPoll()
-      this.timer = setInterval(() => this.refresh(), 2000)
+      this.startRunStream()
+      const interval = this.pollIntervalMs || 2000
+      this.timer = setInterval(() => this.refresh(), interval)
       this.refresh()
     },
     async refresh() {
@@ -463,6 +599,14 @@ export default {
   margin-top: 16px;
   color: #8a817c;
   font-size: 12px;
+}
+.process-card-stream {
+  padding-top: 20px;
+  background: #fafaf9;
+}
+.elapsed-stream {
+  margin-top: 14px;
+  text-align: center;
 }
 .desc,
 .status {
