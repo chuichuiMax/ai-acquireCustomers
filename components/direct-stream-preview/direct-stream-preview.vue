@@ -5,19 +5,24 @@
       <text class="stream-header-text">{{ headerText }}</text>
     </view>
 
-    <scroll-view
-      scroll-y
-      class="stream-preview-card"
-      :scroll-top="scrollTop"
-      :scroll-with-animation="true"
-    >
-      <text v-if="title" class="stream-preview-title">{{ title }}</text>
-      <text v-if="body" class="stream-preview-body">{{ body }}</text>
-      <text v-else-if="showBodyPlaceholder" class="stream-preview-body stream-preview-placeholder">{{ placeholder }}</text>
-      <view v-if="topics && topics.length" class="stream-preview-topics">
-        <text v-for="topic in topics" :key="topic" class="stream-preview-topic">#{{ topic }}</text>
-      </view>
-    </scroll-view>
+    <view class="stream-preview-card">
+      <scroll-view
+        scroll-y
+        class="stream-preview-scroll"
+        :scroll-top="scrollTop"
+        :scroll-with-animation="true"
+        :show-scrollbar="true"
+      >
+        <view class="stream-preview-inner">
+          <text v-if="title" class="stream-preview-title">{{ title }}</text>
+          <text v-if="body" class="stream-preview-body">{{ body }}</text>
+          <text v-else-if="showBodyPlaceholder" class="stream-preview-body stream-preview-placeholder">{{ placeholder }}</text>
+          <view v-if="topics && topics.length" class="stream-preview-topics">
+            <text v-for="topic in topics" :key="topic" class="stream-preview-topic">#{{ topic }}</text>
+          </view>
+        </view>
+      </scroll-view>
+    </view>
 
     <view v-if="showFooter" class="stream-footer">
       <view class="stream-spinner stream-spinner-blue"></view>
@@ -94,10 +99,19 @@ export default {
 .stream-preview-card {
   box-sizing: border-box;
   max-height: 62vh;
-  padding: 16px 14px;
   border: 1px solid #e7e5e4;
   border-radius: 12px;
   background: #fff;
+  overflow: hidden;
+}
+.stream-preview-scroll {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 62vh;
+}
+.stream-preview-inner {
+  box-sizing: border-box;
+  padding: 16px 14px 20px;
 }
 .stream-preview-title {
   display: block;
@@ -124,6 +138,7 @@ export default {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
+  padding-bottom: 4px;
 }
 .stream-preview-topic {
   padding: 4px 10px;
