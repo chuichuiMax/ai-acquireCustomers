@@ -1,7 +1,7 @@
 <script>
 import { requireInternalAccess } from './utils/internal-access'
 import { getActiveGeneration, resolveAllowedShowUrl } from './utils/active-generation.mjs'
-import { buildSharedCasePath, getLastShareId } from './utils/share-entry.mjs'
+import { buildSharedCasePath, consumeCaseSystemReturn, getLastShareId, markCaseSystemHide } from './utils/share-entry.mjs'
 
 const ENTRY_URL = '/pages/index/index'
 const WORKSPACE_URL = '/pages/generate/generate'
@@ -9,6 +9,8 @@ const LOGIN_URL = '/pages/login/login'
 const SHARED_CASE_ROUTE = 'pages/materials/shared-case'
 const SHARE_SCENES = new Set([1007, 1008, 1044])
 const ENTRY_ROUTE = 'pages/index/index'
+const NORMAL_ENTRY_SCENES = new Set([1001, 1089])
+const CASE_ROUTES = new Set(['pages/materials/materials', SHARED_CASE_ROUTE])
 
 function currentRoute() {
 	try {
@@ -16,6 +18,14 @@ function currentRoute() {
 		return pages.length ? pages[pages.length - 1].route : ''
 	} catch (error) {
 		return ''
+	}
+}
+
+function openSharedCase(shareId) {
+	const pages = getCurrentPages()
+	const page = pages[pages.length - 1]
+	if (page?.route !== SHARED_CASE_ROUTE || page.options?.shareId !== shareId) {
+		uni.reLaunch({ url: buildSharedCasePath(shareId) })
 	}
 }
 
@@ -82,33 +92,44 @@ function checkMiniProgramUpdate() {
 export default {
 	data() {
 		return {
-			routingEntry: false,
-			routingEntryUntil: 0
+			entryVersion: 0
 		}
 	},
 	onLaunch() {
 		checkMiniProgramUpdate()
 	},
+	onHide() {
+		this.entryVersion += 1
+		markCaseSystemHide()
+	},
 	async onShow(options = {}) {
-		// 聊天分享：若停在入口页，必须主动跳到案例页，不能直接 return 卡住「验证员工身份」。
+		const entryVersion = ++this.entryVersion
 		const shareId = shareIdFromLaunch(options)
 		const route = currentRoute()
-		if (shareId) {
-			if (route !== SHARED_CASE_ROUTE) uni.reLaunch({ url: buildSharedCasePath(shareId) })
+		const scene = Number(options.scene)
+		const systemReturn = consumeCaseSystemReturn()
+		// 案例图片预览、拨号返回只恢复页面，不作为重新进入小程序。
+		if (systemReturn && !SHARE_SCENES.has(scene)) return
+		const path = String(options.path || '').split('?')[0].replace(/^\//, '')
+		const normalCaseEntry = NORMAL_ENTRY_SCENES.has(scene) && (
+			CASE_ROUTES.has(route) || ((!route || route === ENTRY_ROUTE) && CASE_ROUTES.has(path))
+		)
+		// 普通入口可能带有上一次的分享参数；先校验身份，再决定是否回首页。
+		if (shareId && !normalCaseEntry) {
+			openSharedCase(shareId)
 			return
 		}
-		if (SHARE_SCENES.has(Number(options.scene)) && route === SHARED_CASE_ROUTE) return
+		if (SHARE_SCENES.has(scene) && route === SHARED_CASE_ROUTE) return
 
-		const now = Date.now()
-		// 防止上一次身份校验挂死把 routingEntry 永久锁死
-		if (this.routingEntry && now < this.routingEntryUntil) return
-
-		this.routingEntry = true
-		this.routingEntryUntil = now + 12000
 		try {
 			const allowed = await requireInternalAccess({ redirect: false })
+			if (entryVersion !== this.entryVersion) return
 			const current = currentRoute()
 			if (allowed) {
+				if (normalCaseEntry && (CASE_ROUTES.has(current) || current === ENTRY_ROUTE || !current)) {
+					uni.reLaunch({ url: WORKSPACE_URL })
+					return
+				}
 				const resumeUrl = resolveAllowedShowUrl(current, getActiveGeneration())
 				if (resumeUrl) {
 					uni.reLaunch({ url: resumeUrl })
@@ -118,6 +139,10 @@ export default {
 				return
 			}
 
+			if (normalCaseEntry && shareId) {
+				openSharedCase(shareId)
+				return
+			}
 			const lastShareId = getLastShareId()
 			if (lastShareId) {
 				if (current !== SHARED_CASE_ROUTE) uni.reLaunch({ url: buildSharedCasePath(lastShareId) })
@@ -126,9 +151,8 @@ export default {
 
 			if (current !== 'pages/login/login') uni.reLaunch({ url: LOGIN_URL })
 		} catch (error) {
+			if (entryVersion !== this.entryVersion) return
 			if (currentRoute() !== 'pages/login/login') uni.reLaunch({ url: LOGIN_URL })
-		} finally {
-			this.routingEntry = false
 		}
 	}
 }

@@ -54,7 +54,8 @@ test('WeChat prepares a mini-program card and enterprise WeChat keeps a safe fal
   assert.match(wechatMethod[1], /coverUrl: cardCoverUrl/)
   assert.match(prepareMethod[1], /this\.shareSnapshot = null/)
   assert.match(prepareMethod[1], /this\.hideWechatShareMenu\(\)/)
-  assert.doesNotMatch(page, /uni\.downloadFile/)
+  assert.match(page, /uni\.downloadFile/)
+  assert.match(page, /this\._shareCoverPromise = this\.preloadShareCover/)
   assert.match(page, /shareToWorkWechat/)
   assert.match(page, /:open-type="isWorkWechatHost\(\) && shareSnapshot \? 'share' : ''"/)
   assert.match(page, /this\.shareSnapshot\?\.shareUrl/)
@@ -112,7 +113,7 @@ test('enterprise WeChat fallback reuses the prepared link and closes the share s
   assert.match(enterpriseMethod[1], /this\.shareSheetVisible = false/)
 })
 
-function sharePage(createShare) {
+function sharePage(createShare, downloadFile = ({ success }) => success({ statusCode: 200, tempFilePath: 'wxfile://share-cover.jpg' })) {
   const source = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
   const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
     .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
@@ -121,13 +122,14 @@ function sharePage(createShare) {
     ...materialsLogic, TabBar: {}, internalPageMixin: {}, component: null,
     mpContentApi: { createShare }, publicMediaUrl: (url) => url,
     errorMessage: (error) => error.message, clearTimeout, setTimeout,
-    uni: { hideShareMenu() {}, showToast() {}, downloadFile() { throw new Error('Unexpected cover download') } }
+    uni: { hideShareMenu() {}, showToast() {}, downloadFile }
   }
   runInNewContext(script, context)
   const page = { ...context.component.data(), activeGallery: { id: 'gallery', name: '案例' }, activeGalleryId: 'gallery' }
   page.items = [{ id: 'one' }, { id: 'two' }]
   page.selectedIds = ['one']
   for (const [name, method] of Object.entries(context.component.methods)) page[name] = method.bind(page)
+  page.onShareAppMessage = context.component.onShareAppMessage.bind(page)
   return page
 }
 
@@ -148,7 +150,7 @@ test('opening the channel panel is synchronous even while the share API is pendi
   complete({ share: { id: 'token', title: '案例', card_cover_url: 'https://example.test/cover.jpg' } })
   assert.equal(await page.prepareShareForSheet(), true)
   assert.equal(page.shareSnapshot.coverUrl, 'https://example.test/cover.jpg')
-  assert.equal(page.shareSnapshot.coverLocalPath, undefined)
+  assert.equal(page.shareSnapshot.coverLocalPath, 'wxfile://share-cover.jpg')
   assert.equal(page.shareSnapshot.shareId, 'token')
 })
 
@@ -191,6 +193,53 @@ test('a native share without a snapshot never falls back to the internal materia
 
   assert.doesNotMatch(page, /path:\s*'\/pages\/materials\/materials'/)
   assert.match(page, /uni\.hideShareMenu/)
+})
+
+test('cover preloading never blocks readiness and native sharing always starts with a valid snapshot', async () => {
+  let completeCover
+  const page = sharePage(async () => ({ share: { id: 'ready', card_cover_url: 'https://example.test/cover.jpg' } }),
+    ({ success }) => { completeCover = success })
+  page.openShareSheet()
+  assert.equal(page.sharePreparing, true)
+  assert.equal(await page.prepareShareForSheet(), true)
+  assert.equal(page.sharePreparing, false)
+  const payload = page.onShareAppMessage()
+  assert.equal(payload.path, '/pages/materials/shared-case?shareId=ready')
+  assert.equal(payload.imageUrl, 'https://example.test/cover.jpg')
+  completeCover({ statusCode: 200, tempFilePath: 'wxfile://ready.jpg' })
+  assert.equal((await payload.promise).imageUrl, 'wxfile://ready.jpg')
+})
+
+test('failed cover preloading retains the same valid public card and selection', async () => {
+  const page = sharePage(async () => ({ share: { id: 'ready', card_cover_url: 'https://example.test/cover.jpg' } }),
+    ({ fail }) => fail({ errMsg: 'download failed' }))
+  assert.equal(await page.prepareShareForSheet(), true)
+  const payload = await page.onShareAppMessage().promise
+  assert.equal(payload.path, '/pages/materials/shared-case?shareId=ready')
+  assert.equal(payload.imageUrl, 'https://example.test/cover.jpg')
+})
+
+test('preparation is debounced and opening the panel reuses the prepared selection', async () => {
+  let requests = 0
+  const page = sharePage(async () => {
+    requests += 1
+    return { share: { id: 'early', card_cover_url: 'https://example.test/early.jpg' } }
+  })
+  page.scheduleSharePreparation()
+  page.scheduleSharePreparation()
+  await new Promise((resolve) => setTimeout(resolve, 450))
+  assert.equal(requests, 1)
+  page.openShareSheet()
+  await page.prepareShareForSheet()
+  assert.equal(requests, 1)
+  assert.equal(page.onShareAppMessage().path, '/pages/materials/shared-case?shareId=early')
+})
+
+test('native channels visibly wait for a valid snapshot instead of accepting ineffective clicks', () => {
+  const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/materials.vue'), 'utf8')
+  assert.equal((page.match(/:disabled="sharePreparing && !shareSnapshot"/g) || []).length, 2)
+  assert.equal((page.match(/:loading="sharePreparing && !shareSnapshot"/g) || []).length, 2)
+  assert.match(page, /this\.invalidateShareSnapshot\(\)\s+this\.scheduleSharePreparation\(\)/)
 })
 
 test('the public shared-case page hides WeChat native home navigation', () => {

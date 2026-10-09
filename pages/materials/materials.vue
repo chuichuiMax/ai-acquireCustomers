@@ -94,6 +94,8 @@
           <button
             class="share-option native-share-option"
             :open-type="shareSnapshot ? 'share' : ''"
+            :disabled="sharePreparing && !shareSnapshot"
+            :loading="sharePreparing && !shareSnapshot"
             @click="shareToWechat"
           >
             <image class="share-channel-icon" src="/static/share-icons/wechat.png" mode="aspectFit" />
@@ -102,6 +104,8 @@
           <button
             class="share-option native-share-option"
             :open-type="isWorkWechatHost() && shareSnapshot ? 'share' : ''"
+            :disabled="sharePreparing && !shareSnapshot"
+            :loading="sharePreparing && !shareSnapshot"
             @click="shareToWorkWechat"
           >
             <image class="share-channel-icon" src="/static/share-icons/wecom.png" mode="aspectFit" />
@@ -115,6 +119,7 @@
 </template>
 
 <script>
+import { openCaseSystemPage } from '../../utils/share-entry.mjs'
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
@@ -148,6 +153,7 @@ export default {
       loadingItems: false,
       shareSheetVisible: false,
       shareSnapshot: null,
+      sharePreparing: false,
       sharePrepareError: ''
     }
   },
@@ -177,7 +183,18 @@ export default {
     this.loadGalleries()
   },
   onShareAppMessage() {
-    return buildWechatSharePayload(this.shareSnapshot)
+    const snapshot = this.shareSnapshot
+    const payload = buildWechatSharePayload(snapshot)
+    if (!payload) return null
+    // The default already has a valid share path; WeChat's promise window is only three seconds.
+    return {
+      ...payload,
+      promise: (this._shareCoverPromise || Promise.resolve()).then(() => buildWechatSharePayload(snapshot))
+    }
+  },
+  onUnload() {
+    clearTimeout(this._sharePrepareTimer)
+    this._shareDisposed = true
   },
   methods: {
     hideWechatShareMenu() {
@@ -240,7 +257,7 @@ export default {
       const current = galleryThumbUrl(item, 1080)
       const urls = this.items.map((candidate) => galleryThumbUrl(candidate, 1080)).filter(Boolean)
       if (!current || !urls.length) return
-      uni.previewImage({ current, urls })
+      openCaseSystemPage('previewImage', { current, urls })
     },
     isSelected(item) {
       return this.selectedIds.includes(item.id)
@@ -253,6 +270,7 @@ export default {
       try {
         this.selection = toggleSelection(this.selection, item)
         this.invalidateShareSnapshot()
+        this.scheduleSharePreparation()
       } catch (error) {
         uni.showToast({ title: error.message, icon: 'none' })
       }
@@ -266,11 +284,22 @@ export default {
       return shareSelectionKey(this.activeGalleryId, this.selectedIds)
     },
     invalidateShareSnapshot() {
+      clearTimeout(this._sharePrepareTimer)
       this.shareSnapshot = null
+      this._shareCoverPromise = null
       this.sharePrepareError = ''
       this.hideWechatShareMenu()
     },
+    scheduleSharePreparation() {
+      clearTimeout(this._sharePrepareTimer)
+      if (!this.selectedIds.length || !this.activeGallery) return
+      this._sharePrepareTimer = setTimeout(() => {
+        if (!this._shareDisposed) this.prepareShareForSheet()
+      }, 350)
+    },
     async prepareShareForSheet() {
+      clearTimeout(this._sharePrepareTimer)
+      if (this._shareDisposed) return false
       if (!this.selectedIds.length || !this.activeGallery) return false
       const selectionKey = this.currentShareSelectionKey()
       if (this.shareSnapshot?.selectionKey === selectionKey) return true
@@ -283,12 +312,14 @@ export default {
       this.shareSnapshot = null
       this.sharePrepareError = ''
       this.hideWechatShareMenu()
+      this.sharePreparing = true
       this._sharePrepareKey = selectionKey
       this._sharePreparePromise = this.prepareWechatShare(selectionKey)
       try {
         return await this._sharePreparePromise
       } finally {
         this._sharePreparePromise = null
+        this.sharePreparing = false
       }
     },
     closeShareSheet() {
@@ -313,7 +344,7 @@ export default {
           share.card_cover_url || share.image_url || share.cover_url || share.cover_file_url || ''
         )
         if (!cardCoverUrl) throw new Error('服务端未返回分享封面')
-        if (selectionKey !== this.currentShareSelectionKey()) return false
+        if (this._shareDisposed || selectionKey !== this.currentShareSelectionKey()) return false
         this.shareSnapshot = {
           ...localSnapshot,
           selectionKey,
@@ -321,16 +352,32 @@ export default {
           title: share.title || '',
           shareUrl: share.page_url || share.pageUrl || share.url || share.share_url || '',
           coverUrl: cardCoverUrl,
+          coverLocalPath: '',
           images: localSnapshot.images.map((item, index) => ({
             ...item,
             public_url: index === 0 ? cardCoverUrl : ''
           }))
         }
+        this._shareCoverPromise = this.preloadShareCover(this.shareSnapshot)
         return true
       } catch (error) {
         if (selectionKey === this.currentShareSelectionKey()) this.sharePrepareError = errorMessage(error)
         return false
       }
+    },
+    preloadShareCover(snapshot) {
+      return new Promise((resolve) => {
+        uni.downloadFile({
+          url: snapshot.coverUrl,
+          timeout: 10000,
+          success: (result) => {
+            if (result.statusCode === 200 && result.tempFilePath) snapshot.coverLocalPath = result.tempFilePath
+            resolve()
+          },
+          // The same public JPEG URL remains usable if local preloading fails.
+          fail: () => resolve()
+        })
+      })
     },
     shareToWechat() {
       if (this.shareSnapshot) return

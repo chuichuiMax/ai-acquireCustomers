@@ -26,6 +26,7 @@ test('login page only exposes one-click login and the employee-only notice', () 
 test('config points mini program API at production ai.hi-run.net', () => {
   assert.match(config, /useTestServer = false/)
 
+test('online login uses the HTTPS API in developer tools and on devices', () => {
   const script = config.replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const baseUrl = (platform) =>
     runInNewContext(`${script}\nBASE_URL`, {
