@@ -181,23 +181,108 @@ test('a validation rejection from an older entry cannot replace a new share card
 })
 
 for (const route of ['pages/materials/materials', 'pages/materials/shared-case']) {
-  for (const completeBeforeShow of [true, false]) {
-    test(`preview return on ${route} preserves the page with completeBeforeShow=${completeBeforeShow}`, async () => {
+  for (const hidesApp of [true, false]) {
+    for (const completeAt of ['beforeHide', 'beforeShow', 'afterShow']) {
+      test(`preview return on ${route} preserves the page with hidesApp=${hidesApp}, completeAt=${completeAt}`, async () => {
+        const app = loadApp({ route })
+        let nativeOptions
+        app.context.uni.previewImage = (options) => { nativeOptions = options }
+        app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+        if (completeAt === 'beforeHide') nativeOptions.complete({ errMsg: 'previewImage:ok' })
+        if (hidesApp) app.context.app.onHide.call(app.instance)
+        if (completeAt === 'beforeShow') nativeOptions.complete({ errMsg: 'previewImage:ok' })
+        await app.show({ scene: 1089, query: {} })
+        if (completeAt === 'afterShow') nativeOptions.complete({ errMsg: 'previewImage:ok' })
+        assert.deepEqual(app.jumps, [])
+        assert.equal(app.checks, 0)
+        app.context.app.onHide.call(app.instance)
+        await app.show({ scene: 1089, query: {} })
+        assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+      })
+    }
+  }
+
+  test(`double tapping a preview on ${route} preserves the first operation and allows another after return`, async () => {
+    const app = loadApp({ route })
+    const calls = []
+    app.context.uni.previewImage = (options) => { calls.push(options) }
+    app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+    calls[0].complete({ errMsg: 'previewImage:ok' })
+    app.context.app.onHide.call(app.instance)
+    app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+    assert.equal(calls.length, 1)
+    await app.show({ scene: 1089, query: {} })
+    assert.deepEqual(app.jumps, [])
+    app.context.openCaseSystemPage('previewImage', { current: 'image-B', urls: ['image-B'] })
+    assert.equal(calls.length, 2)
+  })
+
+  for (const hook of ['onShow', 'onUnload']) {
+    test(`${hook} on ${route} clears a preview marker even without app lifecycle callbacks`, async () => {
       const app = loadApp({ route })
-      let nativeOptions
-      app.context.uni.previewImage = (options) => { nativeOptions = options }
-      app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+      const pageInstance = { ensureInternalAccess: async () => false }
+      app.context.uni.previewImage = (options) => options.complete({ errMsg: 'previewImage:ok' })
+      app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, pageInstance)
+      const pageSource = readFileSync(resolve(import.meta.dirname, `../${route}.vue`), 'utf8')
+        .match(/<script>([\s\S]*?)<\/script>/)[1]
+        .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
+        .replace('export default', 'globalThis.casePage =')
+      app.context.TabBar = {}
+      app.context.internalPageMixin = {}
+      app.context.clearTimeout = () => {}
+      runInNewContext(pageSource, app.context)
+      await app.context.casePage[hook].call(pageInstance)
       app.context.app.onHide.call(app.instance)
-      if (completeBeforeShow) nativeOptions.complete({ errMsg: 'previewImage:ok' })
-      await app.show({ scene: 1089, query: {} })
-      if (!completeBeforeShow) nativeOptions.complete({ errMsg: 'previewImage:ok' })
-      assert.deepEqual(app.jumps, [])
-      assert.equal(app.checks, 0)
       await app.show({ scene: 1089, query: {} })
       assert.deepEqual(app.jumps, ['/pages/generate/generate'])
     })
   }
 }
+
+test('a failed preview that never hides the app does not suppress normal entry', async () => {
+  const app = loadApp()
+  app.context.uni.previewImage = (options) => options.complete({ errMsg: 'previewImage:fail invalid url' })
+  app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+})
+
+test('a preview marker cannot suppress normal entry on a new instance of the same route', async () => {
+  const app = loadApp()
+  app.context.uni.previewImage = () => {}
+  app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+  app.context.app.onHide.call(app.instance)
+  app.context.uni.reLaunch({ url: '/pages/materials/shared-case?shareId=case-B' })
+  app.jumps.length = 0
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+})
+
+test('a preview marker cannot suppress normal entry after navigating to another route', async () => {
+  const app = loadApp()
+  app.context.uni.previewImage = () => {}
+  app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+  app.context.app.onHide.call(app.instance)
+  app.context.uni.reLaunch({ url: '/pages/index/index' })
+  app.jumps.length = 0
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+})
+
+test('a late callback from an old preview cannot clear a newer preview marker', async () => {
+  const app = loadApp()
+  const calls = []
+  app.context.uni.previewImage = (options) => { calls.push(options) }
+  app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] })
+  app.context.app.onHide.call(app.instance)
+  await app.show({ scene: 1089, query: {} })
+  app.context.openCaseSystemPage('previewImage', { current: 'image-B', urls: ['image-B'] })
+  calls[0].complete({ errMsg: 'previewImage:fail cancel' })
+  calls[1].complete({ errMsg: 'previewImage:ok' })
+  app.context.app.onHide.call(app.instance)
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, [])
+})
 
 test('a cancelled phone operation that never hides the app does not suppress normal entry', async () => {
   const app = loadApp()

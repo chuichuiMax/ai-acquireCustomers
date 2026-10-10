@@ -1,6 +1,6 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
-    <view v-if="loadError" class="load-error" @click="load(true)">{{ loadError }}，点击重试</view>
+    <view v-if="loadError" class="load-error" @click="refreshGallery">{{ loadError }}，点击重试</view>
     <view v-if="loading && !items.length" class="empty">正在加载作品…</view>
     <view v-else-if="!loadError && !items.length" class="empty">还没有生成作品</view>
     <view v-else class="grid">
@@ -32,15 +32,37 @@ export default {
   components: { TabBar },
   mixins: [internalPageMixin],
   data() {
-    return { items: [], page: 1, total: 0, loading: false, finished: false, loadError: '', editing: false, selectedIds: createImageSelection() }
+    return { galleryName: '', items: [], page: 1, total: 0, loading: false, finished: false, loadError: '', editing: false, selectedIds: createImageSelection() }
   },
   async onShow() {
-    if (await this.ensureInternalAccess()) this.load(true)
+    if (await this.ensureInternalAccess()) await this.refreshGallery()
   },
   onReachBottom() {
     this.load(false)
   },
   methods: {
+    async refreshGallery() {
+      if (await this.loadGalleryName()) await this.load(true)
+    },
+    async loadGalleryName() {
+      try {
+        const data = await mpContentApi.myMaterialFolders()
+        const gallery = data.folders?.find((folder) => folder.id === 'works')
+        if (!gallery) {
+          this.items = []
+          this.finished = true
+          this.cancelEdit()
+          this.loadError = '该图库已删除'
+          return false
+        }
+        this.galleryName = gallery.name
+        uni.setNavigationBarTitle({ title: gallery.name })
+        return true
+      } catch (error) {
+        this.loadError = `图库配置加载失败：${errorMessage(error)}`
+        return false
+      }
+    },
     async load(reset) {
       if (this.loading || (!reset && this.finished)) return
       if (reset) {
@@ -80,7 +102,7 @@ export default {
       if (!this.selectedIds.length) return
       uni.showModal({
         title: '移除作品',
-        content: `确定从“我的作品”中移除 ${this.selectedIds.length} 张图片吗？生成记录将保留。`,
+        content: `确定从“${this.galleryName}”中移除 ${this.selectedIds.length} 张图片吗？生成记录将保留。`,
         success: async ({ confirm }) => {
           if (!confirm) return
           const results = await Promise.allSettled(this.selectedIds.map((id) => {
@@ -90,7 +112,7 @@ export default {
           const failed = results.filter((result) => result.status === 'rejected')
           this.cancelEdit()
           await this.load(true)
-          uni.showToast({ title: failed.length ? `${failed.length} 张移除失败` : '已从我的作品移除', icon: 'none' })
+          uni.showToast({ title: failed.length ? `${failed.length} 张移除失败` : `已从${this.galleryName}移除`, icon: 'none' })
         }
       })
     }

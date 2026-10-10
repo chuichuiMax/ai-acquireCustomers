@@ -107,7 +107,7 @@ export default {
 		const shareId = shareIdFromLaunch(options)
 		const route = currentRoute()
 		const scene = Number(options.scene)
-		const systemReturn = consumeCaseSystemReturn()
+		const systemReturn = consumeCaseSystemReturn(route)
 		// 案例图片预览、拨号返回只恢复页面，不作为重新进入小程序。
 		if (systemReturn && !SHARE_SCENES.has(scene)) return
 		const path = String(options.path || '').split('?')[0].replace(/^\//, '')

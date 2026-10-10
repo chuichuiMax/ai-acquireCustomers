@@ -24,6 +24,11 @@ import {
   uniqueFolders
 } from '../utils/image-design-logic.mjs'
 
+test('server preset names override legacy display mappings while preserving historical gallery IDs', () => {
+  const gallery = { id: 'product', name: '效果图收藏', visibility: 'private', personal_folder: 'generated' }
+  assert.deepEqual(normalizeImageSourceFolders([gallery]), [gallery])
+})
+
 test('transfer drafts normalize legacy addon values and cap selections at two', () => {
   assert.deepEqual(normalizeTransferElements('落地窗旁休闲躺椅'), ['落地窗旁休闲躺椅'])
   assert.deepEqual(normalizeTransferElements([

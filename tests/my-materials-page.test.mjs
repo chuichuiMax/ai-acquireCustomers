@@ -18,6 +18,26 @@ function pageMethods(mpContentApi, uni) {
   ).methods
 }
 
+test('refresh updates an open gallery title and clears a deleted gallery', async () => {
+  let folders = [{ id: 'rough', name: '施工照片', gallery_id: 'old-rough', count: 1 }]
+  const titles = []
+  const methods = pageMethods({ myMaterialFolders: async () => ({ folders }) }, {
+    setNavigationBarTitle: ({ title }) => titles.push(title)
+  })
+  let canceled = 0
+  const vm = { galleries: [], activeGallery: { id: 'rough', name: '旧名称' },
+    items: [{ id: 'old-item' }], loadingFolders: false, cancelEdit: () => canceled++ }
+  await methods.loadGalleries.call(vm)
+  assert.equal(vm.activeGallery.name, '施工照片')
+  assert.deepEqual(titles, ['施工照片'])
+  folders = []
+  await methods.loadGalleries.call(vm)
+  assert.equal(vm.activeGallery, null)
+  assert.deepEqual(vm.items, [])
+  assert.equal(canceled, 1)
+  assert.deepEqual(titles, ['施工照片', '我的素材'])
+})
+
 test('folder summaries retain cover addresses and empty folders stay coverless', async () => {
   const methods = pageMethods({
     myMaterialFolders: async () => ({

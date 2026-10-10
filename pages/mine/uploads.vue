@@ -80,12 +80,7 @@ export default {
   components: { TabBar },
   mixins: [internalPageMixin],
   data() {
-    return { galleries: [
-      { id: 'rough', name: '毛坯房图库', count: null, can_upload: true },
-      { id: 'generated', name: 'AI生图图库', count: null, can_upload: false },
-      { id: 'uploads', name: '我的上传', count: null, can_upload: true },
-      { id: 'works', name: '我的作品', count: null, can_upload: false }
-    ], activeGallery: null, items: [], page: 1, total: 0, loading: false, loadingFolders: false, uploading: false,
+    return { galleries: [], activeGallery: null, items: [], page: 1, total: 0, loading: false, loadingFolders: false, uploading: false,
     editing: false, selectedIds: createImageSelection(),
     pendingReload: false, safeBottom: 0,
     loadError: '', itemError: '',
@@ -131,6 +126,12 @@ export default {
           this.loadError = '图库返回数据不完整'
         } else {
           this.galleries = folders
+          if (this.activeGallery) {
+            const current = folders.find((folder) => folder.id === this.activeGallery.id)
+            this.activeGallery = current || null
+            if (!current) { this.items = []; this.cancelEdit() }
+            uni.setNavigationBarTitle({ title: current ? current.name : '我的素材' })
+          }
         }
       } catch (error) {
         this.loadError = `图库加载失败：${errorMessage(error)}`

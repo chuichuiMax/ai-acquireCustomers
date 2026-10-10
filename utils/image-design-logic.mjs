@@ -256,8 +256,8 @@ export function fixedSaveTargetOptions(scopes = []) {
     (folder.image_design_role === 'generated' || (!folder.image_design_role && folder.name === '生图图库'))) || []
   const shared = sharedCandidates.length === 1 ? sharedCandidates[0] : null
   return [
-    { scope: 'private', gallery_id: generated?.id || null, label: '我的素材/AI生图图库', disabled: !generated || !personal.can_write_root,
-      hint: personal?.error || 'AI生图图库暂不可用' },
+    { scope: 'private', gallery_id: generated?.id || null, label: `我的素材/${generated?.name || 'AI生图图库'}`, disabled: !generated || !personal.can_write_root,
+      hint: personal?.error || '个人生图图库暂不可用' },
     { scope: 'enterprise', gallery_id: shared?.id || null, label: '企业共享 / 生图图库', disabled: !shared || shared.can_write !== true || !!enterprise?.error,
       hint: enterprise?.error || (sharedCandidates.length > 1 ? '企业生图图库存在多个候选，请联系管理员核对' : '企业生图图库尚未配置或不可写') }
   ]
@@ -303,7 +303,7 @@ export function normalizeImageSourceFolders(rawFolders = []) {
       !RETIRED_PRIVATE_GALLERY_IDS.has(folder.id) &&
       !RETIRED_PRIVATE_GALLERY_IDS.has(folder.parent_id)
     ))
-    .map((folder) => folder.visibility === 'private' && CURRENT_PRIVATE_GALLERY_NAMES[folder.id]
+    .map((folder) => folder.visibility === 'private' && !folder.personal_folder && CURRENT_PRIVATE_GALLERY_NAMES[folder.id]
       ? { ...folder, name: CURRENT_PRIVATE_GALLERY_NAMES[folder.id] }
       : folder)
 }

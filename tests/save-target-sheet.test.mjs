@@ -17,6 +17,14 @@ test('both fixed paths carry actual gallery IDs and exact labels', () => {
   ])
 })
 
+test('configured generated gallery names reach the save selector without changing its ID', () => {
+  const configured = [{ ...scopes[0], folders: [{ id: 'product', personal_folder: 'generated', name: '效果图收藏' }] }]
+  const option = fixedSaveTargetOptions(configured)[0]
+  assert.equal(option.label, '我的素材/效果图收藏')
+  assert.equal(option.gallery_id, 'product')
+  assert.equal(option.disabled, false)
+})
+
 test('missing, nonwritable and ambiguous galleries are unavailable', () => {
   assert.ok(fixedSaveTargetOptions([]).every(option => option.disabled))
   assert.equal(fixedSaveTargetOptions([{ ...scopes[0], can_write_root: false }])[0].disabled, true)

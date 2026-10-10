@@ -119,7 +119,7 @@
 </template>
 
 <script>
-import { openCaseSystemPage } from '../../utils/share-entry.mjs'
+import { clearCaseSystemAction, openCaseSystemPage } from '../../utils/share-entry.mjs'
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
@@ -178,6 +178,7 @@ export default {
     }
   },
   async onShow() {
+    clearCaseSystemAction(this)
     if (!(await this.ensureInternalAccess())) return
     this.hideWechatShareMenu()
     this.loadGalleries()
@@ -193,6 +194,7 @@ export default {
     }
   },
   onUnload() {
+    clearCaseSystemAction(this)
     clearTimeout(this._sharePrepareTimer)
     this._shareDisposed = true
   },
@@ -257,7 +259,7 @@ export default {
       const current = galleryThumbUrl(item, 1080)
       const urls = this.items.map((candidate) => galleryThumbUrl(candidate, 1080)).filter(Boolean)
       if (!current || !urls.length) return
-      openCaseSystemPage('previewImage', { current, urls })
+      openCaseSystemPage('previewImage', { current, urls }, this)
     },
     isSelected(item) {
       return this.selectedIds.includes(item.id)

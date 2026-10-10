@@ -54,7 +54,7 @@
 import { mpContentApi } from '../../apis/mp'
 import { buildSharedCaseImages, formatArea } from '../../utils/materials-logic.mjs'
 import { errorMessage, publicMediaUrl } from '../../utils/request'
-import { openCaseSystemPage, saveLastShareId } from '../../utils/share-entry.mjs'
+import { clearCaseSystemAction, openCaseSystemPage, saveLastShareId } from '../../utils/share-entry.mjs'
 
 export default {
   data() {
@@ -93,9 +93,13 @@ export default {
     this.loadShare()
   },
   onShow() {
+    clearCaseSystemAction(this)
     // #ifdef MP-WEIXIN
     if (typeof uni.hideHomeButton === 'function') uni.hideHomeButton()
     // #endif
+  },
+  onUnload() {
+    clearCaseSystemAction(this)
   },
   onShareAppMessage() {
     return {
@@ -145,12 +149,12 @@ export default {
       }
     },
     callSharer() {
-      openCaseSystemPage('makePhoneCall', { phoneNumber: this.caseInfo.sharerPhone })
+      openCaseSystemPage('makePhoneCall', { phoneNumber: this.caseInfo.sharerPhone }, this)
     },
     previewImage(index) {
       const urls = this.images.map((image) => image.previewUrl)
       if (!urls.length) return
-      openCaseSystemPage('previewImage', { current: urls[index], urls })
+      openCaseSystemPage('previewImage', { current: urls[index], urls }, this)
     }
   }
 }
