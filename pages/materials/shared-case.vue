@@ -54,7 +54,7 @@
 import { mpContentApi } from '../../apis/mp'
 import { buildSharedCaseImages, formatArea } from '../../utils/materials-logic.mjs'
 import { errorMessage, publicMediaUrl } from '../../utils/request'
-import { clearCaseSystemAction, openCaseSystemPage, saveLastShareId } from '../../utils/share-entry.mjs'
+import { clearCaseSystemAction, markCaseSystemReturn, openCaseSystemPage, saveLastShareId } from '../../utils/share-entry.mjs'
 
 export default {
   data() {
@@ -93,7 +93,7 @@ export default {
     this.loadShare()
   },
   onShow() {
-    clearCaseSystemAction(this)
+    markCaseSystemReturn(this)
     // #ifdef MP-WEIXIN
     if (typeof uni.hideHomeButton === 'function') uni.hideHomeButton()
     // #endif

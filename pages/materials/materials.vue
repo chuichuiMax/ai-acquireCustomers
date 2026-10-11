@@ -119,7 +119,7 @@
 </template>
 
 <script>
-import { clearCaseSystemAction, openCaseSystemPage } from '../../utils/share-entry.mjs'
+import { clearCaseSystemAction, markCaseSystemReturn, openCaseSystemPage } from '../../utils/share-entry.mjs'
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
@@ -178,7 +178,7 @@ export default {
     }
   },
   async onShow() {
-    clearCaseSystemAction(this)
+    markCaseSystemReturn(this)
     if (!(await this.ensureInternalAccess())) return
     this.hideWechatShareMenu()
     this.loadGalleries()

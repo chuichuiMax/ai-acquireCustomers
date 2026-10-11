@@ -6,9 +6,11 @@ let caseSystemAction = null
 export function openCaseSystemPage(method, options, owner) {
   const pages = getCurrentPages()
   const page = pages[pages.length - 1]
+  const actionOwner = owner || page?.$vm || page
   // 同一次预览尚未返回时，双击不能覆盖原来的返回标记。
-  if (method === 'previewImage' && caseSystemAction?.method === method && caseSystemAction.page === page) return false
-  const action = { method, page, route: page?.route || '', owner: owner || page, hidden: false }
+  if (method === 'previewImage' && caseSystemAction?.method === method &&
+      caseSystemAction.owner === actionOwner && !caseSystemAction.returned) return false
+  const action = { method, page, route: page?.route || '', owner: actionOwner, hidden: false, returned: false }
   caseSystemAction = action
   uni[method]({
     ...options,
@@ -22,15 +24,27 @@ export function openCaseSystemPage(method, options, owner) {
 }
 
 export function markCaseSystemHide() {
-  if (caseSystemAction) caseSystemAction.hidden = true
+  // 已恢复页面后的下一次离开才是新的入口周期。
+  if (caseSystemAction?.returned) caseSystemAction = null
+  else if (caseSystemAction) caseSystemAction.hidden = true
 }
 
-export function consumeCaseSystemReturn(route) {
+export function markCaseSystemReturn(owner) {
+  if (caseSystemAction?.owner === owner) caseSystemAction.returned = true
+}
+
+export function isCaseSystemReturn(route) {
   const action = caseSystemAction
-  caseSystemAction = null
+  if (!action) return false
   const pages = getCurrentPages()
-  // 返回可能没有先触发 App.onHide；仅保护发起操作的原页面一次。
-  return Boolean(action && action.route === route && action.page === pages[pages.length - 1])
+  const page = pages[pages.length - 1]
+  if (action.route !== route || (action.page !== page && page?.$vm !== action.owner)) {
+    caseSystemAction = null
+    return false
+  }
+  // Page/App.onShow 顺序不固定，重复恢复回调也属于同一次返回。
+  action.returned = true
+  return true
 }
 
 export function clearCaseSystemAction(owner) {

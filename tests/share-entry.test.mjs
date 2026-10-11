@@ -91,6 +91,18 @@ function loadApp({ route = 'pages/materials/shared-case', shareId = 'case-A', al
   return { context, instance, jumps, show: (options) => context.app.onShow.call(instance, options), get checks() { return checks } }
 }
 
+function loadCasePage(app, route) {
+  const source = readFileSync(resolve(import.meta.dirname, `../${route}.vue`), 'utf8')
+    .match(/<script>([\s\S]*?)<\/script>/)[1]
+    .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
+    .replace('export default', 'globalThis.casePage =')
+  app.context.TabBar = {}
+  app.context.internalPageMixin = {}
+  app.context.clearTimeout = () => {}
+  runInNewContext(source, app.context)
+  return app.context.casePage
+}
+
 for (const scene of [1001, 1089]) {
   for (const route of ['pages/materials/materials', 'pages/materials/shared-case']) {
     test(`validated user reopening ${route} through scene ${scene} enters home`, async () => {
@@ -218,26 +230,69 @@ for (const route of ['pages/materials/materials', 'pages/materials/shared-case']
   })
 
   for (const hook of ['onShow', 'onUnload']) {
-    test(`${hook} on ${route} clears a preview marker even without app lifecycle callbacks`, async () => {
+    test(`${hook} on ${route} does not leak preview protection into the next genuine entry`, async () => {
       const app = loadApp({ route })
       const pageInstance = { ensureInternalAccess: async () => false }
       app.context.uni.previewImage = (options) => options.complete({ errMsg: 'previewImage:ok' })
       app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, pageInstance)
-      const pageSource = readFileSync(resolve(import.meta.dirname, `../${route}.vue`), 'utf8')
-        .match(/<script>([\s\S]*?)<\/script>/)[1]
-        .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
-        .replace('export default', 'globalThis.casePage =')
-      app.context.TabBar = {}
-      app.context.internalPageMixin = {}
-      app.context.clearTimeout = () => {}
-      runInNewContext(pageSource, app.context)
-      await app.context.casePage[hook].call(pageInstance)
+      await loadCasePage(app, route)[hook].call(pageInstance)
       app.context.app.onHide.call(app.instance)
       await app.show({ scene: 1089, query: {} })
       assert.deepEqual(app.jumps, ['/pages/generate/generate'])
     })
   }
+
+  for (const hidesApp of [true, false]) {
+    for (const pageFirst of [true, false]) {
+      test(`preview on ${route} survives both show hooks and repeated app shows with hidesApp=${hidesApp}, pageFirst=${pageFirst}`, async () => {
+        const app = loadApp({ route })
+        const owner = { ensureInternalAccess: async () => false }
+        const casePage = loadCasePage(app, route)
+        app.context.uni.previewImage = (options) => options.complete({ errMsg: 'previewImage:ok' })
+        app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, owner)
+        if (hidesApp) app.context.app.onHide.call(app.instance)
+        if (pageFirst) await casePage.onShow.call(owner)
+        await app.show({ scene: 1089, query: {} })
+        if (!pageFirst) await casePage.onShow.call(owner)
+        await app.show({ scene: 1089, query: {} })
+        assert.deepEqual(app.jumps, [])
+        assert.equal(app.checks, 0)
+        app.context.app.onHide.call(app.instance)
+        await app.show({ scene: 1089, query: {} })
+        assert.deepEqual(app.jumps, ['/pages/generate/generate'])
+      })
+    }
+  }
+
+  test(`preview on ${route} uses the stable Vue owner when native page wrappers differ`, async () => {
+    const app = loadApp({ route })
+    const owner = {}
+    const currentPages = app.context.getCurrentPages
+    app.context.getCurrentPages = () => currentPages().map((page) => ({ ...page, $vm: owner }))
+    let calls = 0
+    app.context.uni.previewImage = () => { calls += 1 }
+    app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, owner)
+    app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, owner)
+    assert.equal(calls, 1)
+    app.context.app.onHide.call(app.instance)
+    await app.show({ scene: 1089, query: {} })
+    assert.deepEqual(app.jumps, [])
+  })
 }
+
+test('unloading an old case page cannot clear a newer native operation', async () => {
+  const app = loadApp()
+  const oldOwner = {}
+  const newOwner = {}
+  app.context.uni.previewImage = () => {}
+  app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, oldOwner)
+  app.context.app.onHide.call(app.instance)
+  await app.show({ scene: 1089, query: {} })
+  app.context.openCaseSystemPage('previewImage', { current: 'image-B', urls: ['image-B'] }, newOwner)
+  app.context.clearCaseSystemAction(oldOwner)
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, [])
+})
 
 test('a failed preview that never hides the app does not suppress normal entry', async () => {
   const app = loadApp()

@@ -1,7 +1,7 @@
 <script>
 import { requireInternalAccess } from './utils/internal-access'
 import { getActiveGeneration, resolveAllowedShowUrl } from './utils/active-generation.mjs'
-import { buildSharedCasePath, consumeCaseSystemReturn, getLastShareId, markCaseSystemHide } from './utils/share-entry.mjs'
+import { buildSharedCasePath, isCaseSystemReturn, getLastShareId, markCaseSystemHide } from './utils/share-entry.mjs'
 
 const ENTRY_URL = '/pages/index/index'
 const WORKSPACE_URL = '/pages/generate/generate'
@@ -107,7 +107,7 @@ export default {
 		const shareId = shareIdFromLaunch(options)
 		const route = currentRoute()
 		const scene = Number(options.scene)
-		const systemReturn = consumeCaseSystemReturn(route)
+		const systemReturn = isCaseSystemReturn(route)
 		// 案例图片预览、拨号返回只恢复页面，不作为重新进入小程序。
 		if (systemReturn && !SHARE_SCENES.has(scene)) return
 		const path = String(options.path || '').split('?')[0].replace(/^\//, '')
