@@ -23,14 +23,14 @@
           v-for="item in metaItems"
           :key="item.label"
           class="project-field"
-          :class="{ wide: item.wide }"
+          :class="[item.className, { wide: item.wide }]"
         >
           <text class="field-label">{{ item.label }}：</text>
           <text class="field-value">{{ item.value }}</text>
         </view>
         <view v-if="caseInfo.sharerPhone" class="project-field share-phone" @click="callSharer">
           <text class="field-label">电话：</text>
-          <text class="field-value">{{ caseInfo.sharerPhone }} {{ caseInfo.sharerName }}</text>
+          <text class="field-value">{{ caseInfo.sharerPhone }}</text>
         </view>
       </view>
 
@@ -79,12 +79,14 @@ export default {
   computed: {
     metaItems() {
       return [
-        { label: '楼盘', value: this.caseInfo.building },
+        { label: '楼盘', value: this.caseInfo.building, className: 'project-building' },
         {
           label: '面积',
-          value: formatArea(this.caseInfo.area)
+          value: formatArea(this.caseInfo.area),
+          className: 'project-area'
         },
-        { label: '风格', value: this.caseInfo.style, wide: !this.caseInfo.sharerPhone }
+        { label: '联系人', value: this.caseInfo.sharerName, className: 'project-contact' },
+        { label: '风格', value: this.caseInfo.style, className: 'project-style', wide: !this.caseInfo.sharerName }
       ].filter((item) => Boolean(item.value))
     }
   },
@@ -207,6 +209,7 @@ export default {
   background: #e5e2df;
 }
 .project-card {
+  --share-phone-color: #5b7cff;
   position: relative;
   z-index: 1;
   min-height: 94px;
@@ -214,33 +217,35 @@ export default {
   padding: 18px 22px 17px;
   border-radius: 8px;
   box-sizing: border-box;
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 10px;
   background: #fff;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.16);
 }
 .project-field {
-  width: 50%;
-  padding-bottom: 14px;
+  min-width: 0;
   box-sizing: border-box;
   color: #202020;
   font-size: 15px;
   line-height: 1.4;
-}
-.project-field.wide {
-  width: 100%;
-  padding-bottom: 0;
-}
-.project-field:nth-child(n + 3) {
-  padding-bottom: 0;
-}
-.share-phone {
-  color: #000;
   overflow-wrap: anywhere;
 }
-.share-phone:only-child {
-  width: 100%;
+.project-building,
+.project-contact {
+  grid-column: 1;
+}
+.project-area,
+.project-style {
+  grid-column: 2;
+}
+.project-field.wide {
+  grid-column: 1 / -1;
+}
+.share-phone {
+  grid-column: 1 / -1;
+  color: var(--share-phone-color);
+  overflow-wrap: anywhere;
 }
 .field-label,
 .field-value {
