@@ -33,18 +33,12 @@ export const IMAGE_DESIGN_STYLE_OPTIONS = Object.freeze([
   Object.freeze({ value: DESCRIPTION_STYLE_VALUE, label: '使用补充描述作为风格提示词' })
 ])
 
-export const TARGET_SPACES = Object.freeze([
-  '客厅', '餐厅', '厨房', '主卧', '次卧/儿童房', '书房', '主卫', '公卫',
-  '阳台', '玄关', '衣帽间', '茶室', '影音室', '酒窖', '健身房', '长辈房', '客房'
-])
-
-// The product decision is to reuse this set for every target space in the first release.
-export const TRANSFER_LAYOUTS = Object.freeze(['一字型沙发墙', 'L 型沙发 + 单人椅', '沙发对坐式', '无主沙发自由布局'])
-export const TRANSFER_ELEMENTS = Object.freeze([
-  '落地窗旁休闲躺椅', '沙发后长条书桌/吧台', '电视墙满墙收纳柜',
-  '开放式层板展示架', '地毯划分沙发区', '壁炉居中'
-])
-export const MAX_TRANSFER_ELEMENTS = 2
+const LEGACY_TRANSFER_LAYOUT_IDS = Object.freeze({
+  '一字型沙发墙': 'sofa_wall', 'L 型沙发 + 单人椅': 'l_sofa'
+})
+const LEGACY_TRANSFER_ELEMENT_IDS = Object.freeze({
+  '沙发后长条书桌/吧台': 'bar_table', '地毯划分沙发区': 'rug_zone'
+})
 export const DEFAULT_DESCRIPTION_KEYWORDS = Object.freeze(['高级质感', '空间合理', '原图杂物不要显示', '符合装修后实景图', '专业空间摄影构图'])
 
 export function createImageDesignDrafts() {
@@ -54,9 +48,9 @@ export function createImageDesignDrafts() {
     transfer: {
       ...createDraft(),
       reference: null,
-      target_space: '客厅',
-      layout_type: TRANSFER_LAYOUTS[0],
-      extra_element: [TRANSFER_ELEMENTS[0]]
+      target_space: 'living_room',
+      layout_type: '',
+      extra_element: []
     }
   }
 }
@@ -124,17 +118,48 @@ export function updateImageDesignDraftImage(draft = {}, role, image) {
   return clearStalePolish({ ...draft, [role]: image || null })
 }
 
-export function normalizeTransferElements(value) {
-  const values = Array.isArray(value) ? value : (value ? [value] : [])
-  return [...new Set(values.filter((item) => TRANSFER_ELEMENTS.includes(item)))].slice(0, MAX_TRANSFER_ELEMENTS)
+function transferChoiceId(options, value, legacyIds = {}) {
+  return options.find((item) => item.id === value || item.label === value || item.id === legacyIds[value])?.id || ''
 }
 
-export function toggleTransferElement(value, element) {
-  const current = normalizeTransferElements(value)
-  if (!TRANSFER_ELEMENTS.includes(element)) return current
+export function normalizeTransferElements(value, options = []) {
+  const values = Array.isArray(value) ? value : (value ? [value] : [])
+  return [...new Set(values.map((item) => transferChoiceId(options, item, LEGACY_TRANSFER_ELEMENT_IDS)).filter(Boolean))]
+}
+
+export function toggleTransferElement(value, element, options = []) {
+  const current = normalizeTransferElements(value, options)
+  if (!options.some((item) => item.id === element)) return current
   if (current.includes(element)) return current.filter((item) => item !== element)
-  if (current.length >= MAX_TRANSFER_ELEMENTS) return current
   return [...current, element]
+}
+
+export function normalizeTransferDraft(draft, spaces = []) {
+  if (!spaces.length) return draft
+  const space = spaces.find((item) => item.id === draft.target_space || item.label === draft.target_space) || spaces[0]
+  const layout = transferChoiceId(space.layouts, draft.layout_type, LEGACY_TRANSFER_LAYOUT_IDS) || space.layouts[0].id
+  const elements = normalizeTransferElements(draft.extra_element, space.addons)
+  const next = { ...draft, target_space: space.id, layout_type: layout, extra_element: elements }
+  return draft.target_space === next.target_space && draft.layout_type === layout &&
+    JSON.stringify(draft.extra_element) === JSON.stringify(elements) ? next : clearStalePolish(next)
+}
+
+export function updateImageDesignDraftSpace(draft, spaceId, spaces) {
+  const space = spaces.find((item) => item.id === spaceId)
+  if (!space || draft.target_space === spaceId) return draft
+  return clearStalePolish({ ...draft, target_space: space.id, layout_type: space.layouts[0].id, extra_element: [] })
+}
+
+export function validTransferSelection(draft, spaces = []) {
+  const space = spaces.find((item) => item.id === draft.target_space)
+  return Boolean(space && space.layouts.some((item) => item.id === draft.layout_type) &&
+    Array.isArray(draft.extra_element) &&
+    draft.extra_element.every((id) => space.addons.some((item) => item.id === id)))
+}
+
+export function imageDesignTransferPayload(draft, spaces) {
+  if (!validTransferSelection(draft, spaces)) throw new Error('请选择目标空间对应的布局和附加元素')
+  return { target_space: draft.target_space, layout_type: draft.layout_type, extra_element: [...draft.extra_element] }
 }
 
 function clearStalePolish(draft) {
@@ -156,7 +181,7 @@ export function migrateLegacyDefaultImageCount(drafts) {
   return next
 }
 
-export function normalizeImageDesignDrafts(received, scopes = []) {
+export function normalizeImageDesignDrafts(received, scopes = [], spaces = []) {
   const initial = createImageDesignDrafts()
   const next = {}
   Object.keys(initial).forEach((key) => {
@@ -166,7 +191,7 @@ export function normalizeImageDesignDrafts(received, scopes = []) {
     }
     next[key].description_keywords = normalizeDescriptionKeywords(next[key].description_keywords)
     if (next[key].polished_for !== imageDesignDescription(next[key])) next[key] = clearStalePolish(next[key])
-    if (key === 'transfer') next[key].extra_element = normalizeTransferElements(next[key].extra_element)
+    if (key === 'transfer') next[key] = normalizeTransferDraft(next[key], spaces)
     let selectedTarget = normalizeSaveTarget(next[key].save_target) || migrateLegacySaveTarget(next[key], scopes)
     if (selectedTarget?.scope === 'private' && (!selectedTarget.gallery_id || selectedTarget.gallery_id === 'private-root') && scopes.length) {
       const generated = scopes.find((scope) => scope.scope === 'private')?.folders?.find((folder) => folder.personal_folder === 'generated')
@@ -189,13 +214,14 @@ export function requiredImageRoles(workflow) {
   return ['source']
 }
 
-export function draftCanGenerate(workflow, draft) {
+export function draftCanGenerate(workflow, draft, spaces = []) {
   if (!draft || !imageDesignDescription(draft) || imageDesignDescription(draft).length > 3000) return false
   if (!String(draft.polished_prompt || '').trim()) return false
   if (String(draft.polished_for || '') !== imageDesignDescription(draft)) return false
   if (!normalizeSaveTarget(draft.save_target) || !String(draft.refinement_id || '').trim()) return false
   if (!draft.ratio || !draft.count || !draft.quality) return false
   if (workflow === 'redesign' && !isSupportedImageDesignStyle(draft.style)) return false
+  if (workflow === 'transfer' && !validTransferSelection(draft, spaces)) return false
   return requiredImageRoles(workflow).every((role) => Boolean(draft[role]))
 }
 
@@ -361,7 +387,7 @@ export function savePathOptions(rawFolders = []) {
     })
 }
 
-export function buildImageDesignPayload(workflow, draft) {
+export function buildImageDesignPayload(workflow, draft, spaces = []) {
   const images = requiredImageRoles(workflow).map((role) => ({
     role,
     library_item_id: draft[role].id,
@@ -380,9 +406,7 @@ export function buildImageDesignPayload(workflow, draft) {
     quality: draft.quality,
     save_target: normalizeSaveTarget(draft.save_target),
     refinement_id: String(draft.refinement_id || '').trim(),
-    target_space: draft.target_space || undefined,
-    layout_type: draft.layout_type || undefined,
-    extra_element: workflow === 'transfer' ? normalizeTransferElements(draft.extra_element) : undefined
+    ...(workflow === 'transfer' ? imageDesignTransferPayload(draft, spaces) : {})
   }
 }
 

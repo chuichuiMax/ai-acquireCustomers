@@ -1,6 +1,7 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
-    <scroll-view class="content" scroll-y :lower-threshold="100" @scrolltolower="loadMoreDesignLibrary">
+    <view v-if="!draftsInitialized" class="state">正在加载生图参数…</view>
+    <scroll-view v-else class="content" scroll-y :lower-threshold="100" @scrolltolower="loadMoreDesignLibrary">
       <view class="segments">
         <view v-for="item in tabs" :key="item.key" class="segment" :class="{ active: activeTab === item.key }" @click="selectTab(item.key)">{{ item.label }}</view>
       </view>
@@ -23,7 +24,7 @@
         <view v-if="workflow === 'redesign'" class="section">
           <view class="field-title"><text>*</text>原房实拍图</view>
           <image-source-selector :entries="sourceEntries('source')" :loading="sourceFoldersLoading" @select-gallery="openPicker('source', $event)" @upload="chooseUpload('source')" />
-          <view v-if="slotImage('source')" class="selected-input" @click="previewImage(slotImage('source'))"><image :src="imageUrl(slotImage('source'))" mode="aspectFill" /><view><text>已选择原房图</text><text>{{ imageSourceLabel(slotImage('source').source_role) }}</text></view><text>更换</text></view>
+          <view v-if="slotImage('source')" class="selected-input" @click="previewImage(slotImage('source'))"><image :src="imageUrl(slotImage('source'))" mode="aspectFill" /><view><text>已选择原房图</text><text>{{ imageSourceLabel(slotImage('source').source_role) }}</text></view><text @click.stop="chooseUpload('source')">更换</text></view>
         </view>
 
         <view v-if="workflow === 'adapt'" class="section">
@@ -52,11 +53,13 @@
 
         <view v-if="workflow === 'transfer'" class="section transfer-options-section">
           <view class="field-title"><text>*</text>目标空间</view>
-          <view class="chip-grid three-column"><view v-for="space in targetSpaces" :key="space" class="choice-chip" :class="{ active: activeDraft.target_space === space }" @click="updateDraft({ target_space: space })">{{ space }}</view></view>
+          <text v-if="transferProfilesLoading" class="sync-note">正在加载空间选项…</text>
+          <view v-else-if="transferProfilesError" class="source-folder-error"><text>{{ transferProfilesError }}</text><text @click="loadTransferProfiles()">重新加载</text></view>
+          <view class="chip-grid three-column"><view v-for="space in targetSpaces" :key="space.id" class="choice-chip" :class="{ active: activeDraft.target_space === space.id }" @click="selectTransferSpace(space.id)">{{ space.label }}</view></view>
           <view class="sub-title">布局类型</view>
-          <view class="chip-grid two-column"><view v-for="layout in transferLayouts" :key="layout" class="choice-chip" :class="{ active: activeDraft.layout_type === layout }" @click="updateDraft({ layout_type: layout })">{{ layout }}</view></view>
+          <view class="chip-grid two-column"><view v-for="layout in transferLayouts" :key="layout.id" class="choice-chip" :class="{ active: activeDraft.layout_type === layout.id }" @click="updateDraft({ layout_type: layout.id })">{{ layout.label }}</view></view>
           <view class="sub-title">附加元素</view>
-          <view class="chip-grid two-column"><view v-for="element in transferElements" :key="element" class="choice-chip" :class="{ active: activeDraft.extra_element.includes(element) }" @click="toggleTransferElement(element)">{{ element }}</view></view>
+          <view class="chip-grid two-column"><view v-for="element in transferElements" :key="element.id" class="choice-chip" :class="{ active: activeDraft.extra_element.includes(element.id) }" @click="toggleTransferElement(element.id)">{{ element.label }}</view></view>
         </view>
 
         <view class="section">
@@ -76,7 +79,7 @@
             </view>
             <textarea class="description" :value="activeDraft.description" maxlength="500" placeholder="描述风格、材质、色调、空间氛围与重点陈设。" placeholder-class="description-placeholder" @input="updateDescription($event.detail.value)" />
           </view>
-          <button class="polish-button" :loading="polishing" @click="polishDescription">AI深度润色（必做）</button>
+          <button class="polish-button" :loading="polishing" :disabled="workflow === 'transfer' && !!transferSelectionError()" @click="polishDescription">AI深度润色（必做）</button>
           <view class="polish-result" :class="{ ready: activeDraft.polished_prompt }"><text>AI 润色结果{{ activeDraft.polished_prompt ? '' : ' · 未生成' }}</text><text>{{ activeDraft.polished_prompt || '请先完成补充描述与 AI 深度润色。' }}</text></view>
         </view>
 
@@ -87,7 +90,7 @@
         <view class="section compact"><view class="field-title"><text>*</text>生成数量</view><view class="two-row"><view v-for="count in imageCounts" :key="count" class="large-choice inline" :class="{ active: activeDraft.count === count }" @click="updateDraft({ count })">{{ count }}张</view></view></view>
         <view class="section compact"><view class="field-title"><text>*</text>清晰度</view><view class="two-row"><view v-for="item in imageQualities" :key="item.key" class="large-choice inline" :class="{ active: activeDraft.quality === item.key }" @click="updateDraft({ quality: item.key })">{{ item.label }}</view></view></view>
         <view class="section compact"><view class="field-title"><text>*</text>选择保存路径</view><view class="save-target-control"><save-target-sheet :scopes="saveTargetScopes" :value="activeDraft.save_target" :loading="saveTargetsLoading" :error="saveTargetsError" @confirm="confirmSaveTarget" @unavailable="showSaveTargetUnavailable"><view class="save-target"><text :class="{ placeholder: !selectedSaveTargetLabel }">{{ saveTargetsLoading ? '正在加载保存路径…' : (selectedSaveTargetLabel || '请选择保存路径') }}</text><text class="save-target-arrow">⌄</text></view></save-target-sheet></view><text v-if="saveTargetsError" class="sync-note" @click="loadSaveTargets">{{ saveTargetsError }}，点击重试</text><text v-if="draftSyncIssue" class="sync-note">草稿暂未同步到账号，请稍后重试。</text></view>
-        <button class="generate-button" :loading="generating" :disabled="generating" @click="generateImages">生成图片</button>
+        <button class="generate-button" :loading="generating" :disabled="generating || (workflow === 'transfer' && !!transferSelectionError())" @click="generateImages">生成图片</button>
       </template>
 
       <template v-else-if="activeTab === 'library'">
@@ -136,13 +139,14 @@ import { mpContentApi, mpImageDesignApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import {
-  IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS, TARGET_SPACES, TRANSFER_ELEMENTS, TRANSFER_LAYOUTS,
-  buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
+  IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS,
   migrateLegacyDefaultImageCount,
+  buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
   fixedSaveTargetOptions, imageDesignLibraryDate,
   imageDesignStyleForPayload, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
   imageDesignDescription, restoreImageDesignDraftKeywords, updateImageDesignDraftKeywords,
   childFolders, imageSourceEntries, mergeGalleryItems, normalizeImageDesignLibraryItem, normalizeImageSourceFolders, normalizeSaveTarget, normalizeTransferElements, toggleTransferElement as toggleTransferElementValue,
+  imageDesignTransferPayload, normalizeTransferDraft, validTransferSelection, updateImageDesignDraftSpace,
   updateImageDesignDraftDescription, updateImageDesignDraftImage, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
@@ -157,7 +161,8 @@ export default {
     return {
       tabs: [{ key: 'workflow', label: '生成图片' }, { key: 'library', label: '图库管理' }, { key: 'results', label: '生成结果' }],
       activeTab: 'workflow', workflow: 'redesign', workflows: IMAGE_DESIGN_WORKFLOWS, imageRatios: IMAGE_RATIOS, imageCounts: IMAGE_COUNTS, imageQualities: IMAGE_QUALITIES,
-      designStyles: IMAGE_DESIGN_STYLE_OPTIONS, targetSpaces: TARGET_SPACES, transferLayouts: TRANSFER_LAYOUTS, transferElements: TRANSFER_ELEMENTS, drafts: createImageDesignDrafts(),
+      designStyles: IMAGE_DESIGN_STYLE_OPTIONS, drafts: createImageDesignDrafts(), draftsInitialized: false, draftInitialization: null,
+      transferSpaces: [], transferProfilesLoading: false, transferProfilesError: '',
       keywordInputVisible: false, keywordInput: '',
       sourceFolders: [], sourceFoldersLoading: false, sourceFolderErrors: { private: false, enterprise: false }, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
       pickerVisible: false, pickerFolders: [], pickerFolderStack: [], pickerSlot: '', pickerSourceRole: '', pickerScopeLabel: '', pickerTitle: '', activeFolder: null,
@@ -170,6 +175,10 @@ export default {
   computed: {
     activeWorkflow() { return this.workflows.find((item) => item.key === this.workflow) || this.workflows[0] },
     activeDraft() { return this.drafts[this.workflow] || {} },
+    targetSpaces() { return this.transferProfilesLoading || this.transferProfilesError ? [] : this.transferSpaces },
+    activeTransferSpace() { return this.targetSpaces.find((item) => item.id === this.activeDraft.target_space) },
+    transferLayouts() { return this.activeTransferSpace?.layouts || [] },
+    transferElements() { return this.activeTransferSpace?.addons || [] },
     displayDescriptionKeywords() {
       const keywords = this.activeDraft.description_keywords || []
       const first = '专业空间摄影构图'
@@ -186,8 +195,9 @@ export default {
   },
   async onShow() {
     if (!(await this.ensureInternalAccess())) return
-    await Promise.all([this.loadSourceFolders(), this.loadSaveTargets()])
-    await Promise.all([this.loadRemoteDrafts(), this.loadDesignLibrary(), this.loadResults()])
+    if (!this.draftInitialization) this.draftInitialization = this.initializeDrafts()
+    await this.draftInitialization
+    await Promise.all([this.loadDesignLibrary(), this.loadResults()])
     this.startTaskPolling()
   },
   onHide() { this.persistDraftsNow(); this.stopTaskPolling() },
@@ -201,6 +211,31 @@ export default {
     selectTab(key) { this.activeTab = key; if (key === 'library') this.loadDesignLibrary(); if (key === 'results') this.loadResults() },
     selectWorkflow(key) { this.closeKeywordInput(); this.workflow = key },
     closeKeywordInput() { this.keywordInputVisible = false; this.keywordInput = '' },
+    async loadTransferProfiles(normalizeDraft = true) {
+      this.transferProfilesLoading = true; this.transferProfilesError = ''
+      try {
+        const data = await mpImageDesignApi.profiles()
+        if (!data.spaces?.length) throw new Error('空间选项配置为空')
+        this.transferSpaces = data.spaces
+        if (normalizeDraft) {
+          this.drafts = { ...this.drafts, transfer: normalizeTransferDraft(this.drafts.transfer, this.transferSpaces) }
+          this.scheduleDraftSave()
+        }
+      } catch (error) {
+        this.transferSpaces = []; this.transferProfilesError = '空间选项加载失败，请重新加载。'
+      } finally { this.transferProfilesLoading = false }
+    },
+    transferSelectionError() {
+      if (this.workflow !== 'transfer') return ''
+      if (this.transferProfilesLoading) return '正在加载空间选项'
+      if (this.transferProfilesError || !this.transferSpaces.length) return '请先重新加载空间选项'
+      return validTransferSelection(this.activeDraft, this.transferSpaces) ? '' : '请选择目标空间对应的布局和附加元素'
+    },
+    selectTransferSpace(spaceId) {
+      const draft = updateImageDesignDraftSpace(this.activeDraft, spaceId, this.transferSpaces)
+      if (draft === this.activeDraft) return
+      this.drafts = { ...this.drafts, [this.workflow]: draft }; this.scheduleDraftSave()
+    },
     removeDescriptionKeyword(keyword) {
       this.updateDescriptionKeywords(this.activeDraft.description_keywords.filter((item) => item !== keyword))
     },
@@ -226,12 +261,9 @@ export default {
     updateDescription(description) { this.drafts = { ...this.drafts, [this.workflow]: updateImageDesignDraftDescription(this.activeDraft, description) }; this.scheduleDraftSave() },
     toggleTransferElement(element) {
       if (this.workflow !== 'transfer') return
-      const current = normalizeTransferElements(this.activeDraft.extra_element)
-      const next = toggleTransferElementValue(current, element)
-      if (next.length === current.length && next.every((item, index) => item === current[index])) {
-        if (!current.includes(element)) uni.showToast({ title: '最多选择两个附加元素', icon: 'none' })
-        return
-      }
+      const current = normalizeTransferElements(this.activeDraft.extra_element, this.transferElements)
+      const next = toggleTransferElementValue(current, element, this.transferElements)
+      if (next.length === current.length && next.every((item, index) => item === current[index])) return
       this.updateDraft({ extra_element: next })
     },
     async loadSourceFolders() {
@@ -306,6 +338,13 @@ export default {
         finally { this.libraryRemovingId = '' }
       } })
     },
+    async initializeDrafts() {
+      await Promise.all([this.loadSourceFolders(), this.loadSaveTargets(), this.loadTransferProfiles(false)])
+      await this.loadRemoteDrafts()
+      // 新进入页面需重新选原房图；选图、预览返回时不重新恢复草稿。
+      this.drafts = { ...this.drafts, redesign: updateImageDesignDraftImage(this.drafts.redesign, 'source', null) }
+      this.draftsInitialized = true
+    },
     async loadRemoteDrafts() {
       const cached = this.loadCachedDrafts()
       try { const data = await mpImageDesignApi.drafts(); this.applyDrafts(data.drafts || data); this.draftSyncIssue = false } catch (error) { this.applyDrafts(cached || this.drafts); this.draftSyncIssue = true }
@@ -313,12 +352,11 @@ export default {
     loadCachedDrafts() { try { const raw = uni.getStorageSync(DRAFT_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch (error) { return null } },
     applyDrafts(received) {
       if (!received || typeof received !== 'object') return
-      let drafts = normalizeImageDesignDrafts(received, this.saveTargetScopes)
+      let drafts = normalizeImageDesignDrafts(received, this.saveTargetScopes, this.transferSpaces)
       const { drafts: migratedDrafts, didMigrate } = this.applyDraftCountMigration(drafts)
       drafts = migratedDrafts
       Object.keys(drafts).forEach((key) => { drafts[key] = restoreImageDesignDraftKeywords(drafts[key]) })
-      this.drafts = drafts
-      this.closeKeywordInput()
+      this.drafts = drafts; this.closeKeywordInput()
       if (didMigrate) this.scheduleDraftSave()
     },
     applyDraftCountMigration(drafts) {
@@ -336,12 +374,13 @@ export default {
     },
     scheduleDraftSave() { if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer); this.draftSaveTimer = setTimeout(() => this.persistDraftsNow(), 700) },
     async persistDraftsNow() {
+      if (!this.draftsInitialized) return
       if (this.draftSaveTimer) { clearTimeout(this.draftSaveTimer); this.draftSaveTimer = null }
       try { uni.setStorageSync(DRAFT_CACHE_KEY, JSON.stringify(this.drafts)) } catch (error) {}
       try { await mpImageDesignApi.saveDrafts(this.drafts); this.draftSyncIssue = false } catch (error) { this.draftSyncIssue = true }
     },
     openPicker(slot, entry) {
-      if (!entry || !entry.folder) return
+      if (!this.draftsInitialized || !entry || !entry.folder) return
       this.pickerSlot = slot; this.pickerSourceRole = entry.sourceRole; this.pickerScopeLabel = entry.scopeLabel
       this.pickerFolderStack = [entry.folder]; this.activeFolder = entry.folder
       this.pickerTitle = `${this.pickerScopeLabel} / ${entry.folder.name || '未分类'}`
@@ -403,6 +442,8 @@ export default {
       } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.pickerSaving = false }
     },
     chooseUpload(slot) {
+      if (!this.draftsInitialized) return
+      const workflow = this.workflow
       uni.chooseImage({ count: 1, sizeType: ['compressed'], success: async (response) => {
         const filePath = (response.tempFilePaths || [])[0]; if (!filePath) return
         try {
@@ -410,19 +451,21 @@ export default {
           const upload = await mpImageDesignApi.uploadInput(filePath, slot)
           const saved = normalizeImageDesignLibraryItem(upload.item || upload.library_item || upload, { source_role: 'upload' })
           if (!saved.id) throw new Error('上传后未返回图库图片')
-          this.setImageSlot(slot, saved)
+          this.setImageSlot(slot, saved, workflow)
           await this.loadDesignLibrary()
           uni.showToast({ title: '已上传并加入图库', icon: 'none' })
         } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { uni.hideLoading() }
       } })
     },
     assertUploadableImage(filePath) { return new Promise((resolve, reject) => uni.getFileInfo({ filePath, success: (info) => info && info.size > MAX_UPLOAD_BYTES ? reject(new Error('单张图片不能超过 20 MB')) : resolve(), fail: () => resolve() })) },
-    setImageSlot(slot, image) { this.drafts = { ...this.drafts, [this.workflow]: updateImageDesignDraftImage(this.activeDraft, slot, image) }; this.scheduleDraftSave() },
+    setImageSlot(slot, image, workflow = this.workflow) { this.drafts = { ...this.drafts, [workflow]: updateImageDesignDraftImage(this.drafts[workflow], slot, image) }; this.scheduleDraftSave() },
     previewImage(item) { const url = this.imageUrl(item); if (url) uni.previewImage({ current: url, urls: [url] }) },
     requiredRoles() { return this.workflow === 'adapt' ? ['reference', 'rough'] : this.workflow === 'transfer' ? ['reference'] : ['source'] },
     requiredRoleMissing() { return this.requiredRoles().find((role) => !this.activeDraft[role]) || '' },
     roleLabel(role) { return { source: '原房实拍图', reference: '参考效果图', rough: '毛坯实拍图' }[role] || '图片' },
     async polishDescription() {
+      const transferError = this.transferSelectionError()
+      if (transferError) { uni.showToast({ title: transferError, icon: 'none' }); return }
       const workflow = this.workflow
       const draftAtRequest = this.activeDraft
       const description = imageDesignDescription(draftAtRequest)
@@ -433,7 +476,8 @@ export default {
       this.polishing = true
       try {
         const images = this.requiredRoles().map((role) => ({ role, library_item_id: this.activeDraft[role].id }))
-        const data = await mpImageDesignApi.polish({ workflow: this.workflow, description, style: imageDesignStyleForPayload(this.activeDraft.style), images, target_space: this.activeDraft.target_space || undefined, layout_type: this.activeDraft.layout_type || undefined, extra_element: this.workflow === 'transfer' ? normalizeTransferElements(this.activeDraft.extra_element) : undefined })
+        const transfer = workflow === 'transfer' ? imageDesignTransferPayload(draftAtRequest, this.transferSpaces) : {}
+        const data = await mpImageDesignApi.polish({ workflow, description, style: imageDesignStyleForPayload(draftAtRequest.style), images, ...transfer })
         const polished = data.polished_prompt || data.prompt || data.result || ''; if (!polished) throw new Error('AI 未返回润色结果，请重试')
         const refinementId = String(data.refinement_id || '').trim(); if (!refinementId) throw new Error('AI 未返回润色凭证，请重试')
         if (this.workflow === workflow && this.activeDraft === draftAtRequest) this.updateDraft({ polished_prompt: polished, polished_for: description, refinement_id: refinementId })
@@ -452,6 +496,7 @@ export default {
       await this.persistDraftsNow()
     },
     validateGeneration() {
+      const transferError = this.transferSelectionError(); if (transferError) return transferError
       const missing = this.requiredRoleMissing(); if (missing) return `请选择${this.roleLabel(missing)}`
       if (this.workflow === 'redesign' && !isSupportedImageDesignStyle(this.activeDraft.style)) return '请选择换装风格'
       const description = imageDesignDescription(this.activeDraft)
@@ -462,10 +507,10 @@ export default {
     },
     async generateImages() {
       const validation = this.validateGeneration(); if (validation) { uni.showToast({ title: validation, icon: 'none' }); return }
-      if (!draftCanGenerate(this.workflow, this.activeDraft)) { uni.showToast({ title: '生成参数尚未填写完整', icon: 'none' }); return }
+      if (!draftCanGenerate(this.workflow, this.activeDraft, this.transferSpaces)) { uni.showToast({ title: '生成参数尚未填写完整', icon: 'none' }); return }
       this.generating = true
       try {
-        const workflow = this.workflow; const payload = buildImageDesignPayload(workflow, this.activeDraft)
+        const workflow = this.workflow; const payload = buildImageDesignPayload(workflow, this.activeDraft, this.transferSpaces)
         await this.persistDraftsNow(); const data = await mpImageDesignApi.createTask(payload); const task = data.task || data; const id = task.id || task.task_id || task.job_id
         if (id) this.tasks = { ...this.tasks, [id]: { ...task, id, status_text: task.status_text || '正在生成图片…' } }
         this.activeTab = 'results'; await this.loadResults(); this.startTaskPolling()

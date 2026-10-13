@@ -23,7 +23,7 @@ test('folder selection saves a generation-library reference before filling its s
 
 test('local uploads use the dedicated image-design endpoint and immediately fill the current slot', () => {
   assert.match(page, /mpImageDesignApi\.uploadInput\(filePath, slot\)/)
-  assert.match(page, /this\.setImageSlot\(slot, saved\)/)
+  assert.match(page, /this\.setImageSlot\(slot, saved, workflow\)/)
   assert.match(api, /url: '\/api\/mp\/image-design\/uploads'/)
 })
 
@@ -37,8 +37,8 @@ test('redesign style selection uses image-design options and sends description m
   assert.doesNotMatch(page, /materials-logic\.mjs/)
   assert.match(page, /IMAGE_DESIGN_STYLE_OPTIONS/)
   assert.match(page, /@click="selectDesignStyle\(style\.value\)"/)
-  assert.match(page, /normalizeImageDesignDrafts\(received, this\.saveTargetScopes\)/)
-  assert.match(page, /style: imageDesignStyleForPayload\(this\.activeDraft\.style\)/)
+  assert.match(page, /normalizeImageDesignDrafts\(received, this\.saveTargetScopes, this\.transferSpaces\)/)
+  assert.match(page, /style: imageDesignStyleForPayload\(draftAtRequest\.style\)/)
 })
 
 test('drafts, jobs, result comparison, and photo-album download use the image-design contract', () => {
@@ -63,11 +63,11 @@ test('the latest save target becomes the default for all workflow drafts', () =>
   assert.match(method[1], /save_target: normalizeSaveTarget\(target\)/)
 })
 
-test('transfer addon choices support multiple selections with a two-item cap', () => {
-  assert.match(page, /activeDraft\.extra_element\.includes\(element\)/)
-  assert.match(page, /toggleTransferElement\(element\)/)
-  assert.match(page, /最多选择两个附加元素/)
-  assert.match(page, /extra_element: this\.workflow === 'transfer' \? normalizeTransferElements\(this\.activeDraft\.extra_element\) : undefined/)
+test('transfer addon choices support all options for the selected space', () => {
+  assert.match(page, /activeDraft\.extra_element\.includes\(element\.id\)/)
+  assert.match(page, /toggleTransferElement\(element\.id\)/)
+  assert.doesNotMatch(page, /最多选择两个附加元素/)
+  assert.match(page, /imageDesignTransferPayload\(draftAtRequest, this\.transferSpaces\)/)
 })
 
 test('save path uses the API-backed fixed choices and validates the canonical target', () => {

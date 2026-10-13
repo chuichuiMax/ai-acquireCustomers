@@ -1,18 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import * as imageDesignLogic from '../utils/image-design-logic.mjs'
+import { transferSpaces } from './fixtures/image-design-profiles.mjs'
 import {
   buildImageDesignPayload,
   childFolders,
   createImageDesignDrafts,
   DESCRIPTION_STYLE_VALUE,
   draftCanGenerate,
+  migrateLegacyDefaultImageCount,
   IMAGE_COUNTS,
   IMAGE_DESIGN_STYLE_OPTIONS,
   normalizeTransferElements,
   imageDesignStyleForPayload,
   isSupportedImageDesignStyle,
-  migrateLegacyDefaultImageCount,
   normalizeImageDesignDrafts,
   normalizeImageSourceFolders,
   normalizeSaveTarget,
@@ -29,12 +30,12 @@ test('server preset names override legacy display mappings while preserving hist
   assert.deepEqual(normalizeImageSourceFolders([gallery]), [gallery])
 })
 
-test('transfer drafts normalize legacy addon values and cap selections at two', () => {
-  assert.deepEqual(normalizeTransferElements('落地窗旁休闲躺椅'), ['落地窗旁休闲躺椅'])
+test('transfer drafts normalize legacy addon values and keep all valid selections', () => {
+  assert.deepEqual(normalizeTransferElements('落地窗旁休闲躺椅', transferSpaces[0].addons), ['lounge_chair'])
   assert.deepEqual(normalizeTransferElements([
     '落地窗旁休闲躺椅', '壁炉居中', '电视墙满墙收纳柜', '未知元素'
-  ]), ['落地窗旁休闲躺椅', '壁炉居中'])
-  assert.deepEqual(normalizeImageDesignDrafts({ transfer: { extra_element: '壁炉居中' } }).transfer.extra_element, ['壁炉居中'])
+  ], transferSpaces[0].addons), ['lounge_chair', 'fireplace', 'storage_wall'])
+  assert.deepEqual(normalizeImageDesignDrafts({ transfer: { extra_element: '壁炉居中' } }, [], transferSpaces).transfer.extra_element, ['fireplace'])
 })
 
 test('image design keeps its own preset styles and recognizes description mode', () => {
@@ -284,7 +285,7 @@ test('legacy default count 2 migrates to 1', () => {
 
 test('all image design workflows can submit one image while keeping one as the default', () => {
   assert.deepEqual(IMAGE_COUNTS, [1, 2, 4])
-  const drafts = createImageDesignDrafts()
+  const drafts = normalizeImageDesignDrafts(createImageDesignDrafts(), [], transferSpaces)
   const images = {
     redesign: { source: { id: 'source' } },
     adapt: { reference: { id: 'reference' }, rough: { id: 'rough' } },
@@ -292,22 +293,23 @@ test('all image design workflows can submit one image while keeping one as the d
   }
   for (const workflow of ['redesign', 'adapt', 'transfer']) {
     assert.equal(drafts[workflow].count, 1)
-    assert.equal(buildImageDesignPayload(workflow, { ...drafts[workflow], ...images[workflow], count: 1 }).count, 1)
+    assert.equal(buildImageDesignPayload(workflow, { ...drafts[workflow], ...images[workflow], count: 1 }, transferSpaces).count, 1)
   }
 })
 
 test('a generation payload sends transfer addons as an array', () => {
   const draft = {
     ...createImageDesignDrafts().transfer,
+    layout_type: 'sofa_wall',
     reference: { id: 'design-ref' },
     description: '保留开窗',
     polished_prompt: '保留开窗，增加休闲元素',
     polished_for: '保留开窗',
     save_target: { scope: 'private', gallery_id: 'target' },
     refinement_id: 'ref-1',
-    extra_element: ['落地窗旁休闲躺椅', '壁炉居中']
+    extra_element: ['lounge_chair', 'fireplace']
   }
-  assert.deepEqual(buildImageDesignPayload('transfer', draft).extra_element, ['落地窗旁休闲躺椅', '壁炉居中'])
+  assert.deepEqual(buildImageDesignPayload('transfer', draft, transferSpaces).extra_element, ['lounge_chair', 'fireplace'])
 })
 
 test('legacy private root drafts resolve to the actual personal generated gallery', () => {
