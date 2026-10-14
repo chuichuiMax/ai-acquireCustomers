@@ -1,5 +1,9 @@
 import { getToken, request, setToken, uploadFile } from '../utils/request'
 import { employeeFromMe, hasMiniProgramAccess } from '../utils/internal-access-policy.mjs'
+import {
+  isImageDesignAnalysisPendingError,
+  sanitizeImageDesignPolishPayload
+} from '../utils/image-design-logic.mjs'
 
 function isMissingApi(error) {
   const status = error && error.statusCode
@@ -31,6 +35,36 @@ async function firstAvailable(fns) {
     } catch (error) {
       lastError = error
       if (!isMissingApi(error)) throw error
+    }
+  }
+  throw lastError
+}
+
+const IMAGE_DESIGN_POLISH_TIMEOUT_MS = 180000
+const IMAGE_DESIGN_POLISH_PENDING_ATTEMPTS = 10
+const IMAGE_DESIGN_POLISH_PENDING_DELAY_MS = 2000
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function postImageDesignPolish(data) {
+  const payload = sanitizeImageDesignPolishPayload(data)
+  let lastError
+  for (let attempt = 0; attempt < IMAGE_DESIGN_POLISH_PENDING_ATTEMPTS; attempt += 1) {
+    try {
+      return await request({
+        url: '/api/mp/image-design/polish',
+        method: 'POST',
+        data: payload,
+        timeout: IMAGE_DESIGN_POLISH_TIMEOUT_MS
+      })
+    } catch (error) {
+      lastError = error
+      const canRetry =
+        isImageDesignAnalysisPendingError(error) && attempt + 1 < IMAGE_DESIGN_POLISH_PENDING_ATTEMPTS
+      if (!canRetry) throw error
+      await delay(IMAGE_DESIGN_POLISH_PENDING_DELAY_MS)
     }
   }
   throw lastError
@@ -417,7 +451,7 @@ export const mpImageDesignApi = {
       filePath,
       formData: { role }
     }),
-  polish: (data) => request({ url: '/api/mp/image-design/polish', method: 'POST', data, timeout: 120000 }),
+  polish: (data) => postImageDesignPolish(data),
   createTask: (data) => request({ url: '/api/mp/image-design/tasks', method: 'POST', data, timeout: 180000 }),
   task: (taskId) => request({ url: `/api/mp/image-design/tasks/${encodeURIComponent(taskId)}` }),
   retryTask: (taskId) => request({ url: `/api/mp/image-design/tasks/${encodeURIComponent(taskId)}/retry`, method: 'POST' }),

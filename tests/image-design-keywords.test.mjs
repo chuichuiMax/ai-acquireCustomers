@@ -36,9 +36,14 @@ function createPage(api = {}) {
   return { instance, toasts }
 }
 
-test('all new workflows receive independent copies of the five default keywords in the requested display order', () => {
+test('all new workflows receive default keywords and structure-preserving description text', () => {
   const drafts = logic.createImageDesignDrafts()
-  for (const draft of Object.values(drafts)) assert.deepEqual(draft.description_keywords, defaults)
+  for (const draft of Object.values(drafts)) {
+    assert.deepEqual(draft.description_keywords, defaults)
+    assert.match(draft.description, /以毛坯图为唯一结构底图/)
+    assert.match(draft.description, /临时裸灯泡/)
+    assert.match(draft.description, /\n/)
+  }
   drafts.redesign.description_keywords.pop()
   assert.deepEqual(drafts.adapt.description_keywords, defaults)
   assert.deepEqual(drafts.transfer.description_keywords, defaults)
@@ -48,11 +53,15 @@ test('all new workflows receive independent copies of the five default keywords 
 
 test('keywords and text form one canonical description for validation and task submission', () => {
   const draft = readyDraft()
-  const expected = '高级质感、空间合理、原图杂物不要显示、符合装修后实景图、专业空间摄影构图。增加阅读角'
+  const expected =
+    '高级质感、空间合理、原图杂物不要显示、符合装修后实景图、专业空间摄影构图\n增加阅读角'
   assert.equal(logic.imageDesignDescription(draft), expected)
   assert.equal(logic.buildImageDesignPayload('redesign', draft).description, expected)
   assert.equal(logic.draftCanGenerate('redesign', draft), true)
-  assert.equal(logic.imageDesignDescription({ description_keywords: [' 木质 ', '木质', '', null], description: ' 阅读角 ' }), '木质。阅读角')
+  assert.equal(
+    logic.imageDesignDescription({ description_keywords: [' 木质 ', '木质', '', null], description: ' 阅读角 ' }),
+    '木质\n阅读角'
+  )
 })
 
 test('keyword edits invalidate polish and normal draft normalization does not restore deletions', () => {
@@ -72,7 +81,8 @@ test('reopening resets keywords to defaults and preserves the free description',
   edited.polished_for = logic.imageDesignDescription(edited)
   instance.applyDrafts(JSON.parse(JSON.stringify({ redesign: edited })))
   assert.deepEqual(instance.activeDraft.description_keywords, defaults)
-  assert.equal(instance.activeDraft.description, '增加阅读角')
+  assert.match(instance.activeDraft.description, /增加阅读角/)
+  assert.match(instance.activeDraft.description, /以毛坯图为唯一结构底图/)
   assert.equal(instance.activeDraft.refinement_id, '')
   instance.applyDrafts({ redesign: readyDraft() })
   assert.equal(instance.activeDraft.refinement_id, 'refinement-1')
@@ -85,13 +95,15 @@ test('legacy drafts gain defaults without losing text or retaining stale polish'
   legacy.polished_for = legacy.description
   instance.applyDrafts({ redesign: legacy })
   assert.deepEqual(instance.activeDraft.description_keywords, defaults)
-  assert.equal(instance.activeDraft.description, '增加阅读角')
+  assert.match(instance.activeDraft.description, /增加阅读角/)
+  assert.match(instance.activeDraft.description, /以毛坯图为唯一结构底图/)
   assert.equal(instance.activeDraft.refinement_id, '')
   const previous = { ...readyDraft(), description_keywords: ['高级质感', '空间合理', '专业空间摄影构图'] }
   previous.polished_for = logic.imageDesignDescription(previous)
   instance.applyDrafts({ redesign: previous })
   assert.deepEqual(instance.activeDraft.description_keywords, defaults)
-  assert.equal(instance.activeDraft.description, '增加阅读角')
+  assert.match(instance.activeDraft.description, /增加阅读角/)
+  assert.match(instance.activeDraft.description, /以毛坯图为唯一结构底图/)
   assert.equal(instance.activeDraft.refinement_id, '')
 })
 
@@ -101,7 +113,10 @@ test('removing the new keywords excludes them from submission and invalidates po
   instance.removeDescriptionKeyword('原图杂物不要显示')
   instance.removeDescriptionKeyword('符合装修后实景图')
   assert.deepEqual(instance.activeDraft.description_keywords, ['高级质感', '空间合理', '专业空间摄影构图'])
-  assert.equal(logic.buildImageDesignPayload('redesign', instance.activeDraft).description, '高级质感、空间合理、专业空间摄影构图。增加阅读角')
+  assert.equal(
+    logic.buildImageDesignPayload('redesign', instance.activeDraft).description,
+    '高级质感、空间合理、专业空间摄影构图\n增加阅读角'
+  )
   assert.equal(instance.activeDraft.refinement_id, '')
   assert.equal(logic.draftCanGenerate('redesign', instance.activeDraft), false)
 })
@@ -153,6 +168,30 @@ test('polish sends exactly the task description and ignores a response after key
   assert.equal(instance.activeDraft.polished_for, payload.description)
   assert.equal(logic.buildImageDesignPayload('redesign', instance.activeDraft).description, payload.description)
   assert.equal(logic.draftCanGenerate('redesign', instance.activeDraft), true)
+})
+
+test('restoreImageDesignDraftDescription appends default paragraph when missing', () => {
+  const draft = logic.updateImageDesignDraftDescription(logic.createImageDesignDrafts().adapt, '增加阅读角')
+  const restored = logic.restoreImageDesignDraftDescription(draft)
+  assert.match(restored.description, /增加阅读角/)
+  assert.match(restored.description, /以毛坯图为唯一结构底图/)
+  assert.match(restored.description, /临时裸灯泡/)
+  assert.ok(restored.description.indexOf('增加阅读角') < restored.description.indexOf('以毛坯图为唯一结构底图'))
+})
+
+test('restoreImageDesignDraftDescription appends lighting paragraph to legacy single-paragraph default', () => {
+  const legacy = logic.DEFAULT_DESCRIPTION_PARAGRAPHS[0]
+  const draft = logic.updateImageDesignDraftDescription(logic.createImageDesignDrafts().redesign, legacy)
+  const restored = logic.restoreImageDesignDraftDescription(draft)
+  assert.match(restored.description, /临时裸灯泡/)
+  assert.equal(restored.description.split('\n').length, 2)
+})
+
+test('default description is exactly two paragraphs separated by one newline', () => {
+  const parts = logic.DEFAULT_DESCRIPTION_TEXT.split('\n')
+  assert.equal(parts.length, 2)
+  assert.match(parts[0], /参考图仅用于风格、配色、材质和灯光/)
+  assert.match(parts[1], /临时裸灯泡/)
 })
 
 test('offline reopening resets cached custom keywords to defaults', async () => {

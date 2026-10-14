@@ -41,6 +41,16 @@ const LEGACY_TRANSFER_ELEMENT_IDS = Object.freeze({
 })
 export const DEFAULT_DESCRIPTION_KEYWORDS = Object.freeze(['高级质感', '空间合理', '原图杂物不要显示', '符合装修后实景图', '专业空间摄影构图'])
 
+export const DEFAULT_DESCRIPTION_PARAGRAPHS = Object.freeze([
+  '以毛坯图为唯一结构底图，保持原机位、构图、透视和画幅比例；墙、柱、梁、门窗洞口的位置、数量、尺寸、轮廓及空间遮挡关系全部不变，不增删、移动或重塑结构。参考图仅用于风格、配色、材质和灯光。所有饰面贴合原结构，全面替换毛坯材质，消除水泥、砖块、孔洞及施工纹理，覆盖远近景、侧面、转角和洞口内侧，无毛坯遗漏。结构一致优先于装饰造型，主要结构边缘与原图对齐，生成完整、自然、高清的写实装修效果图。',
+  '移除毛坯图中的临时裸灯泡、悬吊电线及临时施工灯具，改用符合装修风格的正式照明。临时施工物品不属于需要保留的空间结构。'
+])
+
+export const DEFAULT_DESCRIPTION_TEXT = DEFAULT_DESCRIPTION_PARAGRAPHS.join('\n')
+
+const DEFAULT_DESCRIPTION_MARKER = '以毛坯图为唯一结构底图'
+const DEFAULT_DESCRIPTION_LIGHTING_MARKER = '临时裸灯泡'
+
 export function createImageDesignDrafts() {
   return {
     redesign: createDraft(),
@@ -59,7 +69,7 @@ function createDraft() {
   return {
     source: null,
     style: '',
-    description: '',
+    description: DEFAULT_DESCRIPTION_TEXT,
     description_keywords: [...DEFAULT_DESCRIPTION_KEYWORDS],
     polished_prompt: '',
     polished_for: '',
@@ -100,7 +110,8 @@ export function normalizeDescriptionKeywords(keywords) {
 export function imageDesignDescription(draft = {}) {
   const keywords = normalizeDescriptionKeywords(draft.description_keywords).join('、')
   const description = String(draft.description || '').trim()
-  return [keywords, description].filter(Boolean).join('。')
+  if (keywords && description) return `${keywords}\n${description}`
+  return keywords || description
 }
 
 export function updateImageDesignDraftKeywords(draft = {}, keywords) {
@@ -110,6 +121,20 @@ export function updateImageDesignDraftKeywords(draft = {}, keywords) {
 
 export function restoreImageDesignDraftKeywords(draft = {}) {
   return updateImageDesignDraftKeywords(draft, DEFAULT_DESCRIPTION_KEYWORDS)
+}
+
+export function restoreImageDesignDraftDescription(draft = {}) {
+  let current = String(draft.description || '').trim()
+  let next = draft
+  if (!current.includes(DEFAULT_DESCRIPTION_MARKER)) {
+    current = current ? `${current}\n${DEFAULT_DESCRIPTION_TEXT}` : DEFAULT_DESCRIPTION_TEXT
+    next = updateImageDesignDraftDescription(draft, current)
+    current = String(next.description || '').trim()
+  }
+  if (!current.includes(DEFAULT_DESCRIPTION_LIGHTING_MARKER)) {
+    next = updateImageDesignDraftDescription(next, `${current}\n${DEFAULT_DESCRIPTION_PARAGRAPHS[1]}`)
+  }
+  return next
 }
 
 export function updateImageDesignDraftImage(draft = {}, role, image) {
@@ -385,6 +410,37 @@ export function savePathOptions(rawFolders = []) {
         label: `${visibility === 'enterprise' ? '企业图库' : '我的素材'} / ${name}`
       }
     })
+}
+
+export function sanitizeImageDesignPolishPayload(data = {}) {
+  const payload = {
+    workflow: data.workflow,
+    description: data.description,
+    style: data.style,
+    target_space: data.target_space,
+    layout_type: data.layout_type,
+    extra_element: data.extra_element
+  }
+  Object.keys(payload).forEach((key) => {
+    const value = payload[key]
+    if (value === undefined || value === null || value === '') delete payload[key]
+    if (key === 'extra_element' && Array.isArray(value) && !value.length) delete payload[key]
+  })
+  if (Array.isArray(data.images)) {
+    payload.images = data.images
+      .map((item) => ({
+        role: item && item.role,
+        library_item_id: item && item.library_item_id != null ? String(item.library_item_id).trim() : ''
+      }))
+      .filter((item) => item.role && item.library_item_id)
+  }
+  return payload
+}
+
+export function isImageDesignAnalysisPendingError(error) {
+  const detail = error && error.data && error.data.detail
+  const code = detail && detail.error && detail.error.code
+  return error && error.statusCode === 409 && code === 'IMAGE_DESIGN_ANALYSIS_PENDING'
 }
 
 export function buildImageDesignPayload(workflow, draft, spaces = []) {

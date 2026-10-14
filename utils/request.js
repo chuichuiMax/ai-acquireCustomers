@@ -121,9 +121,25 @@ export function publicMediaUrl(path) {
   return `${BASE_URL}${path}`
 }
 
+function validationDetailMessage(detail) {
+  if (!Array.isArray(detail) || !detail.length) return ''
+  const parts = detail
+    .map((item) => {
+      if (!item || typeof item !== 'object') return ''
+      const msg = String(item.msg || item.message || '').trim()
+      if (!msg) return ''
+      const loc = Array.isArray(item.loc) ? item.loc.filter((part) => typeof part === 'string' && part !== 'body') : []
+      return loc.length ? `${loc.join('.')}：${msg}` : msg
+    })
+    .filter(Boolean)
+  return parts.length ? parts.join('；') : ''
+}
+
 export function errorMessage(res) {
   const detail = res && res.data && res.data.detail
   if (typeof detail === 'string') return detail
+  const validationMessage = validationDetailMessage(detail)
+  if (validationMessage) return validationMessage
   if (detail && detail.error && detail.error.message) {
     const fields = detail.error.fields || detail.fields
     if (Array.isArray(fields) && fields.length) {
@@ -139,7 +155,8 @@ export function errorMessage(res) {
   const errMsg = String((res && (res.errMsg || res.message)) || '')
   if (/timeout/i.test(errMsg)) return '请求超时，请稍后重试'
   if (/fail/i.test(errMsg) && errMsg) return '网络请求失败，请检查网络后重试'
-  if (res && res.statusCode) return `请求失败（${res.statusCode}）`
+  const statusCode = res && res.statusCode
+  if (statusCode) return statusCode === 0 ? '网络请求失败，请检查网络或服务器域名配置' : `请求失败（${statusCode}）`
   return '请求失败'
 }
 
