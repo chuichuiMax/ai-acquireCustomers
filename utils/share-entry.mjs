@@ -1,5 +1,35 @@
 export const LAST_SHARE_ID_KEY = 'last_owner_share'
 export const LAST_SHARE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+export const ENTRY_ROUTE = 'pages/index/index'
+export const SHARED_CASE_ROUTE = 'pages/materials/shared-case'
+export const SHARE_SCENES = new Set([1007, 1008, 1044])
+export const NORMAL_ENTRY_SCENES = new Set([1001, 1089])
+export const CASE_ROUTES = new Set(['pages/materials/materials', SHARED_CASE_ROUTE])
+
+export function normalizeLaunchPath(path = '') {
+  return String(path || '').split('?')[0].replace(/^\//, '')
+}
+
+export function isNeutralEmployeeLaunch(scene, route, path = '') {
+  if (!NORMAL_ENTRY_SCENES.has(Number(scene))) return false
+  const pathBase = normalizeLaunchPath(path)
+  return !route || route === ENTRY_ROUTE || pathBase === ENTRY_ROUTE || pathBase === ''
+}
+
+export function shouldHonorLaunchShareId({ scene, route, path, shareId, normalCaseEntry }) {
+  if (!shareId || normalCaseEntry) return false
+  if (SHARE_SCENES.has(Number(scene))) return true
+  if (isNeutralEmployeeLaunch(scene, route, path)) return false
+  const pathBase = normalizeLaunchPath(path)
+  return pathBase === SHARED_CASE_ROUTE || CASE_ROUTES.has(route)
+}
+
+export function shouldRestoreLastShare({ scene, route, path, lastShareId }) {
+  if (!lastShareId) return false
+  if (isNeutralEmployeeLaunch(scene, route, path)) return false
+  const pathBase = normalizeLaunchPath(path)
+  return CASE_ROUTES.has(route) || CASE_ROUTES.has(pathBase)
+}
 
 let caseSystemAction = null
 

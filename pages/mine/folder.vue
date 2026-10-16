@@ -2,7 +2,7 @@
   <view v-if="internalAccessGranted" class="page">
     <view class="gallery-card">
       <view v-if="calendarOpen" class="calendar-scrim" @click="closeCalendar" />
-      <view class="date-filter-wrap">
+      <view v-if="scope !== 'enterprise' && !isGeneratedGallery" class="date-filter-wrap">
         <view class="date-filter" @click="openCalendar">
           <text class="date-label">日期区间</text>
           <text class="date-value">{{ dateFrom && dateTo ? dateFrom + '—' + dateTo : '开始日期—结束日期' }}</text>
@@ -41,23 +41,35 @@
       <view v-if="itemError" class="library-error" @click="loadItems(true)">{{ itemError }}，点击重试</view>
       <view v-if="loading && !items.length" class="empty">正在加载图片…</view>
       <view v-else-if="!itemError && !items.length" class="empty">{{ dateFrom ? '所选日期内暂无图片' : '该文件夹暂无图片' }}</view>
+      <view v-else-if="isGeneratedGallery" class="grid">
+        <view v-for="item in items" :key="item.id" class="work-card">
+          <view class="work-thumb" @click="onGeneratedThumbClick(item)">
+            <image class="work-image" :src="imageUrl(item)" mode="aspectFill" lazy-load />
+            <view v-if="editing && canSelectItem(item)" class="check" :class="{ selected: selectedIds.includes(item.id) }">{{ selectedIds.includes(item.id) ? '✓' : '' }}</view>
+          </view>
+          <view class="work-meta">
+            <text class="created-at">生成时间：{{ formatUploadTime(item.uploaded_at || item.created_at) }}</text>
+            <button class="download-btn" :loading="downloadingId === item.id" :disabled="!!downloadingId" @click="downloadItem(item)">下载</button>
+          </view>
+        </view>
+      </view>
       <view v-else class="grid">
         <view v-for="item in items" :key="item.id" class="image-card" @click="toggleItem(item)">
           <image class="image" :src="imageUrl(item)" mode="aspectFill" lazy-load />
-          <view v-if="editing && item.can_manage" class="check" :class="{ selected: selectedIds.includes(item.id) }">{{ selectedIds.includes(item.id) ? '✓' : '' }}</view>
-          <text v-if="folderId !== 'generated'" class="image-detail">文件名称：{{ item.file_name || item.name || '-' }}</text>
+          <view v-if="editing && canSelectItem(item)" class="check" :class="{ selected: selectedIds.includes(item.id) }">{{ selectedIds.includes(item.id) ? '✓' : '' }}</view>
+          <text v-if="scope === 'enterprise'" class="image-detail">文件名称：{{ item.file_name || item.name || '-' }}</text>
           <text class="image-detail">上传时间：{{ formatUploadTime(item.uploaded_at || item.created_at) }}</text>
         </view>
       </view>
     </view>
-    <view class="actions" :style="{ bottom: (53 + safeBottom) + 'px' }">
+    <view class="actions" :style="actionBarStyle">
       <template v-if="!editing">
-        <button v-if="canUpload" class="button ghost" :loading="uploading" @click="chooseImages">上传</button>
+        <button v-if="canUpload && !isGeneratedGallery" class="button ghost" :loading="uploading" @click="chooseImages">上传</button>
         <button class="button ghost" @click="editing = true">编辑</button>
       </template>
       <template v-else>
         <button class="button danger" :disabled="!selectedIds.length" @click="removeSelected">删除</button>
-        <button class="button danger" @click="cancelEdit">取消</button>
+        <button class="button ghost" @click="cancelEdit">取消</button>
       </template>
     </view>
     <tab-bar current="mine" />
@@ -66,9 +78,10 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
-import { mpContentApi } from '../../apis/mp'
-import { errorMessage, galleryThumbUrl } from '../../utils/request'
+import { mpContentApi, mpMeApi } from '../../apis/mp'
+import { errorMessage, galleryThumbUrl, mediaUrl, saveImageUrlToPhotosAlbum } from '../../utils/request'
 import { createImageSelection, formatUploadTime, nextDateRangeSelection, toggleImageSelection } from '../../utils/mine-library-logic.mjs'
+import { canSelectMaterialItemForDelete, filterEnterpriseRoughGalleries } from '../../utils/enterprise-materials.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
@@ -76,7 +89,10 @@ export default {
   mixins: [internalPageMixin],
   data() {
     return {
+      scope: 'private',
       folderId: '',
+      categoryId: '',
+      currentUid: '',
       galleryMeta: null,
       items: [],
       page: 1,
@@ -95,10 +111,20 @@ export default {
       calendarOpen: false,
       calendarYear: new Date().getFullYear(),
       calendarMonth: new Date().getMonth() + 1,
-      weekDays: ['一', '二', '三', '四', '五', '六', '日']
+      weekDays: ['一', '二', '三', '四', '五', '六', '日'],
+      downloadingId: ''
     }
   },
   computed: {
+    isGeneratedGallery() {
+      return this.scope !== 'enterprise' && this.folderId === 'generated'
+    },
+    actionBarStyle() {
+      const bottom = this.isGeneratedGallery
+        ? `calc(66px + env(safe-area-inset-bottom))`
+        : `${53 + this.safeBottom}px`
+      return { bottom }
+    },
     canUpload() {
       return Boolean(this.galleryMeta && this.galleryMeta.can_upload)
     },
@@ -119,11 +145,15 @@ export default {
     this.safeBottom = info.safeAreaInsets ? info.safeAreaInsets.bottom : 0
   },
   async onLoad(options) {
+    this.scope = options.scope === 'enterprise' ? 'enterprise' : 'private'
     this.folderId = String(options.folder || '').trim()
+    this.categoryId = String(options.category || '').trim()
     const title = options.name ? decodeURIComponent(options.name) : ''
     if (title) uni.setNavigationBarTitle({ title })
     if (!(await this.ensureInternalAccess())) return
-    if (!this.folderId) {
+    await this.loadCurrentUid()
+    const missingTarget = this.scope === 'enterprise' ? !this.categoryId : !this.folderId
+    if (missingTarget) {
       uni.showToast({ title: '图库不存在', icon: 'none' })
       setTimeout(() => uni.navigateBack(), 300)
       return
@@ -135,22 +165,46 @@ export default {
     if (this.items.length < this.total) this.loadItems(false)
   },
   methods: {
+    async loadCurrentUid() {
+      try {
+        const data = await mpMeApi.get()
+        this.currentUid = String(
+          data.user_uid || (data.user && data.user.uid) || data.uid || ''
+        ).trim()
+      } catch (error) {
+        this.currentUid = ''
+      }
+    },
+    canSelectItem(item) {
+      return canSelectMaterialItemForDelete(item, { scope: this.scope, currentUid: this.currentUid })
+    },
     async loadGalleryMeta() {
       try {
-        const data = await mpContentApi.myMaterialFolders()
-        const gallery = (data.folders || []).find((folder) => folder.id === this.folderId)
-        if (!gallery) {
-          this.itemError = '图库不存在或已删除'
-          return
+        if (this.scope === 'enterprise') {
+          const data = await mpContentApi.galleries('enterprise')
+          const gallery = filterEnterpriseRoughGalleries(data.galleries || []).find((row) => row.id === this.categoryId)
+          if (!gallery) {
+            this.itemError = '图库不存在或已删除'
+            return
+          }
+          this.galleryMeta = { ...gallery, gallery_id: gallery.id }
+        } else {
+          const data = await mpContentApi.myMaterialFolders()
+          const gallery = (data.folders || []).find((folder) => folder.id === this.folderId)
+          if (!gallery) {
+            this.itemError = '图库不存在或已删除'
+            return
+          }
+          this.galleryMeta = gallery
         }
-        this.galleryMeta = gallery
-        uni.setNavigationBarTitle({ title: gallery.name })
+        uni.setNavigationBarTitle({ title: this.galleryMeta.name })
       } catch (error) {
         this.itemError = `图库加载失败：${errorMessage(error)}`
       }
     },
     async loadItems(reset = true) {
-      if (!this.folderId || this.itemError === '图库不存在或已删除') return
+      const hasTarget = this.scope === 'enterprise' ? this.categoryId : this.folderId
+      if (!hasTarget || this.itemError === '图库不存在或已删除') return
       if (this.loading) {
         if (reset) this.pendingReload = true
         return
@@ -163,13 +217,18 @@ export default {
       this.loading = true
       this.itemError = ''
       try {
-        const data = await mpContentApi.myMaterialItems(this.folderId, this.page, 30, this.dateFrom, this.dateTo)
+        let data
+        if (this.scope === 'enterprise') {
+          data = await mpContentApi.galleryItems(this.categoryId, 'enterprise', { page: this.page, page_size: 30 })
+        } else {
+          data = await mpContentApi.myMaterialItems(this.folderId, this.page, 30, this.dateFrom, this.dateTo)
+          if (this.galleryMeta && data.gallery_id) {
+            this.galleryMeta = { ...this.galleryMeta, gallery_id: data.gallery_id }
+          }
+        }
         this.items = reset ? (data.items || []) : [...this.items, ...(data.items || [])]
         this.total = data.total || 0
         this.page += 1
-        if (this.galleryMeta && data.gallery_id) {
-          this.galleryMeta = { ...this.galleryMeta, gallery_id: data.gallery_id }
-        }
       } catch (error) {
         this.itemError = `图片加载失败：${errorMessage(error)}`
       } finally {
@@ -183,7 +242,32 @@ export default {
     imageUrl(item) {
       return galleryThumbUrl(item, 720)
     },
+    itemFileUrl(item) {
+      return mediaUrl(item.file_url || item.thumbnail_file_url)
+    },
     formatUploadTime,
+    onGeneratedThumbClick(item) {
+      if (this.editing) {
+        if (this.canSelectItem(item)) {
+          this.selectedIds = toggleImageSelection(this.selectedIds, item.id)
+        }
+        return
+      }
+      const url = this.itemFileUrl(item)
+      if (url) uni.previewImage({ current: url, urls: [url] })
+    },
+    async downloadItem(item) {
+      const url = this.itemFileUrl(item)
+      if (!url || this.downloadingId) return
+      this.downloadingId = item.id
+      try {
+        await saveImageUrlToPhotosAlbum(url)
+      } catch (error) {
+        /* saveImageUrlToPhotosAlbum 已提示 */
+      } finally {
+        this.downloadingId = ''
+      }
+    },
     openCalendar() {
       this.draftDateFrom = this.dateFrom
       this.draftDateTo = this.dateTo
@@ -218,7 +302,7 @@ export default {
       this.closeCalendar()
     },
     toggleItem(item) {
-      if (!this.editing || !item.can_manage) return
+      if (!this.editing || !this.canSelectItem(item)) return
       this.selectedIds = toggleImageSelection(this.selectedIds, item.id)
     },
     cancelEdit() {
@@ -235,14 +319,17 @@ export default {
           const results = []
           for (const filePath of tempFilePaths || []) {
             try {
-              await mpContentApi.uploadCover(
-                filePath,
-                this.galleryMeta.gallery_id || 'uncategorized',
-                this.folderId === 'rough' ? 'rough' : 'uploads'
-              )
+              const category = this.scope === 'enterprise'
+                ? this.categoryId
+                : (this.galleryMeta.gallery_id || 'uncategorized')
+              const folder = this.scope === 'enterprise' || this.folderId === 'rough' ? 'rough' : 'uploads'
+              await mpContentApi.uploadCover(filePath, category, folder)
               results.push(true)
             } catch (error) {
               results.push(false)
+              if (results.length === 1) {
+                uni.showToast({ title: errorMessage(error), icon: 'none', duration: 3000 })
+              }
             }
           }
           this.uploading = false
@@ -259,7 +346,15 @@ export default {
         content: `确定删除 ${this.selectedIds.length} 张图片吗？正在使用或已共享的图片可能无法删除。`,
         success: async ({ confirm }) => {
           if (!confirm) return
-          const results = await Promise.allSettled(this.selectedIds.map((id) => mpContentApi.deleteGalleryItem(id)))
+          const deletableIds = this.selectedIds.filter((id) => {
+            const item = this.items.find((row) => row.id === id)
+            return item && this.canSelectItem(item)
+          })
+          if (!deletableIds.length) {
+            uni.showToast({ title: '只能删除本人上传的图片', icon: 'none' })
+            return
+          }
+          const results = await Promise.allSettled(deletableIds.map((id) => mpContentApi.deleteGalleryItem(id)))
           const failed = results.filter((result) => result.status === 'rejected').length
           this.cancelEdit()
           await this.loadItems(true)
@@ -303,6 +398,14 @@ export default {
 .image-detail { display: block; margin-top: 4px; overflow: hidden; color: #929ca7; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .check { position: absolute; top: 9px; right: 9px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 4px; color: #fff; text-align: center; line-height: 21px; background: rgba(0, 0, 0, .2); }
 .check.selected { border-color: #be2d22; background: #be2d22; }
+.work-card { min-width: 0; }
+.work-thumb { position: relative; }
+.work-image { width: 100%; height: 218px; border-radius: 10px; background: #e5ddd7; }
+.work-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.created-at { flex: 1; min-width: 0; overflow: hidden; color: #908680; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.download-btn { flex-shrink: 0; height: 28px; margin: 0; padding: 0 12px; border: none; border-radius: 4px; color: #fff; background: #2f80ed; font-size: 12px; line-height: 28px; }
+.download-btn::after { border: none; }
+.download-btn[disabled] { opacity: .55; }
 .empty { display: block; padding-top: 72px; text-align: center; color: #928781; }
 .actions { position: fixed; z-index: 21; right: 12px; left: 12px; display: flex; gap: 10px; padding: 10px; background: #fff; border-radius: 12px 12px 0 0; box-shadow: 0 2px 12px rgba(54, 39, 32, .08); }
 .button { flex: 1; height: 40px; line-height: 40px; border-radius: 7px; font-size: 14px; }

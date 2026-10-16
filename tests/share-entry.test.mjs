@@ -176,6 +176,16 @@ test('a visitor with no case history uses the existing login entry', async () =>
   assert.deepEqual(app.jumps, ['/pages/login/login'])
 })
 
+test('a cold icon launch ignores cached share history and opens login', async () => {
+  const app = loadApp({
+    allowed: false,
+    route: 'pages/index/index',
+    storage: { last_owner_share: { shareId: 'case-A', savedAt: Date.now() } }
+  })
+  await app.show({ scene: 1089, path: 'pages/index/index', query: { shareId: 'case-A' } })
+  assert.deepEqual(app.jumps, ['/pages/login/login'])
+})
+
 test('a cold ordinary entry carrying an old case path enters home after validation', async () => {
   const app = loadApp({ route: 'pages/index/index' })
   await app.show({ scene: 1089, path: '/pages/materials/shared-case?shareId=case-A', query: {} })

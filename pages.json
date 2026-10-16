@@ -79,6 +79,12 @@
 			}
 		},
 		{
+			"path": "pages/mine/enterprise",
+			"style": {
+				"navigationBarTitleText": "企业共享"
+			}
+		},
+		{
 			"path": "pages/home/home",
 			"style": {
 				"navigationBarTitleText": "首页"

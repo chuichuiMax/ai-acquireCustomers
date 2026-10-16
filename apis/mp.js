@@ -307,8 +307,11 @@ export const mpContentApi = {
     uploadFile({
       url: '/api/mp/content/uploads/cover',
       filePath,
-      formData: { category: category || 'uncategorized', folder }
+      formData: { category: category || 'uncategorized', folder: folder || 'uploads' }
     }),
+  /** 我的素材 / 企业毛坯图库：与 PC material-library/images/import 同一套 import 逻辑 */
+  uploadMaterialImage: (filePath, category = 'uncategorized', folder = 'uploads') =>
+    mpContentApi.uploadCover(filePath, category, folder),
   myMaterialFolders: () => request({ url: '/api/mp/content/my-materials/folders' }),
   myMaterialItems: (folder, page = 1, pageSize = 30, dateFrom = '', dateTo = '') => {
     const dates = dateFrom && dateTo
@@ -419,12 +422,7 @@ export const mpImageApi = {
           filePath,
           formData: { category: category || 'uncategorized' }
         }),
-      () =>
-        uploadFile({
-          url: '/api/mp/content/uploads/cover',
-          filePath,
-          formData: { category: category || 'uncategorized' }
-        })
+      () => mpContentApi.uploadCover(filePath, category, 'uploads')
     ])
 }
 

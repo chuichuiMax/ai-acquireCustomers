@@ -57,7 +57,7 @@ export default {
       employee: {},
       menuItems: [
         { key: 'materials', label: '我的素材', url: '/pages/mine/uploads' },
-        { key: 'enterprise', label: '企业共享', url: '/pages/materials/materials' },
+        { key: 'enterprise', label: '企业共享', url: '/pages/mine/enterprise' },
         { key: 'records', label: '生产记录', url: '/pages/manage/manage' },
         { key: 'leads', label: '我的客资', url: '', badge: 0 }
       ]

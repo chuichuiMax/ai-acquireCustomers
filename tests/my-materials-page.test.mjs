@@ -95,3 +95,16 @@ test('folder page defaults to upload and edit, then switches to delete and cance
   assert.match(folderPage, /v-if="editing"[\s\S]*删除/)
   assert.match(folderPage, /v-if="editing"[\s\S]*取消/)
 })
+
+test('material folder uploads use mp content cover (same as PC material import)', () => {
+  const mpApi = readFileSync(new URL('../apis/mp.js', import.meta.url), 'utf8')
+  assert.match(mpApi, /uploadCover:[\s\S]*?\/api\/mp\/content\/uploads\/cover/)
+  assert.match(folderPage, /uploadCover/)
+})
+
+test('generated folder uses works-style download and edit-only footer', () => {
+  assert.match(folderPage, /isGeneratedGallery/)
+  assert.match(folderPage, /saveImageUrlToPhotosAlbum/)
+  assert.match(folderPage, /canUpload && !isGeneratedGallery/)
+  assert.match(folderPage, /生成时间/)
+})

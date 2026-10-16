@@ -198,6 +198,9 @@ export function errorMessage(res) {
   if (res && res.data && res.data.message) return res.data.message
   const errMsg = String((res && (res.errMsg || res.message)) || '')
   if (/timeout/i.test(errMsg)) return '请求超时，请稍后重试'
+  if (/url not in domain|domain list|合法域名|not in domain/i.test(errMsg)) {
+    return '上传域名未配置：真机需在公众平台配置 uploadFile 合法域名，或使用 HTTPS 域名；开发者工具请勾选不校验合法域名'
+  }
   if (/fail/i.test(errMsg) && errMsg) return '网络请求失败，请检查网络后重试'
   const statusCode = res && res.statusCode
   if (statusCode) return statusCode === 0 ? '网络请求失败，请检查网络或服务器域名配置' : `请求失败（${statusCode}）`
@@ -249,13 +252,14 @@ export function request({
   })
 }
 
-export function uploadFile({ url, filePath, name = 'file', formData = {} }) {
+export function uploadFile({ url, filePath, name = 'file', formData = {}, timeout = 120000 }) {
   return new Promise((resolve, reject) => {
     uni.uploadFile({
       url: `${BASE_URL}${url}`,
       filePath,
       name,
       formData,
+      timeout,
       header: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
       success: (res) => {
         if (res.statusCode === 401) {
@@ -282,7 +286,7 @@ export function uploadFile({ url, filePath, name = 'file', formData = {} }) {
           reject(res)
         }
       },
-      fail: reject
+      fail: (error) => reject({ ...(error || {}), statusCode: 0, errMsg: (error && error.errMsg) || 'uploadFile:fail' })
     })
   })
 }

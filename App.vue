@@ -1,16 +1,24 @@
 <script>
 import { requireInternalAccess } from './utils/internal-access'
 import { getActiveGeneration, resolveAllowedShowUrl } from './utils/active-generation.mjs'
-import { buildSharedCasePath, isCaseSystemReturn, getLastShareId, markCaseSystemHide } from './utils/share-entry.mjs'
+import {
+  buildSharedCasePath,
+  isCaseSystemReturn,
+  getLastShareId,
+  markCaseSystemHide,
+  ENTRY_ROUTE,
+  SHARED_CASE_ROUTE,
+  SHARE_SCENES,
+  NORMAL_ENTRY_SCENES,
+  CASE_ROUTES,
+  shouldHonorLaunchShareId,
+  shouldRestoreLastShare,
+  normalizeLaunchPath
+} from './utils/share-entry.mjs'
 
 const ENTRY_URL = '/pages/index/index'
 const WORKSPACE_URL = '/pages/generate/generate'
 const LOGIN_URL = '/pages/login/login'
-const SHARED_CASE_ROUTE = 'pages/materials/shared-case'
-const SHARE_SCENES = new Set([1007, 1008, 1044])
-const ENTRY_ROUTE = 'pages/index/index'
-const NORMAL_ENTRY_SCENES = new Set([1001, 1089])
-const CASE_ROUTES = new Set(['pages/materials/materials', SHARED_CASE_ROUTE])
 
 function currentRoute() {
 	try {
@@ -110,12 +118,12 @@ export default {
 		const systemReturn = isCaseSystemReturn(route)
 		// 案例图片预览、拨号返回只恢复页面，不作为重新进入小程序。
 		if (systemReturn && !SHARE_SCENES.has(scene)) return
-		const path = String(options.path || '').split('?')[0].replace(/^\//, '')
+		const path = normalizeLaunchPath(options.path)
 		const normalCaseEntry = NORMAL_ENTRY_SCENES.has(scene) && (
 			CASE_ROUTES.has(route) || ((!route || route === ENTRY_ROUTE) && CASE_ROUTES.has(path))
 		)
-		// 普通入口可能带有上一次的分享参数；先校验身份，再决定是否回首页。
-		if (shareId && !normalCaseEntry) {
+		// 分享卡片仍直达案例；桌面图标冷启动忽略残留 shareId，避免默认打开案例分享。
+		if (shouldHonorLaunchShareId({ scene, route, path: options.path, shareId, normalCaseEntry })) {
 			openSharedCase(shareId)
 			return
 		}
@@ -144,7 +152,7 @@ export default {
 				return
 			}
 			const lastShareId = getLastShareId()
-			if (lastShareId) {
+			if (shouldRestoreLastShare({ scene, route: current, path: options.path, lastShareId })) {
 				if (current !== SHARED_CASE_ROUTE) uni.reLaunch({ url: buildSharedCasePath(lastShareId) })
 				return
 			}
