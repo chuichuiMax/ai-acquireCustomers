@@ -28,6 +28,50 @@ export function downloadMediaToTempFile(url) {
   })
 }
 
+export function saveImageUrlToPhotosAlbum(url) {
+  return new Promise((resolve, reject) => {
+    if (!url) {
+      reject(new Error('missing url'))
+      return
+    }
+    uni.showLoading({ title: '正在下载', mask: true })
+    downloadMediaToTempFile(url)
+      .then(
+        (filePath) =>
+          new Promise((resolveSave, rejectSave) => {
+            uni.saveImageToPhotosAlbum({
+              filePath,
+              success: resolveSave,
+              fail: rejectSave
+            })
+          })
+      )
+      .then(() => {
+        uni.hideLoading()
+        uni.showToast({ title: '已保存到相册', icon: 'none' })
+        resolve()
+      })
+      .catch((error) => {
+        uni.hideLoading()
+        const errMsg = String((error && (error.errMsg || error.message)) || '')
+        if (/auth deny|authorize|permission|拒绝|权限/i.test(errMsg)) {
+          uni.showModal({
+            title: '需要相册权限',
+            content: '请允许保存图片到相册后重试。',
+            confirmText: '去设置',
+            success: ({ confirm }) => {
+              if (confirm && typeof uni.openSetting === 'function') uni.openSetting({})
+            }
+          })
+          reject(error)
+          return
+        }
+        uni.showToast({ title: '图片下载失败', icon: 'none' })
+        reject(error)
+      })
+  })
+}
+
 export function setToken(token) {
   if (token) {
     uni.setStorageSync(TOKEN_KEY, token)

@@ -73,6 +73,12 @@
 			}
 		},
 		{
+			"path": "pages/mine/folder",
+			"style": {
+				"navigationBarTitleText": "图库"
+			}
+		},
+		{
 			"path": "pages/home/home",
 			"style": {
 				"navigationBarTitleText": "首页"

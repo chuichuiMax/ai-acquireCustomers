@@ -31,3 +31,10 @@ test('works refresh and retry use current server name and stop loading a deleted
   assert.equal(loads, 1)
   assert.ok(page.includes('@click="refreshGallery"'))
 })
+
+test('works page downloads authenticated files to the photo album', () => {
+  assert.match(page, /saveImageUrlToPhotosAlbum/)
+  assert.match(page, /生成时间：/)
+  assert.match(page, /downloadWork/)
+  assert.match(page, /workFileUrl/)
+})

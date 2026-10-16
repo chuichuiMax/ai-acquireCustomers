@@ -1,74 +1,55 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import {
+  displayMaterialFolderName,
+  withStandardMaterialFolders
+} from '../utils/mine-materials-display.mjs'
 
-const page = readFileSync(new URL('../pages/mine/uploads.vue', import.meta.url), 'utf8')
-const script = page.match(/<script>([\s\S]*?)<\/script>/)[1]
-  .replace(/^import .*$/gm, '')
-  .replace('export default', 'return')
+const uploadsPage = readFileSync(new URL('../pages/mine/uploads.vue', import.meta.url), 'utf8')
+const folderPage = readFileSync(new URL('../pages/mine/folder.vue', import.meta.url), 'utf8')
 
-function pageMethods(mpContentApi, uni) {
+function pageMethods(source, mpContentApi, uni = {}) {
+  const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
+    .replace(/^import .*$/gm, '')
+    .replace('export default', 'return')
   return new Function(
     'TabBar', 'internalPageMixin', 'mpContentApi', 'formatUploadTime', 'uni',
-    'mediaUrl', 'galleryCoverPath', script
+    'mediaUrl', 'galleryCoverPath', 'displayMaterialFolderName', 'withStandardMaterialFolders',
+    'MY_MATERIALS_ROUGH_NOTICE', 'errorMessage', 'galleryThumbUrl', script
   )(
     {}, {}, mpContentApi, () => '', uni,
-    (path) => path ? `media:${path}` : '',
-    (gallery) => gallery?.cover_thumbnail_file_url || gallery?.cover_file_url || ''
+    (path) => (path ? `media:${path}` : ''),
+    (gallery) => gallery?.cover_thumbnail_file_url || gallery?.cover_file_url || '',
+    displayMaterialFolderName,
+    withStandardMaterialFolders,
+    '',
+    (error) => error?.message || '',
+    () => ''
   ).methods
 }
 
-test('refresh updates an open gallery title and clears a deleted gallery', async () => {
-  let folders = [{ id: 'rough', name: '施工照片', gallery_id: 'old-rough', count: 1 }]
-  const titles = []
-  const methods = pageMethods({ myMaterialFolders: async () => ({ folders }) }, {
-    setNavigationBarTitle: ({ title }) => titles.push(title)
-  })
-  let canceled = 0
-  const vm = { galleries: [], activeGallery: { id: 'rough', name: '旧名称' },
-    items: [{ id: 'old-item' }], loadingFolders: false, cancelEdit: () => canceled++ }
-  await methods.loadGalleries.call(vm)
-  assert.equal(vm.activeGallery.name, '施工照片')
-  assert.deepEqual(titles, ['施工照片'])
-  folders = []
-  await methods.loadGalleries.call(vm)
-  assert.equal(vm.activeGallery, null)
-  assert.deepEqual(vm.items, [])
-  assert.equal(canceled, 1)
-  assert.deepEqual(titles, ['施工照片', '我的素材'])
+test('uploads page shows rough-folder notice and three-column folder grid', () => {
+  assert.match(uploadsPage, /MY_MATERIALS_ROUGH_NOTICE/)
+  assert.match(uploadsPage, /grid-template-columns:\s*repeat\(3/)
 })
 
 test('folder summaries retain cover addresses and empty folders stay coverless', async () => {
-  const methods = pageMethods({
+  const methods = pageMethods(uploadsPage, {
     myMaterialFolders: async () => ({
       folders: [
-        { id: 'rough', count: 2, cover_thumbnail_file_url: '/rough-thumb.jpg', cover_file_url: '/rough.jpg' },
-        { id: 'generated', count: 1, cover_thumbnail_file_url: null, cover_file_url: '/generated.jpg' },
-        { id: 'uploads', count: 0, cover_thumbnail_file_url: null, cover_file_url: null },
-        { id: 'works', count: 0, cover_thumbnail_file_url: null, cover_file_url: null }
+        { id: 'rough', name: '毛坯房图库', count: 2, cover_thumbnail_file_url: '/rough-thumb.jpg', cover_file_url: '/rough.jpg' },
+        { id: 'generated', name: 'AI生图图库', count: 1, cover_thumbnail_file_url: null, cover_file_url: '/generated.jpg' },
+        { id: 'uploads', name: '我的上传', count: 0, cover_thumbnail_file_url: null, cover_file_url: null },
+        { id: 'works', name: '我的作品', count: 0, cover_thumbnail_file_url: null, cover_file_url: null }
       ]
     })
-  }, {})
-  const vm = {
-    loadingFolders: false,
-    loadError: '',
-    libraryNotice: '',
-    legacyMode: false,
-    legacySources: {},
-    galleries: [
-      { id: 'rough', name: '毛坯房图库' },
-      { id: 'generated', name: '生图图库' },
-      { id: 'uploads', name: '我的上传' },
-      { id: 'works', name: '我的作品' }
-    ]
-  }
-
+  })
+  const vm = { loadingFolders: false, loadError: '', galleries: [] }
   await methods.loadGalleries.call(vm)
-
   assert.equal(vm.galleries[0].cover_thumbnail_file_url, '/rough-thumb.jpg')
   assert.equal(methods.folderCoverUrl.call(vm, vm.galleries[0]), 'media:/rough-thumb.jpg')
   assert.equal(methods.folderCoverUrl.call(vm, vm.galleries[1]), 'media:/generated.jpg')
-  assert.equal(vm.galleries[2].count, 0)
   assert.equal(methods.folderCoverUrl.call(vm, vm.galleries[2]), '')
 })
 
@@ -79,18 +60,23 @@ test('upload and delete reload the first page of the selected folder', async () 
   const uni = {
     chooseImage: ({ success }) => success({ tempFilePaths: ['new.png'] }),
     showModal: ({ success }) => success({ confirm: true }),
-    showToast: () => finish()
+    showToast: () => finish(),
+    setNavigationBarTitle: () => {}
   }
-  const methods = pageMethods({
+  const methods = pageMethods(folderPage, {
+    myMaterialFolders: async () => ({ folders: [{ id: 'uploads', gallery_id: 'actual-uploads', can_upload: true, name: '我的上传' }] }),
+    myMaterialItems: async () => ({ items: [], total: 0 }),
     uploadCover: async () => {},
     deleteGalleryItem: async () => {}
   }, uni)
   const vm = {
-    activeGallery: { id: 'uploads' }, uploading: false, legacyMode: false,
+    folderId: 'uploads',
+    galleryMeta: { id: 'uploads', gallery_id: 'actual-uploads', can_upload: true },
+    uploading: false,
     selectedIds: ['old-item'],
+    itemError: '',
     loadItems: async (reset) => reloads.push(reset),
-    loadGalleries: async () => {},
-    cancelEdit: () => {}
+    ensureInternalAccess: async () => true
   }
 
   let done = completed()
@@ -103,26 +89,9 @@ test('upload and delete reload the first page of the selected folder', async () 
   assert.deepEqual(reloads, [true, true])
 })
 
-test('extra superadmin folders remain visible and uploads use their actual gallery ID', async () => {
-  const folders = ['rough', 'uploads', 'generated', 'works', 'super-extra'].map((id) => ({
-    id, gallery_id: `actual-${id}`, name: id, count: 0, can_upload: id === 'super-extra'
-  }))
-  const calls = []
-  let finish
-  const done = new Promise((resolve) => { finish = resolve })
-  const methods = pageMethods({
-    myMaterialFolders: async () => ({ folders }),
-    uploadCover: async (...args) => calls.push(args)
-  }, {
-    chooseImage: ({ success }) => success({ tempFilePaths: ['new.png'] }),
-    showToast: () => finish()
-  })
-  const vm = { galleries: [], loadingFolders: false, loadError: '', uploading: false,
-    loadItems: async () => {}, loadGalleries: async () => {} }
-  await methods.loadGalleries.call(vm)
-  assert.equal(vm.galleries.length, 5)
-  vm.activeGallery = vm.galleries[4]
-  methods.chooseImages.call(vm)
-  await done
-  assert.deepEqual(calls, [['new.png', 'actual-super-extra', 'uploads']])
+test('folder page defaults to upload and edit, then switches to delete and cancel', () => {
+  assert.match(folderPage, /v-if="!editing"[\s\S]*上传/)
+  assert.match(folderPage, /v-if="!editing"[\s\S]*编辑/)
+  assert.match(folderPage, /v-if="editing"[\s\S]*删除/)
+  assert.match(folderPage, /v-if="editing"[\s\S]*取消/)
 })

@@ -4,10 +4,15 @@
     <view v-if="loading && !items.length" class="empty">正在加载作品…</view>
     <view v-else-if="!loadError && !items.length" class="empty">还没有生成作品</view>
     <view v-else class="grid">
-      <view v-for="item in items" :key="item.id" class="work-card" @click="toggleItem(item.id)">
-        <image class="work-image" :src="imageUrl(item)" mode="aspectFill" lazy-load />
-        <view v-if="editing" class="check" :class="{ selected: selectedIds.includes(item.id) }">{{ selectedIds.includes(item.id) ? '✓' : '' }}</view>
-        <text class="created-at">上传时间：{{ formatUploadTime(item.uploaded_at) }}</text>
+      <view v-for="item in items" :key="item.id" class="work-card">
+        <view class="work-thumb" @click="onThumbClick(item)">
+          <image class="work-image" :src="imageUrl(item)" mode="aspectFill" lazy-load />
+          <view v-if="editing" class="check" :class="{ selected: selectedIds.includes(item.id) }">{{ selectedIds.includes(item.id) ? '✓' : '' }}</view>
+        </view>
+        <view class="work-meta">
+          <text class="created-at">生成时间：{{ formatWorkTime(item) }}</text>
+          <button class="download-btn" :loading="downloadingId === item.id" :disabled="!!downloadingId" @click="downloadWork(item)">下载</button>
+        </view>
       </view>
     </view>
     <view class="actions">
@@ -24,7 +29,7 @@
 <script>
 import TabBar from '../../components/tab-bar.vue'
 import { mpImageApi, mpContentApi } from '../../apis/mp'
-import { errorMessage, mediaUrl } from '../../utils/request'
+import { errorMessage, mediaUrl, saveImageUrlToPhotosAlbum } from '../../utils/request'
 import { createImageSelection, formatUploadTime, toggleImageSelection } from '../../utils/mine-library-logic.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
 
@@ -32,7 +37,18 @@ export default {
   components: { TabBar },
   mixins: [internalPageMixin],
   data() {
-    return { galleryName: '', items: [], page: 1, total: 0, loading: false, finished: false, loadError: '', editing: false, selectedIds: createImageSelection() }
+    return {
+      galleryName: '',
+      items: [],
+      page: 1,
+      total: 0,
+      loading: false,
+      finished: false,
+      loadError: '',
+      editing: false,
+      selectedIds: createImageSelection(),
+      downloadingId: ''
+    }
   },
   async onShow() {
     if (await this.ensureInternalAccess()) await this.refreshGallery()
@@ -89,10 +105,31 @@ export default {
     imageUrl(item) {
       return mediaUrl(item.thumbnail_file_url || item.file_url)
     },
-    formatUploadTime,
-    toggleItem(id) {
-      if (!this.editing) return
-      this.selectedIds = toggleImageSelection(this.selectedIds, id)
+    workFileUrl(item) {
+      return mediaUrl(item.file_url || item.thumbnail_file_url)
+    },
+    formatWorkTime(item) {
+      return formatUploadTime(item.created_at || item.uploaded_at)
+    },
+    onThumbClick(item) {
+      if (this.editing) {
+        this.selectedIds = toggleImageSelection(this.selectedIds, item.id)
+        return
+      }
+      const url = this.workFileUrl(item)
+      if (url) uni.previewImage({ current: url, urls: [url] })
+    },
+    async downloadWork(item) {
+      const url = this.workFileUrl(item)
+      if (!url || this.downloadingId) return
+      this.downloadingId = item.id
+      try {
+        await saveImageUrlToPhotosAlbum(url)
+      } catch (error) {
+        /* saveImageUrlToPhotosAlbum 已提示 */
+      } finally {
+        this.downloadingId = ''
+      }
     },
     cancelEdit() {
       this.editing = false
@@ -123,9 +160,14 @@ export default {
 <style scoped>
 .page { min-height: 100vh; box-sizing: border-box; padding: 16px 12px calc(148px + env(safe-area-inset-bottom)); background: #f4f1ee; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.work-card { position: relative; min-width: 0; }
+.work-card { min-width: 0; }
+.work-thumb { position: relative; }
 .work-image { width: 100%; height: 218px; border-radius: 10px; background: #e5ddd7; }
-.created-at { display: block; margin-top: 5px; color: #908680; font-size: 11px; }
+.work-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.created-at { flex: 1; min-width: 0; overflow: hidden; color: #908680; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.download-btn { flex-shrink: 0; height: 28px; margin: 0; padding: 0 12px; border: none; border-radius: 4px; color: #fff; background: #2f80ed; font-size: 12px; line-height: 28px; }
+.download-btn::after { border: none; }
+.download-btn[disabled] { opacity: .55; }
 .check { position: absolute; top: 9px; right: 9px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 4px; color: #fff; text-align: center; line-height: 21px; background: rgba(0, 0, 0, .2); }
 .check.selected { border-color: #be2d22; background: #be2d22; }
 .empty { padding-top: 90px; text-align: center; color: #928781; }
@@ -135,4 +177,5 @@ export default {
 .ghost { color: #be2d22; background: #fff; border: 1px solid #be2d22; }
 .danger { color: #fff; background: #be2d22; }
 .danger[disabled] { opacity: .45; }
+.button::after { border: none; }
 </style>
