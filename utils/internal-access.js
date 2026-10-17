@@ -2,6 +2,7 @@ import { mpMeApi } from '../apis/mp'
 import { getToken, setToken } from './request'
 import { createCachedInternalAccessEvaluator, evaluateInternalAccess } from './internal-access-policy.mjs'
 import { getActiveGeneration, resolveAllowedShowUrl, WORKSPACE_HOME_PATH } from './active-generation.mjs'
+import { safeReLaunch } from './safe-navigation'
 
 export const INTERNAL_HOME_PATH = WORKSPACE_HOME_PATH
 export const LOGIN_PATH = '/pages/login/login'
@@ -19,7 +20,7 @@ function currentRoute() {
 
 function redirectToLogin() {
   if (currentRoute() === 'pages/login/login') return
-  uni.reLaunch({ url: LOGIN_PATH })
+  safeReLaunch(LOGIN_PATH)
 }
 
 function withTimeout(promise, ms) {
@@ -71,7 +72,7 @@ export async function enterInternalWorkspace() {
   try {
     if (!(await requireInternalAccess())) return false
     const resumeUrl = resolveAllowedShowUrl(currentRoute(), getActiveGeneration())
-    uni.reLaunch({ url: resumeUrl || INTERNAL_HOME_PATH })
+    safeReLaunch(resumeUrl || INTERNAL_HOME_PATH)
     return true
   } catch (error) {
     setToken('')

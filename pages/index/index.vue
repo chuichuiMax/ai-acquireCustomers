@@ -1,46 +1,42 @@
 <template>
 	<view class="entry-page">
 		<image class="logo" src="/static/hirun-logo.png" mode="aspectFit" />
-		<text class="title">正在验证员工身份…</text>
+		<text class="title">{{ stuckHint ? '验证较慢，请完全关闭小程序后重试' : '正在验证员工身份…' }}</text>
 	</view>
 </template>
 
 <script>
-	import { LOGIN_PATH } from '../../utils/internal-access'
-
 	export default {
 		data() {
 			return {
-				leaveWatchdog: null
+				stuckHint: false,
+				stuckTimer: null
 			}
 		},
 		onShow() {
-			// App.onShow 负责正常分流；这里只做兜底，避免一直停在验证文案。
-			this.clearLeaveWatchdog()
-			this.leaveWatchdog = setTimeout(() => {
+			// 路由由 App.onShow 统一处理；此处仅提示，避免与 App 并发 reLaunch 触发 timeout。
+			this.stuckHint = false
+			if (this.stuckTimer) clearTimeout(this.stuckTimer)
+			this.stuckTimer = setTimeout(() => {
 				try {
 					const pages = getCurrentPages()
 					const route = pages.length ? pages[pages.length - 1].route : ''
-					if (route === 'pages/index/index') {
-						uni.reLaunch({ url: LOGIN_PATH })
-					}
+					if (route === 'pages/index/index') this.stuckHint = true
 				} catch (error) {
-					uni.reLaunch({ url: LOGIN_PATH })
+					this.stuckHint = true
 				}
-			}, 9000)
+			}, 12000)
 		},
 		onHide() {
-			this.clearLeaveWatchdog()
+			if (this.stuckTimer) {
+				clearTimeout(this.stuckTimer)
+				this.stuckTimer = null
+			}
 		},
 		onUnload() {
-			this.clearLeaveWatchdog()
-		},
-		methods: {
-			clearLeaveWatchdog() {
-				if (this.leaveWatchdog) {
-					clearTimeout(this.leaveWatchdog)
-					this.leaveWatchdog = null
-				}
+			if (this.stuckTimer) {
+				clearTimeout(this.stuckTimer)
+				this.stuckTimer = null
 			}
 		}
 	}

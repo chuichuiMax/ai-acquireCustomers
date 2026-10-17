@@ -1,4 +1,5 @@
 import { BASE_URL, TOKEN_KEY } from '../config'
+import { safeReLaunch } from './safe-navigation'
 
 export function getToken() {
   return uni.getStorageSync(TOKEN_KEY) || ''
@@ -235,7 +236,7 @@ export function request({
             const pages = getCurrentPages()
             const route = pages.length ? pages[pages.length - 1].route : ''
             if (route !== 'pages/login/login') {
-              uni.reLaunch({ url: '/pages/login/login' })
+              safeReLaunch('/pages/login/login')
             }
           }
           reject(res)
@@ -267,7 +268,7 @@ export function uploadFile({ url, filePath, name = 'file', formData = {}, timeou
           const pages = getCurrentPages()
           const route = pages.length ? pages[pages.length - 1].route : ''
           if (route !== 'pages/login/login') {
-            uni.reLaunch({ url: '/pages/login/login' })
+            safeReLaunch('/pages/login/login')
           }
           reject(res)
           return

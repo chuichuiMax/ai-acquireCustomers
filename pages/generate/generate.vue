@@ -230,12 +230,17 @@
       </view>
       <scroll-view class="gallery-body" scroll-y>
         <view class="gallery-body-inner">
+          <case-style-filter
+            v-if="caseGalleryBrowseActive"
+            :value="galleryStyleFilter"
+            @input="onGalleryStyleFilter"
+          />
           <view v-if="galleryParent" class="gallery-back" @click="openGallery(galleryParent.id)">
             返回 {{ galleryParent.name }}
           </view>
-          <view v-if="galleryChildren.length" class="gallery-grid inner">
+          <view v-if="visibleGalleryChildren.length" class="gallery-grid inner">
             <view
-              v-for="item in galleryChildren"
+              v-for="item in visibleGalleryChildren"
               :key="item.id"
               class="gallery-card"
               :class="{ active: coverGalleryId === item.id }"
@@ -247,7 +252,7 @@
           </view>
           <view class="photo-grid">
             <view
-              v-for="item in galleryItems"
+              v-for="item in visibleGalleryItems"
               :key="item.id"
               class="photo-item"
               :class="{ active: imageItemId === item.id && !isGalleryImageUsed(item), used: isGalleryImageUsed(item) }"
@@ -257,7 +262,7 @@
               <text v-if="isGalleryImageUsed(item)" class="used-badge">已使用</text>
             </view>
           </view>
-          <text v-if="!galleryLoading && !galleryItems.length && !galleryChildren.length" class="empty">
+          <text v-if="!galleryLoading && !visibleGalleryItems.length && !visibleGalleryChildren.length" class="empty">
             该图库暂无图片，可返回后点上传图片
           </text>
         </view>
@@ -268,6 +273,15 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
+import CaseStyleFilter from '../../components/case-style-filter.vue'
+import {
+  filterCaseGalleryChildren,
+  filterCaseGalleryItems,
+  findCaseGalleryRoot,
+  isCaseGalleryChild,
+  isEnterpriseCaseGallery
+} from '../../utils/case-gallery.mjs'
+import { galleryStyle } from '../../utils/materials-logic.mjs'
 import { mpContentApi, mpMeApi } from '../../apis/mp'
 import { downloadMediaToTempFile, errorMessage, galleryThumbUrl, mediaUrl, thumbUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
@@ -403,7 +417,7 @@ const CONTENT_TYPE_DESC = {
 }
 
 export default {
-  components: { TabBar },
+  components: { CaseStyleFilter, TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
@@ -432,6 +446,7 @@ export default {
       galleries: [],
       galleryOpen: false,
       galleryId: '',
+      galleryStyleFilter: '全部',
       galleryItems: [],
       galleryLoading: false,
       photos: [],
@@ -536,6 +551,25 @@ export default {
     },
     galleryChildren() {
       return (this.galleries || []).filter((item) => item.parent_id === this.galleryId)
+    },
+    activeCaseGalleryRoot() {
+      return findCaseGalleryRoot(this.activeGallery, this.galleries)
+    },
+    caseGalleryBrowseActive() {
+      return Boolean(this.galleryOpen && this.activeCaseGalleryRoot)
+    },
+    visibleGalleryChildren() {
+      const children = this.galleryChildren
+      if (!this.caseGalleryBrowseActive || this.galleryStyleFilter === '全部') return children
+      const active = this.activeGallery
+      if (active && isEnterpriseCaseGallery(active)) {
+        return filterCaseGalleryChildren(children, this.galleryStyleFilter)
+      }
+      return children
+    },
+    visibleGalleryItems() {
+      if (!this.caseGalleryBrowseActive || this.galleryStyleFilter === '全部') return this.galleryItems
+      return filterCaseGalleryItems(this.galleryItems, this.galleryStyleFilter)
     },
     selectedGalleryRootId() {
       let current = (this.galleries || []).find((item) => item.id === this.coverGalleryId)
@@ -1318,6 +1352,15 @@ export default {
     },
     closeGallery() {
       this.galleryOpen = false
+      this.galleryStyleFilter = '全部'
+    },
+    onGalleryStyleFilter(style) {
+      this.galleryStyleFilter = style || '全部'
+      const active = this.activeGallery
+      if (!active || !this.activeCaseGalleryRoot || style === '全部') return
+      if (isCaseGalleryChild(active, this.galleries) && galleryStyle(active) !== style) {
+        this.openGallery(this.activeCaseGalleryRoot.id)
+      }
     },
     isGalleryImageUsed(item) {
       return isGalleryItemUsed(item)
@@ -1959,6 +2002,9 @@ export default {
   flex: 1;
   height: 0;
   min-height: 0;
+}
+.gallery-body-inner .case-style-filter {
+  margin-bottom: 8px;
 }
 .gallery-body-inner {
   padding: 12px 16px 24px;

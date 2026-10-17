@@ -1,5 +1,6 @@
 <script>
 import { requireInternalAccess } from './utils/internal-access'
+import { safeReLaunch } from './utils/safe-navigation'
 import { getActiveGeneration, resolveAllowedShowUrl } from './utils/active-generation.mjs'
 import {
   buildSharedCasePath,
@@ -33,7 +34,7 @@ function openSharedCase(shareId) {
 	const pages = getCurrentPages()
 	const page = pages[pages.length - 1]
 	if (page?.route !== SHARED_CASE_ROUTE || page.options?.shareId !== shareId) {
-		uni.reLaunch({ url: buildSharedCasePath(shareId) })
+		safeReLaunch(buildSharedCasePath(shareId))
 	}
 }
 
@@ -65,7 +66,7 @@ function isDevtools() {
 }
 
 function reopenEntry() {
-	uni.reLaunch({ url: ENTRY_URL })
+	safeReLaunch(ENTRY_URL)
 }
 
 function checkMiniProgramUpdate() {
@@ -135,14 +136,14 @@ export default {
 			const current = currentRoute()
 			if (allowed) {
 				if (normalCaseEntry && (CASE_ROUTES.has(current) || current === ENTRY_ROUTE || !current)) {
-					uni.reLaunch({ url: WORKSPACE_URL })
+					safeReLaunch(WORKSPACE_URL)
 					return
 				}
 				const resumeUrl = resolveAllowedShowUrl(current, getActiveGeneration())
 				if (resumeUrl) {
-					uni.reLaunch({ url: resumeUrl })
+					safeReLaunch(resumeUrl)
 				} else if (current === ENTRY_ROUTE || !current) {
-					uni.reLaunch({ url: WORKSPACE_URL })
+					safeReLaunch(WORKSPACE_URL)
 				}
 				return
 			}
@@ -153,14 +154,14 @@ export default {
 			}
 			const lastShareId = getLastShareId()
 			if (shouldRestoreLastShare({ scene, route: current, path: options.path, lastShareId })) {
-				if (current !== SHARED_CASE_ROUTE) uni.reLaunch({ url: buildSharedCasePath(lastShareId) })
+				if (current !== SHARED_CASE_ROUTE) safeReLaunch(buildSharedCasePath(lastShareId))
 				return
 			}
 
-			if (current !== 'pages/login/login') uni.reLaunch({ url: LOGIN_URL })
+			if (current !== 'pages/login/login') safeReLaunch(LOGIN_URL)
 		} catch (error) {
 			if (entryVersion !== this.entryVersion) return
-			if (currentRoute() !== 'pages/login/login') uni.reLaunch({ url: LOGIN_URL })
+			if (currentRoute() !== 'pages/login/login') safeReLaunch(LOGIN_URL)
 		}
 	}
 }
