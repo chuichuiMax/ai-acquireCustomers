@@ -3,41 +3,24 @@
     <view class="profile">
       <image class="avatar" :src="avatarSrc" mode="aspectFill" />
       <view class="profile-copy">
-        <text class="account-line">账号：{{ employee.login_account || '-' }}</text>
-        <text class="login-line">上次登录时间：{{ lastLoginDisplay }}</text>
+        <text class="display-name">{{ displayName }}</text>
+        <text class="meta-line">账号 {{ employee.login_account || '-' }}</text>
+        <text class="meta-line">最近登录 {{ lastLoginDisplay }}</text>
       </view>
-    </view>
-
-    <view class="brand-banner">
-      <text class="brand-title">鸿扬家居</text>
-      <text class="brand-subtitle">高标准选鸿扬</text>
     </view>
 
     <view class="menu-card">
-      <view
-        v-for="item in menuItems"
-        :key="item.key"
-        class="menu-row"
-        @click="openMenu(item)"
-      >
-        <view class="menu-left">
-          <view class="menu-icon" />
-          <text>{{ item.label }}</text>
-        </view>
-        <view class="menu-right">
-          <text v-if="item.badge" class="badge">{{ item.badge }}</text>
-          <text class="arrow">›</text>
-        </view>
+      <view class="menu-row" @click="openMaterials">
+        <text class="menu-label">我的素材</text>
+        <text class="arrow">›</text>
+      </view>
+      <view class="menu-row" @click="openEnterprise">
+        <text class="menu-label">企业共享</text>
+        <text class="arrow">›</text>
       </view>
     </view>
 
-    <view class="logout-row" @click="logout">
-      <view class="menu-left">
-        <view class="menu-icon" />
-        <text>退出登录</text>
-      </view>
-      <text class="arrow">›</text>
-    </view>
+    <button class="logout" @click="logout">退出登录</button>
 
     <tab-bar current="mine" />
   </view>
@@ -48,27 +31,27 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpAuthApi, mpMeApi } from '../../apis/mp'
 import { errorMessage, setToken } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
+import { safeReLaunch } from '../../utils/safe-navigation'
 
 export default {
   components: { TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
-      employee: {},
-      menuItems: [
-        { key: 'materials', label: '我的素材', url: '/pages/mine/uploads' },
-        { key: 'enterprise', label: '企业共享', url: '/pages/mine/enterprise' },
-        { key: 'records', label: '生产记录', url: '/pages/manage/manage' },
-        { key: 'leads', label: '我的客资', url: '', badge: 0 }
-      ]
+      employee: {}
     }
   },
   computed: {
     avatarSrc() {
       return this.employee.avatar || '/static/hirun-logo.png'
     },
+    displayName() {
+      return (this.employee.name || '').trim() || '未登录'
+    },
     lastLoginDisplay() {
-      return this.employee.last_login_at || '-'
+      const raw = this.employee.last_login_at || ''
+      if (!raw) return '-'
+      return String(raw).replace('T', ' ').slice(0, 16)
     }
   },
   async onShow() {
@@ -80,20 +63,15 @@ export default {
       try {
         const data = await mpMeApi.get()
         this.employee = data.employee || {}
-        const badge = Number(data.leads_pending_count || data.customer_leads_count || 0)
-        this.menuItems = this.menuItems.map((item) =>
-          item.key === 'leads' ? { ...item, badge: badge > 0 ? badge : 0 } : item
-        )
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
       }
     },
-    openMenu(item) {
-      if (!item.url) {
-        uni.showToast({ title: '我的客资即将上线', icon: 'none' })
-        return
-      }
-      uni.navigateTo({ url: item.url })
+    openMaterials() {
+      uni.navigateTo({ url: '/pages/mine/uploads' })
+    },
+    openEnterprise() {
+      uni.navigateTo({ url: '/pages/mine/enterprise' })
     },
     async logout() {
       try {
@@ -102,7 +80,7 @@ export default {
         /* 本地退出即可 */
       }
       setToken('')
-      uni.reLaunch({ url: '/pages/login/login' })
+      safeReLaunch('/pages/login/login')
     }
   }
 }
@@ -111,102 +89,77 @@ export default {
 <style scoped>
 .page {
   min-height: 100vh;
-  background: #fff;
-  padding: 12px 0 calc(90px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  padding: 16px 16px calc(90px + env(safe-area-inset-bottom));
+  background: #f4f1ee;
 }
 .profile {
   display: flex;
   gap: 14px;
   align-items: center;
-  padding: 8px 20px 18px;
+  padding: 8px 4px 24px;
 }
 .avatar {
   width: 72px;
   height: 72px;
   border-radius: 36px;
-  background: #f4f1ee;
+  background: #fff;
   flex-shrink: 0;
 }
 .profile-copy {
   flex: 1;
   min-width: 0;
 }
-.account-line,
-.login-line {
+.display-name {
   display: block;
-  color: #6f6762;
-  font-size: 13px;
-  line-height: 1.6;
-}
-.brand-banner {
-  margin: 0 16px 18px;
-  padding: 22px 18px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #c62828 0%, #be2d22 100%);
-  text-align: center;
-}
-.brand-title {
-  display: block;
-  color: #fff;
-  font-size: 28px;
+  margin-bottom: 6px;
+  color: #231f1d;
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: 2px;
+  line-height: 1.25;
 }
-.brand-subtitle {
+.meta-line {
   display: block;
-  margin-top: 6px;
-  color: rgba(255, 255, 255, .92);
+  color: #8a817c;
   font-size: 13px;
+  line-height: 1.55;
 }
 .menu-card {
-  margin: 0 16px;
-  border-top: 1px solid #ece7e3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
 }
-.menu-row,
-.logout-row {
-  min-height: 56px;
+.menu-row {
+  min-height: 54px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 4px;
-  border-bottom: 1px solid #ece7e3;
+  padding: 0 16px;
+  border-bottom: 1px solid #f0ebe6;
+}
+.menu-row:last-child {
+  border-bottom: none;
+}
+.menu-label {
   color: #2b2422;
-  font-size: 15px;
-}
-.logout-row {
-  margin: 0 16px;
-}
-.menu-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.menu-icon {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  background: linear-gradient(180deg, #d8d2cc 0%, #b8b0a8 100%);
-  clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
-}
-.menu-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.badge {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  color: #fff;
-  background: #be2d22;
-  font-size: 11px;
-  line-height: 18px;
-  text-align: center;
+  font-size: 16px;
 }
 .arrow {
-  color: #b5ada6;
+  color: #c4bcb5;
   font-size: 22px;
   line-height: 1;
+}
+.logout {
+  margin-top: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 24px;
+  color: #fff;
+  font-size: 16px;
+  line-height: 48px;
+  background: #BE2D22;
+}
+.logout::after {
+  border: none;
 }
 </style>
