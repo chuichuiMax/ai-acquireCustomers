@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 test('shared-case renders every image at its source aspect ratio', () => {
-  const page = readFileSync(resolve(import.meta.dirname, '../pages/materials/shared-case.vue'), 'utf8')
+  const page = readFileSync(resolve(import.meta.dirname, '../components/case-share-content.vue'), 'utf8')
   const heroStyle = page.match(/\.hero-wrap\s*\{([^}]*)\}/)
   const imageItemStyle = page.match(/\.image-item\s*\{([^}]*)\}/)
 

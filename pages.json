@@ -66,6 +66,15 @@
 				"navigationBarTitleText": "我的作品"
 			}
 		},
+
+		{
+			"path": "pages/mine/leads",
+			"style": { "navigationBarTitleText": "我的客资", "enablePullDownRefresh": true }
+		},
+		{
+			"path": "pages/mine/lead-detail",
+			"style": { "navigationBarTitleText": "客资详情" }
+		},
 		{
 			"path": "pages/mine/uploads",
 			"style": {

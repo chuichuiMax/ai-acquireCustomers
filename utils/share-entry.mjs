@@ -10,6 +10,21 @@ export function normalizeLaunchPath(path = '') {
   return String(path || '').split('?')[0].replace(/^\//, '')
 }
 
+// App 的 scene 是数字场景值；二维码参数在 query.scene，Page.onLoad 则直接收到 scene。
+export function caseEntryOptions(options = {}) {
+  const values = typeof options.query === 'string' ? {} : { ...(options.query || options) }
+  // 开发预览的 debug_launch_info.query 是查询字符串，普通扫码则是对象。
+  const query = [typeof options.query === 'string' ? options.query : '', String(options.path || '').split('?')[1] || ''].filter(Boolean).join('&')
+  for (const pair of query.split('&')) {
+    const [key, value] = pair.split('=')
+    if (key && !values[key]) values[key] = value || ''
+  }
+  const raw = values.entryCode || (typeof values.scene === 'string' ? values.scene : '')
+  let entryCode = String(raw || '')
+  try { entryCode = decodeURIComponent(entryCode) } catch (error) { /* 显示无效入口，不能转入员工登录。 */ }
+  return { entryCode, booking: values.booking === '1' || Boolean(entryCode) }
+}
+
 export function isNeutralEmployeeLaunch(scene, route, path = '') {
   if (!NORMAL_ENTRY_SCENES.has(Number(scene))) return false
   const pathBase = normalizeLaunchPath(path)
@@ -110,4 +125,21 @@ export function getLastShareId(now = Date.now()) {
   } catch (error) {
     return ''
   }
+}
+
+
+// 原生组件没有 uni API 的 complete 回调，单独标记头像/手机号等系统交互。
+export function beginCaseComponentAction(method, owner) {
+  const pages = getCurrentPages()
+  const page = pages[pages.length - 1]
+  const action = { method, page, route: page?.route || '', owner, hidden: false, returned: false }
+  caseSystemAction = action
+  // 部分取消动作不会触发 onHide/onShow，也不会回调；及时移除未离开页面的标记。
+  setTimeout(() => {
+    if (caseSystemAction === action && !action.hidden && !action.returned) caseSystemAction = null
+  }, 1000)
+}
+
+export function finishCaseComponentAction(owner, failed = false) {
+  if (caseSystemAction?.owner === owner && failed && !caseSystemAction.hidden) caseSystemAction = null
 }

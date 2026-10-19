@@ -1,4 +1,4 @@
-import { getToken, request, setToken, uploadFile } from '../utils/request'
+import { downloadMediaToTempFile, publicMediaUrl, getToken, request, setToken, uploadFile } from '../utils/request'
 import { employeeFromMe, hasMiniProgramAccess } from '../utils/internal-access-policy.mjs'
 import {
   isImageDesignAnalysisPendingError,
@@ -303,15 +303,16 @@ export const mpContentApi = {
   pricing: (frameArea) =>
     request({ url: `/api/mp/content/pricing?frame_area=${encodeURIComponent(frameArea)}` }),
   coverTemplates: () => request({ url: '/api/mp/content/cover-templates' }),
-  uploadCover: (filePath, category = 'uncategorized', folder = 'uploads') =>
+  uploadCover: (filePath, category = 'uncategorized', folder = 'uploads', scope = 'private') =>
     uploadFile({
       url: '/api/mp/content/uploads/cover',
       filePath,
-      formData: { category: category || 'uncategorized', folder: folder || 'uploads' }
+      formData: { category: category || 'uncategorized', folder: folder || 'uploads', scope }
     }),
   /** 我的素材 / 企业毛坯图库：与 PC material-library/images/import 同一套 import 逻辑 */
   uploadMaterialImage: (filePath, category = 'uncategorized', folder = 'uploads') =>
     mpContentApi.uploadCover(filePath, category, folder),
+  enterpriseRoughFolders: () => request({ url: '/api/mp/content/galleries?scope=enterprise&rough_only=true' }),
   myMaterialFolders: () => request({ url: '/api/mp/content/my-materials/folders' }),
   myMaterialItems: (folder, page = 1, pageSize = 30, dateFrom = '', dateTo = '') => {
     const dates = dateFrom && dateTo
@@ -328,12 +329,17 @@ export const mpContentApi = {
     query.push(`page=${encodeURIComponent(page)}`)
     query.push(`page_size=${encodeURIComponent(pageSize)}`)
     if (extra.include_descendants || extra.includeDescendants) query.push('include_descendants=true')
+    if (extra.date_from) query.push(`date_from=${encodeURIComponent(extra.date_from)}`)
+    if (extra.date_to) query.push(`date_to=${encodeURIComponent(extra.date_to)}`)
     return request({ url: `/api/mp/content/gallery-items?${query.join('&')}` })
   },
   deleteGalleryItem: (itemId) => request({ url: `/api/mp/content/gallery-items/${encodeURIComponent(itemId)}`, method: 'DELETE' }),
-  createShare: (itemIds) => request({ url: '/api/mp/share/cases', method: 'POST', data: { item_ids: itemIds } }),
+  createShare: (itemIds, requestToken) => request({
+    url: '/api/mp/share/cases', method: 'POST',
+    data: { item_ids: itemIds, request_token: requestToken }, timeout: 15000
+  }),
   getShare: (shareId) =>
-    request({ url: `/api/material-library/shares/${encodeURIComponent(shareId)}`, requiresAuth: false }),
+    request({ url: `/api/material-library/shares/${encodeURIComponent(shareId)}`, requiresAuth: false, timeout: 10000 }),
   compileBrief: (data) => request({ url: '/api/mp/content/compile-brief', method: 'POST', data }),
   viralAssets: ({ content_type_code, ready_only = true } = {}) => {
     const query = []
@@ -460,4 +466,27 @@ export const mpImageDesignApi = {
       .join('&')
     return request({ url: `/api/mp/image-design/results${query ? `?${query}` : ''}` })
   }
+}
+
+
+export const mpVisitorApi = {
+  resolveEntry: (code) => request({ url: `/api/material-library/share-entries/${encodeURIComponent(code)}`, requiresAuth: false }),
+  createSession: (data) => request({ url: '/api/mp/visitor-sessions', method: 'POST', data, requiresAuth: false }),
+  submitBooking: (shareToken, avatar, data) => uploadFile({
+    url: `/api/mp/share/cases/${encodeURIComponent(shareToken)}/appointments`,
+    filePath: avatar, name: 'avatar', formData: data, requiresAuth: false
+  })
+}
+
+export const mpLeadApi = {
+  list: (params = {}) => {
+    const query = Object.entries(params).filter(([, value]) => value !== '' && value != null)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')
+    return request({ url: `/api/mp/customer-leads?${query}` })
+  },
+  summary: () => request({ url: '/api/mp/customer-leads/summary' }),
+  get: (id) => request({ url: `/api/mp/customer-leads/${encodeURIComponent(id)}` }),
+  read: (id, revision) => request({ url: `/api/mp/customer-leads/${encodeURIComponent(id)}/read`, method: 'POST', data: { revision } }),
+  follow: (id, revision) => request({ url: `/api/mp/customer-leads/${encodeURIComponent(id)}/follow`, method: 'POST', data: { revision } }),
+  avatar: (path) => downloadMediaToTempFile(publicMediaUrl(path))
 }

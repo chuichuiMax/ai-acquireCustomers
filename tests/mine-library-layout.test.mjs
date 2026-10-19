@@ -13,7 +13,8 @@ for (const page of pages) {
 
     assert.match(source, /padding:\s*16px\s+(?:12px|16px)\s+calc\(148px \+ env\(safe-area-inset-bottom\)\)/)
     if (page.endsWith('/folder.vue')) {
-      assert.match(source, /class="actions"\s+:style="\{ bottom: \(53 \+ safeBottom\) \+ 'px' \}"/)
+      assert.match(source, /class="actions"\s+:style="actionBarStyle"/)
+      assert.match(source, /53 \+ this\.safeBottom/)
       assert.match(source, /this\.safeBottom = info\.safeAreaInsets \? info\.safeAreaInsets\.bottom : 0/)
       assert.match(source, /\.actions\s*\{[^}]*border-radius:\s*12px 12px 0 0;/s)
     } else {

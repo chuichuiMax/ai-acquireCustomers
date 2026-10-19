@@ -18,6 +18,13 @@
         <text class="menu-label">企业共享</text>
         <text class="arrow">›</text>
       </view>
+      <view class="menu-row" @click="openLeads">
+        <text class="menu-label">我的客资</text>
+        <view class="menu-right">
+          <text v-if="leadReminder.unreadCount > 0" class="badge">{{ leadReminder.unreadCount }}</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
     </view>
 
     <button class="logout" @click="logout">退出登录</button>
@@ -32,13 +39,15 @@ import { mpAuthApi, mpMeApi } from '../../apis/mp'
 import { errorMessage, setToken } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { safeReLaunch } from '../../utils/safe-navigation'
+import { leadReminderState } from '../../utils/lead-reminder'
 
 export default {
   components: { TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
-      employee: {}
+      employee: {},
+      leadReminder: leadReminderState
     }
   },
   computed: {
@@ -72,6 +81,9 @@ export default {
     },
     openEnterprise() {
       uni.navigateTo({ url: '/pages/mine/enterprise' })
+    },
+    openLeads() {
+      uni.navigateTo({ url: '/pages/mine/leads' })
     },
     async logout() {
       try {
@@ -149,6 +161,9 @@ export default {
   font-size: 22px;
   line-height: 1;
 }
+.menu-right { display: flex; align-items: center; gap: 8px; }
+.badge { min-width: 18px; padding: 0 5px; border-radius: 9px; color: #fff;
+  background: #be2d22; font-size: 11px; line-height: 18px; text-align: center; }
 .logout {
   margin-top: 48px;
   height: 48px;

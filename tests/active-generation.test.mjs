@@ -63,5 +63,5 @@ test('app stays on current workspace page after unlock and only restores generat
   assert.match(locked, /clearActiveGeneration\(\)/)
   assert.match(locked, /onShow\(\) \{/)
   assert.doesNotMatch(entry, /enterInternalWorkspace\(/)
-  assert.match(entry, /leaveWatchdog/)
+  assert.doesNotMatch(entry, /leaveWatchdog|9000/)
 })

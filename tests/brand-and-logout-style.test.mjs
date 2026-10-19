@@ -13,6 +13,7 @@ test('login page presents the Hongyang customer acquisition name', () => {
 })
 
 test('logout button uses a red background, white text, and no mini-program outline', () => {
-  assert.match(minePage, /\.logout\s*\{[^}]*background:\s*#BE2D22;[^}]*color:\s*#fff;/s)
+  assert.match(minePage, /\.logout\s*\{[^}]*background:\s*#BE2D22;/s)
+  assert.match(minePage, /\.logout\s*\{[^}]*color:\s*#fff;/s)
   assert.match(minePage, /\.logout::after\s*\{\s*border:\s*none;\s*\}/)
 })

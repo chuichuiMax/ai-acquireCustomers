@@ -4,6 +4,7 @@ import { safeReLaunch } from './utils/safe-navigation'
 import { getActiveGeneration, resolveAllowedShowUrl } from './utils/active-generation.mjs'
 import {
   buildSharedCasePath,
+  caseEntryOptions,
   isCaseSystemReturn,
   getLastShareId,
   markCaseSystemHide,
@@ -117,15 +118,21 @@ export default {
 		const route = currentRoute()
 		const scene = Number(options.scene)
 		const systemReturn = isCaseSystemReturn(route)
-		// 案例图片预览、拨号返回只恢复页面，不作为重新进入小程序。
-		if (systemReturn && !SHARE_SCENES.has(scene)) return
+		const bookingEntry = caseEntryOptions(options)
 		const path = normalizeLaunchPath(options.path)
+		// 原生授权、图片预览和拨号返回优先恢复原页，不能重放上次的预约入口。
+		if (systemReturn && !SHARE_SCENES.has(scene)) return
+		if (!NORMAL_ENTRY_SCENES.has(scene) && bookingEntry.entryCode) {
+			if (path !== SHARED_CASE_ROUTE) safeReLaunch(`/pages/materials/shared-case?entryCode=${encodeURIComponent(bookingEntry.entryCode)}&booking=1`)
+			return
+		}
 		const normalCaseEntry = NORMAL_ENTRY_SCENES.has(scene) && (
 			CASE_ROUTES.has(route) || ((!route || route === ENTRY_ROUTE) && CASE_ROUTES.has(path))
 		)
 		// 分享卡片仍直达案例；桌面图标冷启动忽略残留 shareId，避免默认打开案例分享。
 		if (shouldHonorLaunchShareId({ scene, route, path: options.path, shareId, normalCaseEntry })) {
-			openSharedCase(shareId)
+			// 原生分享已经指定目标页，避免页面栈未就绪时重复跳转。
+			if (path !== SHARED_CASE_ROUTE) openSharedCase(shareId)
 			return
 		}
 		if (SHARE_SCENES.has(scene) && route === SHARED_CASE_ROUTE) return
@@ -135,6 +142,7 @@ export default {
 			if (entryVersion !== this.entryVersion) return
 			const current = currentRoute()
 			if (allowed) {
+				if (current === SHARED_CASE_ROUTE && getCurrentPages().some(page => page.route === 'pages/mine/lead-detail')) return
 				if (normalCaseEntry && (CASE_ROUTES.has(current) || current === ENTRY_ROUTE || !current)) {
 					safeReLaunch(WORKSPACE_URL)
 					return

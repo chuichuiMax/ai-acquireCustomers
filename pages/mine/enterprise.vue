@@ -21,7 +21,6 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, mediaUrl } from '../../utils/request'
 import { galleryCoverPath } from '../../utils/materials-logic.mjs'
-import { filterEnterpriseRoughGalleries } from '../../utils/enterprise-materials.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
@@ -39,8 +38,14 @@ export default {
       this.loading = true
       this.loadError = ''
       try {
-        const data = await mpContentApi.galleries('enterprise')
-        this.galleries = filterEnterpriseRoughGalleries(data.galleries || [])
+        const data = await mpContentApi.enterpriseRoughFolders()
+        const galleries = data?.galleries?.filter((gallery) => gallery.visibility === 'enterprise' && !gallery.parent_id && gallery.image_design_role === 'rough')
+        if (!Array.isArray(galleries) || galleries.length !== 1 || galleries.some((gallery) => !Number.isInteger(gallery.count) || gallery.count < 0)) {
+          this.loadError = '图库返回数据不完整'
+          this.galleries = []
+        } else {
+          this.galleries = galleries
+        }
       } catch (error) {
         this.loadError = `图库加载失败：${errorMessage(error)}`
         this.galleries = []

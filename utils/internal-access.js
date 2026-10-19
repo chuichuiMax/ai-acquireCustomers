@@ -3,6 +3,7 @@ import { getToken, setToken } from './request'
 import { createCachedInternalAccessEvaluator, evaluateInternalAccess } from './internal-access-policy.mjs'
 import { getActiveGeneration, resolveAllowedShowUrl, WORKSPACE_HOME_PATH } from './active-generation.mjs'
 import { safeReLaunch } from './safe-navigation'
+import { startLeadReminder, stopLeadReminder } from './lead-reminder'
 
 export const INTERNAL_HOME_PATH = WORKSPACE_HOME_PATH
 export const LOGIN_PATH = '/pages/login/login'
@@ -83,6 +84,18 @@ export async function enterInternalWorkspace() {
 }
 
 export const internalPageMixin = {
+  onShow() {
+    this._leadReminderVisible = true
+    if (this.internalAccessGranted) startLeadReminder(this)
+  },
+  onHide() {
+    this._leadReminderVisible = false
+    stopLeadReminder(this)
+  },
+  onUnload() {
+    this._leadReminderVisible = false
+    stopLeadReminder(this)
+  },
   data() {
     return {
       internalAccessGranted: false,
@@ -96,6 +109,7 @@ export const internalPageMixin = {
 
       try {
         this.internalAccessGranted = await this.internalAccessCheck
+        if (this.internalAccessGranted && this._leadReminderVisible) startLeadReminder(this)
         return this.internalAccessGranted
       } finally {
         this.internalAccessCheck = null

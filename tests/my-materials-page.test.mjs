@@ -11,7 +11,7 @@ const folderPage = readFileSync(new URL('../pages/mine/folder.vue', import.meta.
 
 function pageMethods(source, mpContentApi, uni = {}) {
   const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
-    .replace(/^import .*$/gm, '')
+    .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
     .replace('export default', 'return')
   return new Function(
     'TabBar', 'internalPageMixin', 'mpContentApi', 'formatUploadTime', 'uni',
@@ -74,6 +74,9 @@ test('upload and delete reload the first page of the selected folder', async () 
     galleryMeta: { id: 'uploads', gallery_id: 'actual-uploads', can_upload: true },
     uploading: false,
     selectedIds: ['old-item'],
+    items: [{ id: 'old-item', can_manage: true }],
+    canSelectItem: item => item.can_manage,
+    cancelEdit() { this.selectedIds = [] },
     itemError: '',
     loadItems: async (reset) => reloads.push(reset),
     ensureInternalAccess: async () => true
@@ -92,8 +95,8 @@ test('upload and delete reload the first page of the selected folder', async () 
 test('folder page defaults to upload and edit, then switches to delete and cancel', () => {
   assert.match(folderPage, /v-if="!editing"[\s\S]*上传/)
   assert.match(folderPage, /v-if="!editing"[\s\S]*编辑/)
-  assert.match(folderPage, /v-if="editing"[\s\S]*删除/)
-  assert.match(folderPage, /v-if="editing"[\s\S]*取消/)
+  assert.match(folderPage, /v-else[\s\S]*删除/)
+  assert.match(folderPage, /v-else[\s\S]*取消/)
 })
 
 test('material folder uploads use mp content cover (same as PC material import)', () => {
@@ -107,4 +110,43 @@ test('generated folder uses works-style download and edit-only footer', () => {
   assert.match(folderPage, /saveImageUrlToPhotosAlbum/)
   assert.match(folderPage, /canUpload && !isGeneratedGallery/)
   assert.match(folderPage, /生成时间/)
+})
+
+test('enterprise folder retains date filters, upload status and explicit upload scope after page split', async () => {
+  const listCalls = []
+  const uploads = []
+  let uploadTask
+  const methods = pageMethods(folderPage, {
+    galleryItems: async (...args) => {
+      listCalls.push(args)
+      return { items: [{ id: 'photo' }], total: 1, pending_upload_count: 2, upload_failures: [{ id: 'failed' }] }
+    },
+    uploadCover: async (...args) => uploads.push(args)
+  }, {
+    chooseImage: ({ success }) => { uploadTask = success({ tempFilePaths: ['room.png'] }) },
+    showToast: () => {}
+  })
+  const vm = {
+    scope: 'enterprise', categoryId: 'shared-rough', galleryMeta: { can_upload: true },
+    dateFrom: '2026-10-01', dateTo: '2026-10-16', page: 1,
+    loading: false, uploading: false, itemError: '', pageVisible: false,
+    stopUploadWatch: () => {}, loadItems: async () => {}
+  }
+  await methods.loadItems.call(vm, true)
+  assert.deepEqual(listCalls, [['shared-rough', 'enterprise', {
+    page: 1, page_size: 30, date_from: '2026-10-01', date_to: '2026-10-16'
+  }]])
+  assert.equal(vm.pendingUploadCount, 2)
+  assert.equal(vm.uploadFailures.length, 1)
+  methods.chooseImages.call(vm)
+  await uploadTask
+  assert.deepEqual(uploads, [['room.png', 'shared-rough', 'rough', 'enterprise']])
+})
+
+test('enterprise folder previews originals outside edit mode', () => {
+  let preview
+  const methods = pageMethods(folderPage, {}, { previewImage: (options) => { preview = options } })
+  const item = { id: 'photo', file_url: '/original.png' }
+  methods.toggleItem.call({ scope: 'enterprise', editing: false, items: [item], itemFileUrl: (row) => row.file_url }, item)
+  assert.deepEqual(preview, { current: '/original.png', urls: ['/original.png'] })
 })

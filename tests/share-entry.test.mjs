@@ -51,8 +51,7 @@ test('app and entry pages keep share routing ahead of workspace routing', () => 
   assert.match(app, /LOGIN_URL = '\/pages\/login\/login'/)
   assert.match(app, /resolveAllowedShowUrl/)
   assert.doesNotMatch(entry, /enterInternalWorkspace\(/)
-  assert.match(entry, /leaveWatchdog/)
-  assert.match(entry, /LOGIN_PATH/)
+  assert.doesNotMatch(entry, /leaveWatchdog|9000|LOGIN_PATH/)
   assert.match(sharedCase, /saveLastShareId\(this\.shareId\)/)
 })
 
@@ -63,12 +62,14 @@ function loadApp({ route = 'pages/materials/shared-case', shareId = 'case-A', al
   const context = {
     resolveAllowedShowUrl,
     getActiveGeneration: () => storage.mp_active_generation || null,
+    errorMessage: (error) => error.message || '验证失败',
     requireInternalAccess: async () => {
       checks += 1
       return typeof allowed === 'function' ? allowed() : allowed
     },
     getCurrentPages: () => [page],
     uni: {
+      showToast: () => {},
       getStorageSync: (key) => storage[key],
       setStorageSync: (key, value) => { storage[key] = value },
       removeStorageSync: (key) => { delete storage[key] },
@@ -83,8 +84,9 @@ function loadApp({ route = 'pages/materials/shared-case', shareId = 'case-A', al
     .replace(/export /g, '')
   const appSource = readFileSync(resolve(import.meta.dirname, '../App.vue'), 'utf8')
     .match(/<script>([\s\S]*?)<\/script>/)[1]
-    .replace(/^import .*$/gm, '')
+    .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
     .replace('export default', 'globalThis.app =')
+  context.safeReLaunch = url => context.uni.reLaunch({ url })
   runInNewContext(shareSource, context)
   runInNewContext(appSource, context)
   const instance = context.app.data()
@@ -96,6 +98,7 @@ function loadCasePage(app, route) {
     .match(/<script>([\s\S]*?)<\/script>/)[1]
     .replace(/^import[\s\S]*?from ['"][^'"]+['"]\s*$/gm, '')
     .replace('export default', 'globalThis.casePage =')
+  app.context.CaseShareContent = {}
   app.context.TabBar = {}
   app.context.internalPageMixin = {}
   app.context.clearTimeout = () => {}
@@ -136,10 +139,10 @@ for (const allowed of [true, false]) {
   })
 }
 
-test('a second card opens its own case when the previous case page is still present', async () => {
+test('a second native card leaves opening its target to WeChat even while the old page is present', async () => {
   const app = loadApp()
   await app.show({ scene: 1008, path: 'pages/materials/shared-case', query: { shareId: 'case-B' } })
-  assert.deepEqual(app.jumps, ['/pages/materials/shared-case?shareId=case-B'])
+  assert.deepEqual(app.jumps, [])
 })
 
 test('an earlier identity check cannot redirect a newer share-card entry', async () => {
@@ -242,7 +245,7 @@ for (const route of ['pages/materials/materials', 'pages/materials/shared-case']
   for (const hook of ['onShow', 'onUnload']) {
     test(`${hook} on ${route} does not leak preview protection into the next genuine entry`, async () => {
       const app = loadApp({ route })
-      const pageInstance = { ensureInternalAccess: async () => false }
+      const pageInstance = { ensureInternalAccess: async () => false, primeShareToken() {}, reportShareFailure() {} }
       app.context.uni.previewImage = (options) => options.complete({ errMsg: 'previewImage:ok' })
       app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, pageInstance)
       await loadCasePage(app, route)[hook].call(pageInstance)
@@ -256,7 +259,7 @@ for (const route of ['pages/materials/materials', 'pages/materials/shared-case']
     for (const pageFirst of [true, false]) {
       test(`preview on ${route} survives both show hooks and repeated app shows with hidesApp=${hidesApp}, pageFirst=${pageFirst}`, async () => {
         const app = loadApp({ route })
-        const owner = { ensureInternalAccess: async () => false }
+        const owner = { ensureInternalAccess: async () => false, primeShareToken() {}, reportShareFailure() {} }
         const casePage = loadCasePage(app, route)
         app.context.uni.previewImage = (options) => options.complete({ errMsg: 'previewImage:ok' })
         app.context.openCaseSystemPage('previewImage', { current: 'image-A', urls: ['image-A'] }, owner)

@@ -34,7 +34,7 @@ test('description changes invalidate AI polish and generation requires the refre
 })
 
 test('redesign style selection uses image-design options and sends description mode without a preset', () => {
-  assert.doesNotMatch(page, /materials-logic\.mjs/)
+  assert.match(page, /designStyles: IMAGE_DESIGN_STYLE_OPTIONS/)
   assert.match(page, /IMAGE_DESIGN_STYLE_OPTIONS/)
   assert.match(page, /@click="selectDesignStyle\(style\.value\)"/)
   assert.match(page, /normalizeImageDesignDrafts\(received, this\.saveTargetScopes, this\.transferSpaces\)/)

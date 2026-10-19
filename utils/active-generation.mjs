@@ -9,6 +9,8 @@ export const WORKSPACE_STAY_ROUTES = new Set([
   'pages/materials/materials',
   'pages/cover/cover',
   'pages/mine/mine',
+  'pages/mine/leads',
+  'pages/mine/lead-detail',
   'pages/mine/works',
   'pages/mine/uploads',
   'pages/home/home'

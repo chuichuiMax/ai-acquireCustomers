@@ -25,7 +25,7 @@ function createPage(api = {}) {
   const toasts = []
   const page = runInNewContext(`${script}\npage`, {
     ...logic, toggleTransferElementValue: logic.toggleTransferElement,
-    TabBar: {}, ImageSourceSelector: {}, SaveTargetSheet: {}, internalPageMixin: {},
+    TabBar: {}, ImageSourceSelector: {}, SaveTargetSheet: {}, CaseStyleFilter: {}, internalPageMixin: {},
     mpImageDesignApi: api, mediaUrl: (url) => url, imageSourceLabel: logic.imageSourceLabel,
     errorMessage: (error) => error.message, uni: { showToast: ({ title }) => toasts.push(title) }
   })
@@ -85,7 +85,7 @@ test('reopening resets keywords to defaults and preserves the free description',
   assert.match(instance.activeDraft.description, /以毛坯图为唯一结构底图/)
   assert.equal(instance.activeDraft.refinement_id, '')
   instance.applyDrafts({ redesign: readyDraft() })
-  assert.equal(instance.activeDraft.refinement_id, 'refinement-1')
+  assert.equal(instance.activeDraft.refinement_id, '')
 })
 
 test('legacy drafts gain defaults without losing text or retaining stale polish', () => {

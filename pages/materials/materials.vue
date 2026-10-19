@@ -93,9 +93,7 @@
         <view class="share-options">
           <button
             class="share-option native-share-option"
-            :open-type="shareSnapshot ? 'share' : ''"
-            :disabled="sharePreparing && !shareSnapshot"
-            :loading="sharePreparing && !shareSnapshot"
+            :open-type="canStartShare ? 'share' : ''"
             @click="shareToWechat"
           >
             <image class="share-channel-icon" src="/static/share-icons/wechat.png" mode="aspectFit" />
@@ -103,9 +101,7 @@
           </button>
           <button
             class="share-option native-share-option"
-            :open-type="isWorkWechatHost() && shareSnapshot ? 'share' : ''"
-            :disabled="sharePreparing && !shareSnapshot"
-            :loading="sharePreparing && !shareSnapshot"
+            :open-type="isWorkWechatHost() && canStartShare ? 'share' : ''"
             @click="shareToWorkWechat"
           >
             <image class="share-channel-icon" src="/static/share-icons/wecom.png" mode="aspectFit" />
@@ -119,7 +115,7 @@
 </template>
 
 <script>
-import { clearCaseSystemAction, markCaseSystemReturn, openCaseSystemPage } from '../../utils/share-entry.mjs'
+import { beginCaseComponentAction, clearCaseSystemAction, markCaseSystemReturn, openCaseSystemPage } from '../../utils/share-entry.mjs'
 import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
@@ -132,7 +128,6 @@ import {
   createSelectionState,
   toggleSelection,
   shareSelectionKey,
-  buildShareSnapshot,
   buildWechatSharePayload
 } from '../../utils/materials-logic.mjs'
 import { publicMediaUrl } from '../../utils/request'
@@ -153,11 +148,14 @@ export default {
       loadingItems: false,
       shareSheetVisible: false,
       shareSnapshot: null,
-      sharePreparing: false,
-      sharePrepareError: ''
+      nextShareToken: '',
+      shareTokenError: ''
     }
   },
   computed: {
+    canStartShare() {
+      return Boolean(this.nextShareToken || (this.shareSnapshot && this.shareSnapshot.status !== 'failed'))
+    },
     activeGallery() {
       return this.galleries.find((item) => item.id === this.activeGalleryId) || null
     },
@@ -177,26 +175,43 @@ export default {
       return this.selection.orderedIds
     }
   },
+  onLoad() {
+    this.primeShareToken()
+  },
+  onHide() {
+    this._shareHidden = true
+  },
   async onShow() {
+    this._shareHidden = false
+    this.primeShareToken()
+    this.reportShareFailure()
+    if (this.shareSnapshot) this.watchShareAttempt(this.shareSnapshot)
     markCaseSystemReturn(this)
     if (!(await this.ensureInternalAccess())) return
     this.hideWechatShareMenu()
     this.loadGalleries()
   },
   onShareAppMessage() {
-    const snapshot = this.shareSnapshot
-    const payload = buildWechatSharePayload(snapshot)
-    if (!payload) return null
-    // The default already has a valid share path; WeChat's promise window is only three seconds.
+    // Only the native callback creates a WeChat share; the button click never POSTs.
+    const attempt = this.startShareAttempt()
+    if (!attempt) return null // Native open-type is unavailable until a secure token exists.
+    beginCaseComponentAction('shareAppMessage', this)
+    const payload = buildWechatSharePayload(attempt)
     return {
       ...payload,
-      promise: (this._shareCoverPromise || Promise.resolve()).then(() => buildWechatSharePayload(snapshot))
+      promise: new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(payload), 2500)
+        attempt.readyPromise.then(() => {
+          clearTimeout(timer)
+          resolve(buildWechatSharePayload(attempt))
+        })
+      })
     }
   },
   onUnload() {
     clearCaseSystemAction(this)
-    clearTimeout(this._sharePrepareTimer)
     this._shareDisposed = true
+    this.shareSnapshot = null
   },
   methods: {
     hideWechatShareMenu() {
@@ -272,7 +287,6 @@ export default {
       try {
         this.selection = toggleSelection(this.selection, item)
         this.invalidateShareSnapshot()
-        this.scheduleSharePreparation()
       } catch (error) {
         uni.showToast({ title: error.message, icon: 'none' })
       }
@@ -280,49 +294,106 @@ export default {
     openShareSheet() {
       if (!this.selectedIds.length || !this.activeGallery) return
       this.shareSheetVisible = true
-      this.prepareShareForSheet()
     },
     currentShareSelectionKey() {
       return shareSelectionKey(this.activeGalleryId, this.selectedIds)
     },
     invalidateShareSnapshot() {
-      clearTimeout(this._sharePrepareTimer)
       this.shareSnapshot = null
-      this._shareCoverPromise = null
-      this.sharePrepareError = ''
       this.hideWechatShareMenu()
     },
-    scheduleSharePreparation() {
-      clearTimeout(this._sharePrepareTimer)
-      if (!this.selectedIds.length || !this.activeGallery) return
-      this._sharePrepareTimer = setTimeout(() => {
-        if (!this._shareDisposed) this.prepareShareForSheet()
-      }, 350)
+    primeShareToken() {
+      if (this.nextShareToken || this._shareTokenPromise || this._shareDisposed) return
+      this._shareTokenPromise = new Promise((resolve, reject) => {
+        if (typeof wx === 'undefined' || typeof wx.getRandomValues !== 'function') {
+          reject(new Error('当前微信版本不支持安全分享，请升级微信'))
+          return
+        }
+        wx.getRandomValues({ length: 32, success: resolve, fail: reject })
+      }).then((result) => {
+        const bytes = new Uint8Array(result.randomValues)
+        if (bytes.length !== 32) throw new Error('分享标识生成失败，请重试')
+        if (!this._shareDisposed) {
+          this.nextShareToken = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')
+          this.shareTokenError = ''
+        }
+      }).catch((error) => {
+        this.shareTokenError = errorMessage(error)
+      }).finally(() => { this._shareTokenPromise = null })
     },
-    async prepareShareForSheet() {
-      clearTimeout(this._sharePrepareTimer)
-      if (this._shareDisposed) return false
-      if (!this.selectedIds.length || !this.activeGallery) return false
+    startShareAttempt() {
+      if (this._shareDisposed || !this.selectedIds.length || !this.activeGallery) return null
       const selectionKey = this.currentShareSelectionKey()
-      if (this.shareSnapshot?.selectionKey === selectionKey) return true
-      if (this._sharePreparePromise) {
-        const pendingKey = this._sharePrepareKey
-        const result = await this._sharePreparePromise
-        return pendingKey === this.currentShareSelectionKey() ? result : this.prepareShareForSheet()
+      let attempt = this.shareSnapshot
+      if (!attempt || attempt.selectionKey !== selectionKey || attempt.status === 'failed') {
+        if (!this.nextShareToken) return null
+        attempt = {
+          selectionKey, itemIds: [...this.selectedIds], shareId: this.nextShareToken,
+          title: `${this.activeGallery.name}案例分享`, status: 'unknown', coverUrl: '',
+          shareUrl: publicMediaUrl(`/share/case/${this.nextShareToken}`)
+        }
+        this.nextShareToken = ''
+        this.shareSnapshot = attempt
+        attempt = this.shareSnapshot // Keep Vue reactive updates when the request finishes.
+        this.primeShareToken()
       }
-
-      this.shareSnapshot = null
-      this.sharePrepareError = ''
-      this.hideWechatShareMenu()
-      this.sharePreparing = true
-      this._sharePrepareKey = selectionKey
-      this._sharePreparePromise = this.prepareWechatShare(selectionKey)
-      try {
-        return await this._sharePreparePromise
-      } finally {
-        this._sharePreparePromise = null
-        this.sharePreparing = false
+      if (!attempt.acceptedPromise) {
+        attempt.acceptedPromise = mpContentApi.createShare(attempt.itemIds, attempt.shareId).then((response) => {
+          this.updateShareAttempt(attempt, response)
+          return attempt
+        }).catch((error) => {
+          // An interrupted response does not prove the server rejected the request.
+          // A subsequent explicit click retries with this SAME idempotency token.
+          attempt.acceptedPromise = null
+          attempt.error = errorMessage(error)
+          attempt.reported = false
+          this.reportShareFailure(attempt)
+          return null
+        })
       }
+      this.watchShareAttempt(attempt)
+      return attempt
+    },
+    updateShareAttempt(attempt, response) {
+      const share = response.share || response
+      if (share.id !== attempt.shareId) throw new Error('分享结果与本次选择不一致，请重试')
+      const previousStatus = attempt.status
+      attempt.status = share.status || 'completed'
+      if (attempt.status === 'completed') {
+        attempt.title = share.title || share.gallery_name || attempt.title
+        attempt.coverUrl = publicMediaUrl(share.card_cover_url || '')
+        attempt.error = ''
+      } else if (attempt.status === 'failed') {
+        if (previousStatus !== 'failed') attempt.reported = false
+        attempt.error = '案例生成失败，请重新分享'
+        this.reportShareFailure(attempt)
+      }
+    },
+    watchShareAttempt(attempt) {
+      if (attempt.watching || this._shareDisposed) return
+      attempt.watching = true
+      attempt.readyPromise = (async () => {
+        try {
+          if (attempt.acceptedPromise) await attempt.acceptedPromise
+        } catch (error) { /* Query the token: the acceptance response may have been lost. */ }
+        try {
+          for (let count = 0; count < 20 && !this._shareDisposed; count += 1) {
+            if (attempt.status === 'completed' || attempt.status === 'failed') break
+            this.updateShareAttempt(attempt, await mpContentApi.getShare(attempt.shareId))
+            if (attempt.status === 'completed' || attempt.status === 'failed') break
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+          }
+        } catch (error) {
+          attempt.error = '暂时无法确认案例生成结果，请稍后重试'
+          this.reportShareFailure(attempt)
+        }
+        return attempt
+      })().finally(() => { attempt.watching = false })
+    },
+    reportShareFailure(attempt = this.shareSnapshot) {
+      if (!attempt?.error || attempt.reported || this._shareHidden || this._shareDisposed) return
+      attempt.reported = true
+      uni.showToast({ title: attempt.error, icon: 'none' })
     },
     closeShareSheet() {
       this.shareSheetVisible = false
@@ -332,75 +403,26 @@ export default {
       const host = uni.getAppBaseInfo()?.host || {}
       return /wecom|wework|wxwork|企业微信/i.test(`${host.env || ''} ${host.name || ''}`)
     },
-    async prepareWechatShare(selectionKey) {
-      const gallery = this.activeGallery
-      const selectedIds = [...this.selectedIds]
-      if (!selectionKey || !gallery || !selectedIds.length) return false
-      try {
-        const localSnapshot = buildShareSnapshot(gallery, this.items, selectedIds)
-        const response = await mpContentApi.createShare(selectedIds)
-        const share = response.share || response
-        const shareId = share.share_id || share.id || share.token
-        if (!shareId) throw new Error('服务端未返回分享快照 ID')
-        const cardCoverUrl = publicMediaUrl(
-          share.card_cover_url || share.image_url || share.cover_url || share.cover_file_url || ''
-        )
-        if (!cardCoverUrl) throw new Error('服务端未返回分享封面')
-        if (this._shareDisposed || selectionKey !== this.currentShareSelectionKey()) return false
-        this.shareSnapshot = {
-          ...localSnapshot,
-          selectionKey,
-          shareId,
-          title: share.title || '',
-          shareUrl: share.page_url || share.pageUrl || share.url || share.share_url || '',
-          coverUrl: cardCoverUrl,
-          coverLocalPath: '',
-          images: localSnapshot.images.map((item, index) => ({
-            ...item,
-            public_url: index === 0 ? cardCoverUrl : ''
-          }))
-        }
-        this._shareCoverPromise = this.preloadShareCover(this.shareSnapshot)
-        return true
-      } catch (error) {
-        if (selectionKey === this.currentShareSelectionKey()) this.sharePrepareError = errorMessage(error)
-        return false
-      }
-    },
-    preloadShareCover(snapshot) {
-      return new Promise((resolve) => {
-        uni.downloadFile({
-          url: snapshot.coverUrl,
-          timeout: 10000,
-          success: (result) => {
-            if (result.statusCode === 200 && result.tempFilePath) snapshot.coverLocalPath = result.tempFilePath
-            resolve()
-          },
-          // The same public JPEG URL remains usable if local preloading fails.
-          fail: () => resolve()
-        })
-      })
-    },
     shareToWechat() {
-      if (this.shareSnapshot) return
-      if (this.sharePrepareError) {
-        uni.showToast({ title: this.sharePrepareError, icon: 'none' })
-      }
-      this.prepareShareForSheet()
+      if (this.canStartShare) return
+      uni.showToast({ title: this.shareTokenError || '分享初始化未完成，请稍后重试', icon: 'none' })
+      this.primeShareToken()
     },
     async shareToWorkWechat() {
       if (this.isWorkWechatHost()) {
         this.shareToWechat()
         return
       }
-      if (!(await this.prepareShareForSheet())) {
-        uni.showToast({ title: this.sharePrepareError || '分享准备失败，请重试', icon: 'none' })
-        return
-      }
-      if (!this.shareSnapshot?.shareUrl) return
+      if (this._copyingShare) return
+      const attempt = this.startShareAttempt()
+      if (!attempt) { this.shareToWechat(); return }
+      this._copyingShare = true
       try {
+        if (!(await attempt.acceptedPromise)) throw new Error(attempt.error || '分享请求未能确认，请重试')
+        if (attempt.status === 'failed') throw new Error(attempt.error)
+        if (this._shareDisposed) return
         await new Promise((resolve, reject) => {
-          uni.setClipboardData({ data: this.shareSnapshot.shareUrl, success: resolve, fail: reject })
+          uni.setClipboardData({ data: attempt.shareUrl, success: resolve, fail: reject })
         })
         this.shareSheetVisible = false
         uni.showModal({
@@ -410,6 +432,8 @@ export default {
         })
       } catch (error) {
         uni.showToast({ title: errorMessage(error), icon: 'none' })
+      } finally {
+        this._copyingShare = false
       }
     }
   }

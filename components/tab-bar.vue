@@ -16,6 +16,7 @@
     >
       <view class="tab-content">
         <image class="icon" :src="resolveTabIcon(item, current)" mode="aspectFit" />
+        <view v-if="item.key === 'mine' && leadReminder.unreadCount > 0" class="unread-dot" />
         <text class="label">{{ item.label }}</text>
       </view>
     </view>
@@ -24,6 +25,7 @@
 
 <script>
 import { resolveTabIcon, tabBarColors, tabBarItems } from '../utils/tab-bar-icons.mjs'
+import { leadReminderState } from '../utils/lead-reminder'
 
 export default {
   name: 'TabBar',
@@ -33,6 +35,7 @@ export default {
   data() {
     return {
       safeBottom: 0,
+      leadReminder: leadReminderState,
       colors: tabBarColors,
       tabs: tabBarItems
     }
@@ -77,10 +80,21 @@ export default {
   color: var(--tab-active-color);
 }
 .tab-content {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   transform: translateY(5px);
+}
+.unread-dot {
+  position: absolute;
+  top: -3px;
+  right: -5px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #e83b35;
 }
 .icon {
   width: 24px;

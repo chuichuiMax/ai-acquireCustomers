@@ -12,7 +12,7 @@ function createPage(api = {}) {
     .replace('export default', 'const page =')
   const page = runInNewContext(`${script}\npage`, {
     ...logic, toggleTransferElementValue: logic.toggleTransferElement,
-    TabBar: {}, ImageSourceSelector: {}, SaveTargetSheet: {}, internalPageMixin: {},
+    TabBar: {}, ImageSourceSelector: {}, SaveTargetSheet: {}, CaseStyleFilter: {}, internalPageMixin: {},
     mpImageDesignApi: api, mediaUrl: url => url, errorMessage: error => error.message,
     uni: { showToast: () => {} }
   })

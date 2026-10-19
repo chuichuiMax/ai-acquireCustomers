@@ -158,7 +158,7 @@ test('wechat share payload uses a mini-program route and public cover', () => {
   })
 
   assert.deepEqual(payload, {
-    title: '客厅实景 · 1 张实景图',
+    title: '客厅实景案例分享',
     imageUrl: 'wxfile://tmp/share-abc-cover.jpg',
     path: '/pages/materials/shared-case?shareId=share-abc'
   })

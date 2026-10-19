@@ -1,8 +1,10 @@
 <template>
   <view v-if="internalAccessGranted" class="page">
     <view class="gallery-card">
+      <view v-if="scope === 'enterprise' && pendingUploadCount" class="library-notice" @click="refreshUploads">{{ pendingUploadCount }} 张图片正在入库，完成后显示，点击刷新</view>
+      <view v-if="scope === 'enterprise' && uploadFailures.length" class="library-error">{{ uploadFailures.length }} 张图片入库失败，请重新上传</view>
       <view v-if="calendarOpen" class="calendar-scrim" @click="closeCalendar" />
-      <view v-if="scope !== 'enterprise' && !isGeneratedGallery" class="date-filter-wrap">
+      <view v-if="!isGeneratedGallery" class="date-filter-wrap">
         <view class="date-filter" @click="openCalendar">
           <text class="date-label">日期区间</text>
           <text class="date-value">{{ dateFrom && dateTo ? dateFrom + '—' + dateTo : '开始日期—结束日期' }}</text>
@@ -40,7 +42,7 @@
       </view>
       <view v-if="itemError" class="library-error" @click="loadItems(true)">{{ itemError }}，点击重试</view>
       <view v-if="loading && !items.length" class="empty">正在加载图片…</view>
-      <view v-else-if="!itemError && !items.length" class="empty">{{ dateFrom ? '所选日期内暂无图片' : '该文件夹暂无图片' }}</view>
+      <view v-else-if="!itemError && !items.length" class="empty">{{ pendingUploadCount ? '图片正在入库，请稍候' : (dateFrom ? '所选日期内暂无图片' : '该文件夹暂无图片') }}</view>
       <view v-else-if="isGeneratedGallery" class="grid">
         <view v-for="item in items" :key="item.id" class="work-card">
           <view class="work-thumb" @click="onGeneratedThumbClick(item)">
@@ -112,7 +114,12 @@ export default {
       calendarYear: new Date().getFullYear(),
       calendarMonth: new Date().getMonth() + 1,
       weekDays: ['一', '二', '三', '四', '五', '六', '日'],
-      downloadingId: ''
+      downloadingId: '',
+      pageVisible: false,
+      pendingUploadCount: 0,
+      uploadFailures: [],
+      uploadTimer: null,
+      uploadPolls: 0
     }
   },
   computed: {
@@ -164,6 +171,18 @@ export default {
   onReachBottom() {
     if (this.items.length < this.total) this.loadItems(false)
   },
+  onShow() {
+    this.pageVisible = true
+    if (this.scope === 'enterprise' && this.galleryMeta) this.loadItems(true)
+  },
+  onHide() {
+    this.pageVisible = false
+    this.stopUploadWatch()
+  },
+  onUnload() {
+    this.pageVisible = false
+    this.stopUploadWatch()
+  },
   methods: {
     async loadCurrentUid() {
       try {
@@ -181,7 +200,7 @@ export default {
     async loadGalleryMeta() {
       try {
         if (this.scope === 'enterprise') {
-          const data = await mpContentApi.galleries('enterprise')
+          const data = await mpContentApi.enterpriseRoughFolders()
           const gallery = filterEnterpriseRoughGalleries(data.galleries || []).find((row) => row.id === this.categoryId)
           if (!gallery) {
             this.itemError = '图库不存在或已删除'
@@ -219,7 +238,11 @@ export default {
       try {
         let data
         if (this.scope === 'enterprise') {
-          data = await mpContentApi.galleryItems(this.categoryId, 'enterprise', { page: this.page, page_size: 30 })
+          data = await mpContentApi.galleryItems(this.categoryId, 'enterprise', {
+            page: this.page, page_size: 30, date_from: this.dateFrom, date_to: this.dateTo
+          })
+          this.pendingUploadCount = data.pending_upload_count || 0
+          this.uploadFailures = data.upload_failures || []
         } else {
           data = await mpContentApi.myMaterialItems(this.folderId, this.page, 30, this.dateFrom, this.dateTo)
           if (this.galleryMeta && data.gallery_id) {
@@ -233,11 +256,30 @@ export default {
         this.itemError = `图片加载失败：${errorMessage(error)}`
       } finally {
         this.loading = false
+        if (this.scope === 'enterprise') {
+          this.stopUploadWatch()
+          if (this.pageVisible && this.pendingUploadCount && !this.itemError && this.uploadPolls < 10) {
+            this.uploadTimer = setTimeout(async () => {
+              this.uploadPolls += 1
+              await this.loadGalleryMeta()
+              await this.loadItems(true)
+            }, 3000)
+          }
+        }
         if (this.pendingReload) {
           this.pendingReload = false
           this.loadItems(true)
         }
       }
+    },
+    stopUploadWatch() {
+      if (this.uploadTimer) clearTimeout(this.uploadTimer)
+      this.uploadTimer = null
+    },
+    async refreshUploads() {
+      this.uploadPolls = 0
+      await this.loadGalleryMeta()
+      await this.loadItems(true)
     },
     imageUrl(item) {
       return galleryThumbUrl(item, 720)
@@ -302,6 +344,12 @@ export default {
       this.closeCalendar()
     },
     toggleItem(item) {
+      if (this.scope === 'enterprise' && !this.editing) {
+        const current = this.itemFileUrl(item)
+        const urls = this.items.map((image) => this.itemFileUrl(image)).filter(Boolean)
+        if (current && urls.length) uni.previewImage({ current, urls })
+        return
+      }
       if (!this.editing || !this.canSelectItem(item)) return
       this.selectedIds = toggleImageSelection(this.selectedIds, item.id)
     },
@@ -310,7 +358,7 @@ export default {
       this.selectedIds = createImageSelection()
     },
     chooseImages() {
-      if (!this.galleryMeta || this.uploading) return
+      if (!this.galleryMeta || this.uploading || (this.scope === 'enterprise' && !this.galleryMeta.can_upload)) return
       uni.chooseImage({
         count: 9,
         sizeType: ['compressed'],
@@ -323,7 +371,7 @@ export default {
                 ? this.categoryId
                 : (this.galleryMeta.gallery_id || 'uncategorized')
               const folder = this.scope === 'enterprise' || this.folderId === 'rough' ? 'rough' : 'uploads'
-              await mpContentApi.uploadCover(filePath, category, folder)
+              await mpContentApi.uploadCover(filePath, category, folder, this.scope)
               results.push(true)
             } catch (error) {
               results.push(false)
@@ -333,6 +381,7 @@ export default {
             }
           }
           this.uploading = false
+          this.uploadPolls = 0
           await this.loadItems(true)
           const failed = results.filter((result) => !result).length
           uni.showToast({ title: failed ? `${failed} 张上传失败` : '上传成功', icon: 'none' })
@@ -370,6 +419,7 @@ export default {
 .page { min-height: 100vh; box-sizing: border-box; padding: 16px 16px calc(148px + env(safe-area-inset-bottom)); background: #f4f1ee; }
 .gallery-card { min-height: 62vh; padding: 14px; border-radius: 12px; background: #fff; box-shadow: 0 2px 10px rgba(54, 39, 32, .06); }
 .library-error { margin-bottom: 12px; padding: 10px 12px; border-radius: 8px; background: #fff6f5; color: #be2d22; font-size: 12px; line-height: 1.5; }
+.library-notice { margin-bottom: 12px; color: #be2d22; font-size: 12px; line-height: 1.5; }
 .date-filter-wrap { position: relative; z-index: 31; margin-bottom: 18px; }
 .date-filter { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 1px solid #d7dce3; border-radius: 4px; background: #fff; }
 .date-label { flex-shrink: 0; margin-right: 14px; color: #98a1ad; font-size: 12px; }

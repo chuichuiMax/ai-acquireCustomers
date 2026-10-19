@@ -101,16 +101,23 @@ export function buildShareSnapshot(gallery, items, orderedIds) {
   }
 }
 
-export function buildWechatSharePayload(snapshot) {
-  const first = snapshot?.images?.[0]
-  if (!snapshot?.shareId || !first) return null
+export const DEFAULT_CASE_SHARE_COVER = '/static/share-icons/case-share.png'
 
-  const imageCount = snapshot.images.length
+export function buildWechatSharePayload(snapshot) {
+  if (!snapshot?.shareId) return null
   return {
-    title: snapshot.title || `${snapshot.galleryName || '素材图库'} · ${imageCount} 张实景图`,
-    imageUrl: snapshot.coverLocalPath || snapshot.coverUrl || first.public_url || first.file_url || first.url || first.path || '',
+    title: snapshot.title || `${snapshot.galleryName || '图库'}案例分享`,
+    imageUrl: snapshot.coverLocalPath || snapshot.coverUrl || DEFAULT_CASE_SHARE_COVER,
     path: `/pages/materials/shared-case?shareId=${encodeURIComponent(snapshot.shareId)}`
   }
+}
+
+export function caseShareStatusMessage(status) {
+  return {
+    pending: '案例正在准备中',
+    failed: '案例生成失败，请联系分享人重新分享',
+    unknown: '案例暂未就绪，请稍后重试'
+  }[status] || ''
 }
 
 export function buildSharedCaseImages(rawImages = [], toPublicUrl = (url) => url) {

@@ -74,11 +74,13 @@ export function saveImageUrlToPhotosAlbum(url) {
 }
 
 export function setToken(token) {
+  const previous = getToken()
   if (token) {
     uni.setStorageSync(TOKEN_KEY, token)
   } else {
     uni.removeStorageSync(TOKEN_KEY)
   }
+  if (previous !== (token || '')) uni.$emit('auth-token-changed')
 }
 
 const LOCAL_FILE_RE = /^(wxfile:|file:|blob:|http:\/\/tmp\/|https:\/\/tmp\/)/i
@@ -200,7 +202,8 @@ export function errorMessage(res) {
   const errMsg = String((res && (res.errMsg || res.message)) || '')
   if (/timeout/i.test(errMsg)) return '请求超时，请稍后重试'
   if (/url not in domain|domain list|合法域名|not in domain/i.test(errMsg)) {
-    return '上传域名未配置：真机需在公众平台配置 uploadFile 合法域名，或使用 HTTPS 域名；开发者工具请勾选不校验合法域名'
+    const api = /uploadFile/i.test(errMsg) ? 'uploadFile' : /downloadFile/i.test(errMsg) ? 'downloadFile' : 'request'
+    return `域名未配置：请在公众平台配置 ${api} 合法域名；临时预览请在手机开启调试后重试`
   }
   if (/fail/i.test(errMsg) && errMsg) return '网络请求失败，请检查网络后重试'
   const statusCode = res && res.statusCode
@@ -253,7 +256,7 @@ export function request({
   })
 }
 
-export function uploadFile({ url, filePath, name = 'file', formData = {}, timeout = 120000 }) {
+export function uploadFile({ url, filePath, name = 'file', formData = {}, timeout = 120000, requiresAuth = true }) {
   return new Promise((resolve, reject) => {
     uni.uploadFile({
       url: `${BASE_URL}${url}`,
@@ -261,9 +264,9 @@ export function uploadFile({ url, filePath, name = 'file', formData = {}, timeou
       name,
       formData,
       timeout,
-      header: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      header: requiresAuth && getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
       success: (res) => {
-        if (res.statusCode === 401) {
+        if (requiresAuth && res.statusCode === 401) {
           setToken('')
           const pages = getCurrentPages()
           const route = pages.length ? pages[pages.length - 1].route : ''
