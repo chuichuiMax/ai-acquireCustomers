@@ -4,7 +4,7 @@
     <view v-else-if="loadError" class="state"><text>{{ loadError }}</text><button @click="load">重新加载</button></view>
     <template v-else-if="lead">
       <view class="profile-card">
-        <view class="customer-row"><image v-if="avatarSrc" class="avatar" :src="avatarSrc" mode="aspectFill" /><view v-else class="avatar avatar-placeholder">{{ lead.nickname.slice(0, 1) }}</view><view class="customer-copy"><text class="name">{{ lead.nickname }}</text><text class="phone">{{ lead.phone_masked }}</text></view></view>
+        <view class="customer-row"><image v-if="avatarSrc" class="avatar" :src="avatarSrc" mode="aspectFill" /><view v-else class="avatar avatar-placeholder">{{ (lead.nickname || '客').slice(0, 1) }}</view><view class="customer-copy"><text class="name">{{ lead.nickname || '预约客户' }}</text><text class="phone">{{ lead.phone_masked }}</text></view></view>
         <button class="call-button" @click="call"><text class="call-icon">☎</text><text>拨打电话</text></button>
         <view v-if="readError" class="read-error"><text>{{ readError }}</text><text @click="load">刷新重试</text></view>
       </view>
@@ -61,7 +61,7 @@ export default {
         this.lead = lead; this.loading = false
         this.loadSource(lead, version)
         uni.$emit('customer-lead-changed', lead)
-        mpLeadApi.avatar(lead.avatar_url).then(src => {
+        if (lead.avatar_url) mpLeadApi.avatar(lead.avatar_url).then(src => {
           if (version !== this._loadVersion) return
           this.avatarSrc = src
           uni.$emit('customer-lead-changed', { ...this.lead, avatarSrc: src })

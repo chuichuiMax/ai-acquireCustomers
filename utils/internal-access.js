@@ -1,14 +1,15 @@
-import { mpMeApi } from '../apis/mp'
-import { getToken, setToken } from './request'
-import { createCachedInternalAccessEvaluator, evaluateInternalAccess } from './internal-access-policy.mjs'
-import { getActiveGeneration, resolveAllowedShowUrl, WORKSPACE_HOME_PATH } from './active-generation.mjs'
 import { safeReLaunch } from './safe-navigation'
+import { mpMeApi } from '../apis/mp'
+import { errorMessage, getToken, setToken } from './request'
+import { createCachedInternalAccessEvaluator, evaluateInternalAccess, hasMiniProgramAccess } from './internal-access-policy.mjs'
+import { getActiveGeneration, resolveAllowedShowUrl, WORKSPACE_HOME_PATH } from './active-generation.mjs'
 import { startLeadReminder, stopLeadReminder } from './lead-reminder'
 
 export const INTERNAL_HOME_PATH = WORKSPACE_HOME_PATH
 export const LOGIN_PATH = '/pages/login/login'
 
 const accessEvaluator = createCachedInternalAccessEvaluator(evaluateInternalAccess)
+let retryPrompt = null
 
 function currentRoute() {
   try {
@@ -24,63 +25,68 @@ function redirectToLogin() {
   safeReLaunch(LOGIN_PATH)
 }
 
-function withTimeout(promise, ms) {
-  return new Promise(function (resolve, reject) {
-    const timer = setTimeout(function () {
-      reject({ statusCode: 408, data: { detail: '身份验证超时' } })
-    }, ms)
-    promise.then(
-      function (value) {
-        clearTimeout(timer)
-        resolve(value)
-      },
-      function (error) {
-        clearTimeout(timer)
-        reject(error)
-      }
-    )
-  })
+async function promptAccessRetry(error) {
+  if (!retryPrompt) {
+    retryPrompt = new Promise((resolve, reject) => {
+      uni.showModal({
+        title: '暂时无法验证员工身份',
+        content: error && error.statusCode === 404
+          ? '身份接口不可用，请联系管理员检查服务版本后重试。'
+          : `${errorMessage(error)}，请检查网络或稍后重试。`,
+        confirmText: '重试',
+        showCancel: false,
+        success: resolve,
+        fail: reject
+      })
+    }).finally(() => { retryPrompt = null })
+  }
+  await retryPrompt
 }
 
 export function resetInternalAccess() {
   accessEvaluator.clear()
 }
 
-export async function requireInternalAccess({ redirect = true } = {}) {
-  try {
-    const decision = await withTimeout(
-      accessEvaluator.evaluate(getToken(), function () {
-        return mpMeApi.get()
-      }),
-      6000
-    )
+export function acceptConfirmedLogin(data) {
+  if (!data || typeof data.access_token !== 'string' || !data.access_token.trim()
+    || !data.employee || !data.employee.id || !data.employee.login_account || !hasMiniProgramAccess(data)) {
+    throw new Error('登录响应异常，请联系管理员')
+  }
+  setToken(data.access_token)
+  accessEvaluator.confirm(data.access_token)
+}
 
+export async function requireInternalAccess({ redirect = true } = {}) {
+  const token = getToken()
+  const route = currentRoute()
+  while (true) {
+    const decision = await accessEvaluator.evaluate(token, () => mpMeApi.get({ silentAuth: true }))
+    if (getToken() !== token) {
+      throw { code: 'INTERNAL_ACCESS_STALE' }
+    }
+    if (decision.status === 'unavailable') {
+      if (route && currentRoute() !== route) throw { code: 'INTERNAL_ACCESS_STALE' }
+      await promptAccessRetry(decision.error)
+      if (getToken() !== token || (route && currentRoute() !== route)) throw { code: 'INTERNAL_ACCESS_STALE' }
+      continue
+    }
     if (decision.clearToken) {
       setToken('')
       accessEvaluator.clear()
     }
-    if (!decision.allowed && redirect) redirectToLogin()
+    if (decision.status === 'forbidden') {
+      uni.showToast({ title: '当前员工账号没有小程序访问权限', icon: 'none' })
+    }
+    if (!decision.allowed && redirect && (!route || currentRoute() === route)) redirectToLogin()
     return decision.allowed
-  } catch (error) {
-    setToken('')
-    accessEvaluator.clear()
-    if (redirect) redirectToLogin()
-    return false
   }
 }
 
 export async function enterInternalWorkspace() {
-  try {
-    if (!(await requireInternalAccess())) return false
-    const resumeUrl = resolveAllowedShowUrl(currentRoute(), getActiveGeneration())
-    safeReLaunch(resumeUrl || INTERNAL_HOME_PATH)
-    return true
-  } catch (error) {
-    setToken('')
-    resetInternalAccess()
-    redirectToLogin()
-    return false
-  }
+  if (!(await requireInternalAccess())) return false
+  const resumeUrl = resolveAllowedShowUrl(currentRoute(), getActiveGeneration())
+  safeReLaunch(resumeUrl || INTERNAL_HOME_PATH)
+  return true
 }
 
 export const internalPageMixin = {
@@ -111,6 +117,11 @@ export const internalPageMixin = {
         this.internalAccessGranted = await this.internalAccessCheck
         if (this.internalAccessGranted && this._leadReminderVisible) startLeadReminder(this)
         return this.internalAccessGranted
+      } catch (error) {
+        if (error.code !== 'INTERNAL_ACCESS_STALE') {
+          uni.showToast({ title: errorMessage(error), icon: 'none' })
+        }
+        return false
       } finally {
         this.internalAccessCheck = null
       }

@@ -86,6 +86,33 @@
       </view>
     </view>
 
+    <view v-if="contactVisible" class="share-mask contact-mask" @click="closeContact">
+      <view class="contact-dialog" aria-role="dialog" aria-label="修改联系方式" @click.stop>
+        <button class="contact-close" aria-label="关闭" @click="closeContact">×</button>
+        <text class="contact-title">修改联系方式</text>
+        <text class="contact-subtitle">业主拨打该号码可联系你</text>
+        <view class="contact-field">
+          <text>联系人</text>
+          <input v-model="contact.contact_name" :maxlength="80" :disabled="contactLoading"
+            aria-label="联系人" placeholder="请输入联系人" />
+        </view>
+        <view class="contact-field">
+          <text>手机号码</text>
+          <view class="contact-phone">
+            <input v-model="contact.contact_phone" type="number" :maxlength="11" :disabled="contactLoading"
+              aria-label="手机号码" placeholder="请输入11位手机号码" />
+            <button class="last-contact" :disabled="!lastShareContact || contactLoading" @click="restoreLastContact">上次使用</button>
+          </view>
+        </view>
+        <text class="contact-status" :class="{ valid: !contactError && !contactLoading }" aria-live="polite">
+          {{ contactLoading ? '正在读取登录人信息…' : (contactError || '格式正确，点击确定保存') }}
+        </text>
+        <view class="contact-actions">
+          <button class="contact-cancel" @click="closeContact">取消</button>
+          <button class="contact-confirm" :disabled="contactLoading || Boolean(contactError)" @click="confirmContact">确定</button>
+        </view>
+      </view>
+    </view>
     <view v-if="shareSheetVisible" class="share-mask" @click="closeShareSheet">
       <view class="share-sheet" @click.stop>
         <view class="sheet-close" @click="closeShareSheet">×</view>
@@ -117,8 +144,8 @@
 <script>
 import { beginCaseComponentAction, clearCaseSystemAction, markCaseSystemReturn, openCaseSystemPage } from '../../utils/share-entry.mjs'
 import TabBar from '../../components/tab-bar.vue'
-import { mpContentApi } from '../../apis/mp'
-import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
+import { mpContentApi, mpMeApi } from '../../apis/mp'
+import { errorMessage, galleryThumbUrl, getToken, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import {
   MATERIAL_LIBRARY_STYLE_OPTIONS,
@@ -147,6 +174,13 @@ export default {
       loadingGalleries: false,
       loadingItems: false,
       shareSheetVisible: false,
+      contactVisible: false,
+      contactLoading: false,
+      contact: { contact_name: '', contact_phone: '' },
+      confirmedContact: null,
+      lastShareContact: null,
+      shareAccountUid: '',
+      shareAccountToken: '',
       shareSnapshot: null,
       nextShareToken: '',
       shareTokenError: ''
@@ -154,7 +188,13 @@ export default {
   },
   computed: {
     canStartShare() {
-      return Boolean(this.nextShareToken || (this.shareSnapshot && this.shareSnapshot.status !== 'failed'))
+      return Boolean(this.confirmedContact && this.shareAccountToken === getToken()
+        && (this.nextShareToken || (this.shareSnapshot && this.shareSnapshot.status !== 'failed')))
+    },
+    contactError() {
+      if (!this.contact.contact_name.trim()) return '请填写联系人'
+      if (!/^1[3-9]\d{9}$/.test(this.contact.contact_phone.trim())) return '请填写正确的11位手机号码'
+      return ''
     },
     activeGallery() {
       return this.galleries.find((item) => item.id === this.activeGalleryId) || null
@@ -291,12 +331,77 @@ export default {
         uni.showToast({ title: error.message, icon: 'none' })
       }
     },
-    openShareSheet() {
+    async openShareSheet() {
       if (!this.selectedIds.length || !this.activeGallery) return
+      const requestId = this._contactRequestId = (this._contactRequestId || 0) + 1
+      this.shareSheetVisible = false
+      this.confirmedContact = null
+      this.contact = { contact_name: '', contact_phone: '' }
+      this.lastShareContact = null
+      this.shareAccountUid = ''
+      this.shareAccountToken = getToken()
+      const accountToken = this.shareAccountToken
+      this.contactVisible = true
+      this.contactLoading = true
+      try {
+        const profile = await mpMeApi.get()
+        if (requestId !== this._contactRequestId || this._shareDisposed
+          || !this.contactVisible || getToken() !== accountToken) return
+        if (!profile.employee || !profile.user_uid) throw new Error('登录人信息不完整，请重新登录')
+        this.shareAccountUid = profile.user_uid
+        this.contact = {
+          contact_name: profile.employee.name || '',
+          contact_phone: profile.employee.login_account || ''
+        }
+        try {
+          const saved = uni.getStorageSync(`case-share-contact:${this.shareAccountUid}`)
+          if (saved?.contact_name?.trim() && /^1[3-9]\d{9}$/.test(saved.contact_phone)) this.lastShareContact = saved
+        } catch { this.lastShareContact = null }
+      } catch (error) {
+        if (requestId !== this._contactRequestId || this._shareDisposed
+          || !this.contactVisible || getToken() !== accountToken) return
+        uni.showToast({ title: errorMessage(error), icon: 'none' })
+        this.contactVisible = false
+      } finally {
+        if (requestId === this._contactRequestId) this.contactLoading = false
+      }
+    },
+    closeContact() {
+      this.contactVisible = false
+      this.confirmedContact = null
+    },
+    restoreLastContact() {
+      if (this.lastShareContact) this.contact = { ...this.lastShareContact }
+    },
+    confirmContact() {
+      if (this.contactLoading || !this.contactVisible) return
+      if (this.shareAccountToken !== getToken() || !this.shareAccountUid) {
+        this.closeContact()
+        uni.showToast({ title: '登录账号已变化，请重新分享', icon: 'none' })
+        return
+      }
+      if (this.contactError) {
+        uni.showToast({ title: this.contactError, icon: 'none' })
+        return
+      }
+      this.confirmedContact = {
+        contact_name: this.contact.contact_name.trim(),
+        contact_phone: this.contact.contact_phone.trim()
+      }
+      if (this.shareSnapshot && this.shareSnapshot.selectionKey !== this.currentShareSelectionKey()) {
+        this.invalidateShareSnapshot()
+      }
+      try {
+        uni.setStorageSync(`case-share-contact:${this.shareAccountUid}`, this.confirmedContact)
+        this.lastShareContact = { ...this.confirmedContact }
+      } catch {
+        uni.showToast({ title: '无法保存上次使用，本次分享可继续', icon: 'none' })
+      }
+      this.contactVisible = false
       this.shareSheetVisible = true
     },
     currentShareSelectionKey() {
-      return shareSelectionKey(this.activeGalleryId, this.selectedIds)
+      return JSON.stringify([this.shareAccountUid, shareSelectionKey(this.activeGalleryId, this.selectedIds), this.confirmedContact])
     },
     invalidateShareSnapshot() {
       this.shareSnapshot = null
@@ -322,13 +427,15 @@ export default {
       }).finally(() => { this._shareTokenPromise = null })
     },
     startShareAttempt() {
-      if (this._shareDisposed || !this.selectedIds.length || !this.activeGallery) return null
+      if (this._shareDisposed || !this.selectedIds.length || !this.activeGallery
+        || !this.confirmedContact || this.shareAccountToken !== getToken()) return null
       const selectionKey = this.currentShareSelectionKey()
       let attempt = this.shareSnapshot
       if (!attempt || attempt.selectionKey !== selectionKey || attempt.status === 'failed') {
         if (!this.nextShareToken) return null
         attempt = {
           selectionKey, itemIds: [...this.selectedIds], shareId: this.nextShareToken,
+          contact: { ...this.confirmedContact },
           title: `${this.activeGallery.name}案例分享`, status: 'unknown', coverUrl: '',
           shareUrl: publicMediaUrl(`/share/case/${this.nextShareToken}`)
         }
@@ -338,7 +445,7 @@ export default {
         this.primeShareToken()
       }
       if (!attempt.acceptedPromise) {
-        attempt.acceptedPromise = mpContentApi.createShare(attempt.itemIds, attempt.shareId).then((response) => {
+        attempt.acceptedPromise = mpContentApi.createShare(attempt.itemIds, attempt.shareId, attempt.contact).then((response) => {
           this.updateShareAttempt(attempt, response)
           return attempt
         }).catch((error) => {
@@ -742,6 +849,25 @@ export default {
   z-index: 30;
   background: rgba(0, 0, 0, 0.48);
 }
+.contact-mask { display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+.contact-dialog { position: relative; width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; padding: 28px 24px; border-radius: 20px; box-sizing: border-box; background: #fff; }
+.contact-close { position: absolute; top: 18px; right: 18px; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: #bdbfbf; color: #fff; font-size: 26px; line-height: 28px; }
+.contact-title { display: block; padding-right: 30px; color: #25211f; font-size: 21px; font-weight: 700; }
+.contact-subtitle { display: block; margin-top: 10px; color: #979999; font-size: 14px; }
+.contact-field { margin-top: 24px; color: #697070; font-size: 16px; }
+.contact-field input { height: 46px; margin-top: 8px; color: #151616; font-size: 19px; font-weight: 600; }
+.contact-field > input, .contact-phone { border-bottom: 1px solid #d7d9d9; }
+.contact-phone { display: flex; align-items: center; gap: 10px; }
+.contact-phone input { flex: 1; min-width: 0; }
+.last-contact { flex-shrink: 0; padding: 0 12px; background: #fff2f0; color: #cf1322; font-size: 13px; line-height: 34px; }
+.contact-status { display: block; margin-top: 12px; color: #cf1322; font-size: 13px; }
+.contact-status.valid { color: #389e0d; }
+.contact-actions { display: flex; justify-content: space-around; gap: 24px; margin-top: 34px; }
+.contact-actions button { width: 100px; margin: 0; font-size: 15px; line-height: 38px; }
+.contact-cancel { background: #bdbfbf; color: #fff; }
+.contact-confirm { background: #e60000; color: #fff; }
+.contact-confirm[disabled], .last-contact[disabled] { background: #eff2f2; color: #979999; }
+.contact-dialog button::after { border: 0; }
 .share-sheet {
   position: absolute;
   right: 0;
