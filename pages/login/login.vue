@@ -37,7 +37,7 @@
       <view class="field">
         <text class="field-label">姓名</text>
         <view class="input-wrap readonly-wrap">
-          <image class="field-icon" src="/static/login-icons/person.png" mode="aspectFit" />
+          <image class="field-icon person-icon" src="/static/login-icons/person.png" mode="aspectFit" />
           <input
             class="field-input"
             :value="employee ? employee.name : ''"
@@ -285,6 +285,9 @@ export default {
   height: 26px;
   flex-shrink: 0;
   margin-right: 6px;
+}
+.person-icon {
+  height: 20px;
 }
 .field-input {
   flex: 1;
