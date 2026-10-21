@@ -2,7 +2,7 @@
   <view v-if="internalAccessGranted" class="page">
     <view v-if="loadError" class="library-error" @click="loadGalleries">{{ loadError }}，点击重试</view>
     <view v-else-if="loading" class="empty">正在加载图库…</view>
-    <view v-else-if="!galleries.length" class="empty">暂无企业毛坯房图库</view>
+    <view v-else-if="!galleries.length" class="empty">暂无企业共享图库</view>
     <view v-else class="folder-grid">
       <view v-for="gallery in galleries" :key="gallery.id" class="folder" @click="openGallery(gallery)">
         <view class="folder-icon">
@@ -21,6 +21,7 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi } from '../../apis/mp'
 import { errorMessage, mediaUrl } from '../../utils/request'
 import { galleryCoverPath } from '../../utils/materials-logic.mjs'
+import { filterEnterpriseSharedGalleries } from '../../utils/enterprise-materials.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
@@ -38,12 +39,14 @@ export default {
       this.loading = true
       this.loadError = ''
       try {
-        const data = await mpContentApi.enterpriseRoughFolders()
-        const galleries = data?.galleries?.filter((gallery) => gallery.visibility === 'enterprise' && !gallery.parent_id && gallery.image_design_role === 'rough')
-        if (!Array.isArray(galleries) || galleries.length !== 1 || galleries.some((gallery) => !Number.isInteger(gallery.count) || gallery.count < 0)) {
+        const data = await mpContentApi.galleries('enterprise')
+        const galleries = filterEnterpriseSharedGalleries(data?.galleries)
+        const invalid = galleries.some((gallery) => !Number.isInteger(gallery.count) || gallery.count < 0)
+        if (invalid) {
           this.loadError = '图库返回数据不完整'
           this.galleries = []
         } else {
+          this.loadError = ''
           this.galleries = galleries
         }
       } catch (error) {

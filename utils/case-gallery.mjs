@@ -32,9 +32,14 @@ export function isWithinCaseGallery(gallery, galleries = []) {
   return Boolean(findCaseGalleryRoot(gallery, galleries))
 }
 
-export function filterCaseGalleryChildren(children = [], designStyle = '') {
-  if (!designStyle || designStyle === '全部') return children
-  return children.filter((item) => galleryStyle(item) === designStyle)
+export function filterCaseGalleryChildren(children = [], designStyle = '', address = '') {
+  const keyword = String(address || '').trim().toLowerCase()
+  return (Array.isArray(children) ? children : []).filter((item) => {
+    if (designStyle && designStyle !== '全部' && galleryStyle(item) !== designStyle) return false
+    if (!keyword) return true
+    const building = `${item.building_name || item.building || ''} ${item.name || ''}`.toLowerCase()
+    return building.includes(keyword)
+  })
 }
 
 export function filterCaseGalleryItems(items = [], designStyle = '') {

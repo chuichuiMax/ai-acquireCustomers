@@ -228,13 +228,18 @@
         </view>
         <text class="region-close" @click="closeGallery">关闭</text>
       </view>
-      <scroll-view class="gallery-body" scroll-y>
+      <case-gallery-picker-workspace
+        v-if="caseGalleryFolderPickActive"
+        :building-query="galleryBuildingQuery"
+        :style-filter="galleryStyleFilter"
+        :folders="visibleGalleryChildren"
+        :active-id="coverGalleryId"
+        @update:buildingQuery="galleryBuildingQuery = $event"
+        @update:styleFilter="onGalleryStyleFilter"
+        @select="openGallery($event.id)"
+      />
+      <scroll-view v-else class="gallery-body" scroll-y>
         <view class="gallery-body-inner">
-          <case-style-filter
-            v-if="caseGalleryBrowseActive"
-            :value="galleryStyleFilter"
-            @input="onGalleryStyleFilter"
-          />
           <view v-if="galleryParent" class="gallery-back" @click="openGallery(galleryParent.id)">
             返回 {{ galleryParent.name }}
           </view>
@@ -273,7 +278,7 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
-import CaseStyleFilter from '../../components/case-style-filter.vue'
+import CaseGalleryPickerWorkspace from '../../components/case-gallery-picker-workspace.vue'
 import {
   filterCaseGalleryChildren,
   filterCaseGalleryItems,
@@ -417,7 +422,7 @@ const CONTENT_TYPE_DESC = {
 }
 
 export default {
-  components: { CaseStyleFilter, TabBar },
+  components: { CaseGalleryPickerWorkspace, TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
@@ -447,6 +452,7 @@ export default {
       galleryOpen: false,
       galleryId: '',
       galleryStyleFilter: '全部',
+      galleryBuildingQuery: '',
       galleryItems: [],
       galleryLoading: false,
       photos: [],
@@ -558,14 +564,22 @@ export default {
     caseGalleryBrowseActive() {
       return Boolean(this.galleryOpen && this.activeCaseGalleryRoot)
     },
+    caseGalleryFolderPickActive() {
+      const active = this.activeGallery
+      return Boolean(this.caseGalleryBrowseActive && active && isEnterpriseCaseGallery(active))
+    },
     visibleGalleryChildren() {
       const children = this.galleryChildren
-      if (!this.caseGalleryBrowseActive || this.galleryStyleFilter === '全部') return children
       const active = this.activeGallery
       if (active && isEnterpriseCaseGallery(active)) {
-        return filterCaseGalleryChildren(children, this.galleryStyleFilter)
+        return filterCaseGalleryChildren(
+          children,
+          this.galleryStyleFilter,
+          this.galleryBuildingQuery
+        )
       }
-      return children
+      if (!this.caseGalleryBrowseActive || this.galleryStyleFilter === '全部') return children
+      return filterCaseGalleryChildren(children, this.galleryStyleFilter, '')
     },
     visibleGalleryItems() {
       if (!this.caseGalleryBrowseActive || this.galleryStyleFilter === '全部') return this.galleryItems
@@ -1353,6 +1367,7 @@ export default {
     closeGallery() {
       this.galleryOpen = false
       this.galleryStyleFilter = '全部'
+      this.galleryBuildingQuery = ''
     },
     onGalleryStyleFilter(style) {
       this.galleryStyleFilter = style || '全部'
@@ -1998,13 +2013,14 @@ export default {
   flex-direction: column;
   overflow: hidden;
 }
+.case-gallery-picker-workspace {
+  flex: 1;
+  min-height: 0;
+}
 .gallery-body {
   flex: 1;
   height: 0;
   min-height: 0;
-}
-.gallery-body-inner .case-style-filter {
-  margin-bottom: 8px;
 }
 .gallery-body-inner {
   padding: 12px 16px 24px;

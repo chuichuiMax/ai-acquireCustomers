@@ -83,7 +83,11 @@ import TabBar from '../../components/tab-bar.vue'
 import { mpContentApi, mpMeApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, mediaUrl, saveImageUrlToPhotosAlbum } from '../../utils/request'
 import { createImageSelection, formatUploadTime, nextDateRangeSelection, toggleImageSelection } from '../../utils/mine-library-logic.mjs'
-import { canSelectMaterialItemForDelete, filterEnterpriseRoughGalleries } from '../../utils/enterprise-materials.mjs'
+import {
+  canSelectMaterialItemForDelete,
+  filterEnterpriseSharedGalleries,
+  isEnterpriseBatchScriptGallery
+} from '../../utils/enterprise-materials.mjs'
 import { internalPageMixin } from '../../utils/internal-access'
 
 export default {
@@ -124,7 +128,10 @@ export default {
   },
   computed: {
     isGeneratedGallery() {
-      return this.scope !== 'enterprise' && this.folderId === 'generated'
+      if (this.scope === 'enterprise') {
+        return isEnterpriseBatchScriptGallery(this.galleryMeta || {})
+      }
+      return this.folderId === 'generated'
     },
     actionBarStyle() {
       const bottom = this.isGeneratedGallery
@@ -200,8 +207,10 @@ export default {
     async loadGalleryMeta() {
       try {
         if (this.scope === 'enterprise') {
-          const data = await mpContentApi.enterpriseRoughFolders()
-          const gallery = filterEnterpriseRoughGalleries(data.galleries || []).find((row) => row.id === this.categoryId)
+          const data = await mpContentApi.galleries('enterprise')
+          const gallery = filterEnterpriseSharedGalleries(data.galleries || []).find(
+            (row) => row.id === this.categoryId
+          )
           if (!gallery) {
             this.itemError = '图库不存在或已删除'
             return

@@ -1,12 +1,31 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import {
   canDeleteEnterpriseRoughItem,
   canSelectMaterialItemForDelete,
   filterEnterpriseRoughGalleries,
+  filterEnterpriseSharedGalleries,
+  isEnterpriseBatchScriptGallery,
   isEnterpriseRoughGallery,
   materialItemOwnerUid
 } from '../utils/enterprise-materials.mjs'
+
+test('enterprise shared page loads batch script gallery from enterprise galleries api', () => {
+  const enterprisePage = readFileSync(
+    fileURLToPath(new URL('../pages/mine/enterprise.vue', import.meta.url)),
+    'utf8'
+  )
+  const folderPage = readFileSync(
+    fileURLToPath(new URL('../pages/mine/folder.vue', import.meta.url)),
+    'utf8'
+  )
+  assert.match(enterprisePage, /galleries\('enterprise'\)/)
+  assert.match(enterprisePage, /filterEnterpriseSharedGalleries/)
+  assert.match(folderPage, /isEnterpriseBatchScriptGallery/)
+  assert.match(folderPage, /filterEnterpriseSharedGalleries/)
+})
 
 test('isEnterpriseRoughGallery matches enterprise rough roots only', () => {
   assert.equal(isEnterpriseRoughGallery({ visibility: 'enterprise', name: '毛坯房图库' }), true)
@@ -14,6 +33,23 @@ test('isEnterpriseRoughGallery matches enterprise rough roots only', () => {
   assert.equal(isEnterpriseRoughGallery({ visibility: 'enterprise', name: '案例图库' }), false)
   assert.equal(isEnterpriseRoughGallery({ visibility: 'private', name: '毛坯房图库' }), false)
   assert.equal(isEnterpriseRoughGallery({ visibility: 'enterprise', parent_id: 'child', name: '毛坯房图库' }), false)
+})
+
+test('isEnterpriseBatchScriptGallery matches batch output gallery by name', () => {
+  assert.equal(
+    isEnterpriseBatchScriptGallery({ visibility: 'enterprise', name: '毛坯批量生图图库', parent_id: 'gen' }),
+    true
+  )
+  assert.equal(isEnterpriseBatchScriptGallery({ visibility: 'enterprise', name: '生图图库' }), false)
+})
+
+test('filterEnterpriseSharedGalleries includes rough root and batch script gallery', () => {
+  const filtered = filterEnterpriseSharedGalleries([
+    { id: 'rough', visibility: 'enterprise', name: '毛坯房图库', image_design_role: 'rough' },
+    { id: 'batch', visibility: 'enterprise', name: '毛坯批量生图图库', parent_id: 'gen' },
+    { id: 'case', visibility: 'enterprise', name: '案例图库' }
+  ])
+  assert.deepEqual(filtered.map((row) => row.id), ['rough', 'batch'])
 })
 
 test('filterEnterpriseRoughGalleries drops case galleries', () => {

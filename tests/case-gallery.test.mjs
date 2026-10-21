@@ -29,6 +29,15 @@ test('filterCaseGalleryChildren respects design style', () => {
   assert.deepEqual(filterCaseGalleryChildren(children, '复古风潮').map((row) => row.id), ['b'])
 })
 
+test('filterCaseGalleryChildren matches building name and folder title', () => {
+  const children = [
+    { id: 'a', building_name: '洋湖天序', name: '洋湖天序·三居式·复古写意', design_style: '复古风潮' },
+    { id: 'b', building_name: '龙湖', name: '龙湖·三居式·写意木构', design_style: '写意木构' }
+  ]
+  assert.deepEqual(filterCaseGalleryChildren(children, '全部', '洋湖').map((row) => row.id), ['a'])
+  assert.deepEqual(filterCaseGalleryChildren(children, '写意木构', '龙湖').map((row) => row.id), ['b'])
+})
+
 test('findCaseGalleryRoot walks parent chain', () => {
   const galleries = [
     { id: 'case-root', visibility: 'enterprise', image_design_role: 'reference', name: '案例图库' },
@@ -46,11 +55,24 @@ test('filterCaseGalleryItems by item design_style', () => {
   assert.deepEqual(filterCaseGalleryItems(items, '复古风潮').map((row) => row.id), ['2'])
 })
 
-test('cover and generate pages embed case style filter in gallery picker', () => {
+test('cover and generate use the same case picker workspace as the materials tab', () => {
   const cover = readFileSync(new URL('../pages/cover/cover.vue', import.meta.url), 'utf8')
   const generate = readFileSync(new URL('../pages/generate/generate.vue', import.meta.url), 'utf8')
-  assert.match(cover, /case-style-filter/)
-  assert.match(cover, /pickerCaseGalleryRoot/)
-  assert.match(generate, /case-style-filter/)
-  assert.match(generate, /caseGalleryBrowseActive/)
+  const workspace = readFileSync(new URL('../components/case-gallery-picker-workspace.vue', import.meta.url), 'utf8')
+  assert.match(cover, /case-gallery-picker-workspace/)
+  assert.match(generate, /case-gallery-picker-workspace/)
+  assert.match(workspace, /case-style-sidebar/)
+  assert.match(workspace, /case-gallery-folder-grid/)
+  assert.match(workspace, /case-building-search/)
+})
+
+test('case picker components avoid WXSS rules rejected by WeChat', () => {
+  const grid = readFileSync(new URL('../components/case-gallery-folder-grid.vue', import.meta.url), 'utf8')
+  const sidebar = readFileSync(new URL('../components/case-style-sidebar.vue', import.meta.url), 'utf8')
+  for (const source of [grid, sidebar]) {
+    assert.doesNotMatch(source, /clip-path/)
+    assert.doesNotMatch(source, /mix-blend-mode/)
+    assert.doesNotMatch(source, /--folder-back-color/)
+    assert.doesNotMatch(source, /::before|::after/)
+  }
 })

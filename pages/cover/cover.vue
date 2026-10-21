@@ -113,14 +113,25 @@
 
     <view v-if="pickerVisible" class="layer">
       <view class="layer-head"><text class="back" @click="backPicker">‹</text><text>选择图片</text></view>
-      <scroll-view class="layer-body" scroll-y :lower-threshold="80" @scrolltolower="loadMoreFolderItems">
+      <view v-if="pickerCaseGalleryFolderPick" class="layer-case-pick">
         <text class="breadcrumb">{{ pickerTitle }}</text>
-        <case-style-filter
-          v-if="pickerCaseGalleryRoot"
-          :value="pickerStyleFilter"
-          @input="onPickerStyleFilter"
+        <case-gallery-picker-workspace
+          :building-query="pickerBuildingQuery"
+          :style-filter="pickerStyleFilter"
+          :folders="visiblePickerFolders"
+          @update:buildingQuery="pickerBuildingQuery = $event"
+          @update:styleFilter="onPickerStyleFilter"
+          @select="selectPickerFolder"
         />
-        <view v-if="visiblePickerFolders.length" class="folder-grid"><view v-for="folder in visiblePickerFolders" :key="folder.id" class="folder-card" @click="selectPickerFolder(folder)"><view class="folder-icon"><view /></view><text>{{ folder.name || '未分类' }}</text></view></view>
+      </view>
+      <scroll-view
+        v-else
+        class="layer-body"
+        scroll-y
+        :lower-threshold="80"
+        @scrolltolower="loadMoreFolderItems"
+      >
+        <text class="breadcrumb">{{ pickerTitle }}</text>
         <view v-if="folderItemsLoading && !folderItems.length" class="state">正在加载图片…</view>
         <view v-else-if="folderItemsError && !folderItems.length" class="state"><text>图库加载失败</text><button class="retry" @click="retryFolderItems">重新加载</button></view>
         <view v-else-if="!visibleFolderItems.length && !visiblePickerFolders.length" class="state">该图库暂无图片或子图库</view>
@@ -138,13 +149,14 @@
 
 <script>
 import TabBar from '../../components/tab-bar.vue'
-import CaseStyleFilter from '../../components/case-style-filter.vue'
+import CaseGalleryPickerWorkspace from '../../components/case-gallery-picker-workspace.vue'
 import ImageSourceSelector from '../../components/image-source-selector.vue'
 import {
   filterCaseGalleryChildren,
   filterCaseGalleryItems,
   findCaseGalleryRoot,
-  isCaseGalleryChild
+  isCaseGalleryChild,
+  isEnterpriseCaseGallery
 } from '../../utils/case-gallery.mjs'
 import { galleryStyle } from '../../utils/materials-logic.mjs'
 import SaveTargetSheet from '../../components/image-design/SaveTargetSheet.vue'
@@ -171,7 +183,7 @@ const DRAFT_COUNT_MIGRATION_KEY = 'image-design-default-count-v2'
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 export default {
-  components: { CaseStyleFilter, ImageSourceSelector, SaveTargetSheet, TabBar },
+  components: { CaseGalleryPickerWorkspace, ImageSourceSelector, SaveTargetSheet, TabBar },
   mixins: [internalPageMixin],
   data() {
     return {
@@ -181,7 +193,7 @@ export default {
       transferSpaces: [], transferProfilesLoading: false, transferProfilesError: '',
       keywordInputVisible: false, keywordInput: '',
       sourceFolders: [], sourceFoldersLoading: false, sourceFolderErrors: { private: false, enterprise: false }, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
-      pickerVisible: false, pickerStyleFilter: '全部', pickerFolders: [], pickerFolderStack: [], pickerSlot: '', pickerSourceRole: '', pickerScopeLabel: '', pickerTitle: '', activeFolder: null,
+      pickerVisible: false, pickerStyleFilter: '全部', pickerBuildingQuery: '', pickerFolders: [], pickerFolderStack: [], pickerSlot: '', pickerSourceRole: '', pickerScopeLabel: '', pickerTitle: '', activeFolder: null,
       folderItems: [], folderItemsPage: 0, folderItemsTotal: 0, folderItemsHasMore: false, folderItemsLoading: false, folderItemsLoadingMore: false, folderItemsError: false, selectedFolderItem: null, pickerSaving: false,
       comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null,
       saveTargetScopes: [], saveTargetsLoaded: false, saveTargetsLoading: false, saveTargetsError: '',
@@ -204,9 +216,25 @@ export default {
     pickerCaseGalleryRoot() {
       return findCaseGalleryRoot(this.activeFolder, this.sourceFolders)
     },
+    pickerCaseGalleryFolderPick() {
+      return Boolean(
+        this.pickerCaseGalleryRoot
+        && this.pickerFolderStack.length === 1
+        && this.activeFolder
+        && isEnterpriseCaseGallery(this.activeFolder)
+      )
+    },
     visiblePickerFolders() {
-      if (!this.pickerCaseGalleryRoot || this.pickerStyleFilter === '全部') return this.pickerFolders
-      return filterCaseGalleryChildren(this.pickerFolders, this.pickerStyleFilter)
+      if (!this.pickerCaseGalleryRoot) return this.pickerFolders
+      if (this.pickerCaseGalleryFolderPick) {
+        return filterCaseGalleryChildren(
+          this.pickerFolders,
+          this.pickerStyleFilter,
+          this.pickerBuildingQuery
+        )
+      }
+      if (this.pickerStyleFilter === '全部') return this.pickerFolders
+      return filterCaseGalleryChildren(this.pickerFolders, this.pickerStyleFilter, '')
     },
     visibleFolderItems() {
       if (!this.pickerCaseGalleryRoot || this.pickerStyleFilter === '全部') return this.folderItems
@@ -437,6 +465,7 @@ export default {
     openPicker(slot, entry) {
       if (!this.draftsInitialized || !entry || !entry.folder) return
       this.pickerStyleFilter = '全部'
+      this.pickerBuildingQuery = ''
       this.pickerSlot = slot; this.pickerSourceRole = entry.sourceRole; this.pickerScopeLabel = entry.scopeLabel
       this.pickerFolderStack = [entry.folder]; this.activeFolder = entry.folder
       this.pickerTitle = `${this.pickerScopeLabel} / ${entry.folder.name || '未分类'}`
@@ -462,7 +491,7 @@ export default {
       this.closePicker()
     },
     closePicker() {
-      this.pickerVisible = false; this.pickerStyleFilter = '全部'; this.pickerFolders = []; this.pickerFolderStack = []; this.pickerSlot = ''; this.pickerSourceRole = ''; this.pickerScopeLabel = ''; this.pickerTitle = ''; this.activeFolder = null
+      this.pickerVisible = false; this.pickerStyleFilter = '全部'; this.pickerBuildingQuery = ''; this.pickerFolders = []; this.pickerFolderStack = []; this.pickerSlot = ''; this.pickerSourceRole = ''; this.pickerScopeLabel = ''; this.pickerTitle = ''; this.activeFolder = null
       this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsLoading = false; this.folderItemsLoadingMore = false; this.folderItemsError = false; this.selectedFolderItem = null
     },
     async loadFolderItems(reset = false) {
@@ -624,7 +653,21 @@ export default {
 .option-stack { margin-top: 14px; }.large-choice { min-height: 64px; margin-top: 12px; padding: 9px 16px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; border: 0; border-radius: 12px; color: #8a817c; font-size: 15px; line-height: 1.35; background: #fff; }.large-choice text + text { margin-top: 3px; font-size: 13px; }.large-choice.active { color: #fff; font-weight: 700; background: #be2d22; }.compact { padding-top: 18px; padding-bottom: 18px; }.two-row { display: flex; gap: 16px; margin-top: 14px; }.large-choice.inline { flex: 1; min-height: 40px; margin: 0; padding: 0 10px; align-items: center; text-align: center; border-radius: 20px; }.save-target-control { position: relative; }.save-target { min-height: 40px; margin-top: 14px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: 20px; color: #342e2a; font-size: 14px; background: #fff; }.save-target .placeholder { color: #8b837c; }.save-target-arrow { color: #8b837c; font-size: 18px; line-height: 1; transform: rotate(0deg); transition: transform .18s ease; }.sync-note { display: block; margin-top: 8px; color: #aa6c34; font-size: 11px; }.generate-button { width: calc(100% - 36px); height: 40px; margin: 24px 18px 0; border-radius: 20px; color: #fff; font-size: 15px; line-height: 40px; background: #be2d22; }.generate-button[disabled] { opacity: .55; }
 .gallery-heading { display: flex; align-items: baseline; justify-content: space-between; padding: 22px 18px 15px; background: #fff; }.gallery-heading text:first-child { color: #25211e; font-size: 19px; font-weight: 700; }.gallery-heading text:last-child { color: #8f867f; font-size: 12px; }.state { padding: 74px 22px; color: #8b837d; font-size: 14px; text-align: center; }.state text { display: block; }.retry { display: inline-block; margin-top: 10px; padding: 0; color: #be2d22; font-size: 14px; background: transparent; }.library-grid, .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px; }.library-image { position: relative; height: 195px; overflow: hidden; background: #e5ddd7; }.library-image image { width: 100%; height: 100%; display: block; }.library-image text { position: absolute; top: 8px; left: 8px; padding: 3px 6px; border-radius: 3px; color: #fff; font-size: 10px; background: rgba(38, 33, 30, .72); }.tasks { padding: 10px 14px 0; }.task { min-height: 45px; padding: 0 12px; display: flex; align-items: center; gap: 8px; color: #796f67; font-size: 13px; background: #fff7e8; }.task view { width: 8px; height: 8px; border-radius: 50%; background: #be2d22; animation: pulse 1.2s infinite; }.task text:last-child { margin-left: auto; color: #be2d22; }.result-card { overflow: hidden; border: 1px solid #e8e1dc; background: #fff; }.result-card image { width: 100%; height: 205px; display: block; background: #e5ddd7; }.result-time { display: block; min-height: 30px; padding: 6px 8px 0; color: #77706b; font-size: 11px; }.result-actions { min-height: 42px; padding: 0 8px 8px; display: flex; align-items: center; justify-content: space-between; }.download { display: flex; align-items: center; color: #347bf1; font-size: 12px; }.download text:first-child { margin-right: 2px; font-size: 25px; line-height: 20px; }.compare { min-width: 42px; min-height: 29px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #fff; font-size: 12px; background: #347bf1; }.retry-line { padding: 0 8px 8px; display: flex; justify-content: space-between; color: #aa6c34; font-size: 11px; }.retry-line text:last-child { color: #be2d22; }.spacer { height: 24px; }
 .layer { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); background: #f4f1ee; }.layer-head { position: relative; min-height: 58px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #ece6e1; color: #201c1a; font-size: 18px; font-weight: 700; background: #fff; }.back, .close { position: absolute; top: 0; min-height: 58px; display: flex; align-items: center; }.back { left: 17px; font-size: 37px; font-weight: 400; }.close { right: 16px; color: #766e68; font-size: 13px; font-weight: 400; }.layer-body { flex: 1; min-height: 0; }.folder-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 25px 13px; padding: 28px 18px; }.folder-card { min-width: 0; color: #38322e; font-size: 12px; text-align: center; }.folder-card text { display: block; overflow: hidden; margin-top: 10px; text-overflow: ellipsis; white-space: nowrap; }.folder-icon { position: relative; width: 78px; height: 57px; margin: 0 auto; border-radius: 4px 7px 8px 8px; background: #ffc238; }.folder-icon view { position: absolute; top: -8px; left: 0; width: 37px; height: 14px; border-radius: 5px 5px 0 0; background: #ffc238; }.breadcrumb { display: block; padding: 15px 17px 0; color: #756d67; font-size: 13px; }
-.layer-body .case-style-filter { padding: 10px 17px 0; box-sizing: border-box; }.picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 18px 15px 92px; }.picker-image { position: relative; height: 145px; border: 2px solid transparent; background: #e5ddd7; }.picker-image.selected { border-color: #347bf1; }.picker-image image { width: 100%; height: 100%; display: block; }.picker-image text { position: absolute; top: 6px; right: 6px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; color: #fff; font-size: 15px; line-height: 21px; text-align: center; background: rgba(0, 0, 0, .17); }.picker-image.selected text { border-color: #347bf1; background: #347bf1; }.load-more { padding: 12px 18px 90px; color: #8b837d; font-size: 12px; text-align: center; }.load-more-error { display: flex; justify-content: center; gap: 12px; }.load-more-error text:last-child { color: #be2d22; }.picker-confirm { position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 18px; height: 54px; border-radius: 27px; color: #fff; font-size: 18px; line-height: 54px; background: #be2d22; }.picker-confirm[disabled] { opacity: .5; }
+.layer-case-pick {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.layer-case-pick .breadcrumb {
+  flex-shrink: 0;
+  padding: 15px 17px 0;
+}
+.layer-case-pick .case-picker {
+  flex: 1;
+  min-height: 0;
+}.picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 18px 15px 92px; }.picker-image { position: relative; height: 145px; border: 2px solid transparent; background: #e5ddd7; }.picker-image.selected { border-color: #347bf1; }.picker-image image { width: 100%; height: 100%; display: block; }.picker-image text { position: absolute; top: 6px; right: 6px; width: 25px; height: 25px; box-sizing: border-box; border: 2px solid #fff; border-radius: 50%; color: #fff; font-size: 15px; line-height: 21px; text-align: center; background: rgba(0, 0, 0, .17); }.picker-image.selected text { border-color: #347bf1; background: #347bf1; }.load-more { padding: 12px 18px 90px; color: #8b837d; font-size: 12px; text-align: center; }.load-more-error { display: flex; justify-content: center; gap: 12px; }.load-more-error text:last-child { color: #be2d22; }.picker-confirm { position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); left: 18px; height: 54px; border-radius: 27px; color: #fff; font-size: 18px; line-height: 54px; background: #be2d22; }.picker-confirm[disabled] { opacity: .5; }
 .compare-layer { background: #f5f2ef; }.compare-list { padding: 14px; }.compare-list > view { margin-bottom: 19px; background: #fff; }.compare-list text { display: block; padding: 14px 14px 9px; color: #25211f; font-size: 16px; font-weight: 700; }.compare-list image { width: 100%; display: block; background: #e5ddd7; } @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
 .segment, .workflow-option, .choice-chip, .large-choice, .save-target { border: 1px solid #d8d0ca; }
 .segment.active, .workflow-option.active, .choice-chip.active, .large-choice.active { border-color: #be2d22; }
@@ -632,7 +675,7 @@ export default {
 .description-box { margin-top: 16px; padding: 12px; border: 1px dashed #4f84ff; border-radius: 8px; background: #fafcff; }
 .description-keywords { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .description-keyword { display: flex; align-items: center; max-width: 100%; box-sizing: border-box; padding: 2px 5px 2px 10px; border: 1px solid #4f84ff; border-radius: 18px; color: #4f84ff; font-size: 12px; line-height: 24px; background: #f0f5ff; }
-.description-keyword > text:first-child { min-width: 0; overflow-wrap: anywhere; }
+.description-keyword > text:first-child { min-width: 0; word-break: break-all; }
 .keyword-remove { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: 2px; font-size: 20px; }
 .keyword-add, .keyword-cancel { flex-shrink: 0; margin: 0; padding: 0 10px; height: 32px; border-radius: 16px; color: #4f84ff; font-size: 12px; line-height: 30px; background: transparent; }
 .keyword-add { border: 1px dashed #4f84ff; }
