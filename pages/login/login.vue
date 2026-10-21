@@ -10,7 +10,7 @@
       <view class="field">
         <text class="field-label">企业微信工号 <text class="required">*</text></text>
         <view class="input-wrap" :class="{ 'input-error': employeeError }">
-          <text class="field-icon">▤</text>
+          <image class="field-icon" src="/static/login-icons/envelope.png" mode="aspectFit" />
           <input
             class="field-input"
             :value="workId"
@@ -37,7 +37,7 @@
       <view class="field">
         <text class="field-label">姓名</text>
         <view class="input-wrap readonly-wrap">
-          <view class="person-icon" />
+          <image class="field-icon" src="/static/login-icons/person.png" mode="aspectFit" />
           <input
             class="field-input"
             :value="employee ? employee.name : ''"
@@ -50,7 +50,7 @@
       <view class="field">
         <text class="field-label">手机号码</text>
         <view class="input-wrap readonly-wrap">
-          <text class="field-icon">☎</text>
+          <image class="field-icon" src="/static/login-icons/phone.png" mode="aspectFit" />
           <input
             class="field-input"
             :value="employee ? employee.login_account : ''"
@@ -219,6 +219,7 @@ export default {
   width: 220px;
   height: 72px;
   margin: 0 auto;
+  transform: scale(1.25);
 }
 .title {
   display: block;
@@ -280,10 +281,10 @@ export default {
   box-shadow: 0 0 0 3px rgba(214, 53, 43, 0.08);
 }
 .field-icon {
-  width: 22px;
-  margin-right: 10px;
-  font-size: 23px;
-  color: #96918e;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  margin-right: 6px;
 }
 .field-input {
   flex: 1;
@@ -297,35 +298,6 @@ export default {
 }
 .readonly-wrap {
   background: #f7f7f7;
-}
-.person-icon {
-  position: relative;
-  width: 20px;
-  height: 24px;
-  margin-right: 12px;
-}
-.person-icon::before {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 6px;
-  width: 8px;
-  height: 8px;
-  border: 2px solid #aaa5a2;
-  border-radius: 50%;
-  box-sizing: border-box;
-}
-.person-icon::after {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 2px;
-  width: 16px;
-  height: 9px;
-  border: 2px solid #aaa5a2;
-  border-bottom: 0;
-  border-radius: 9px 9px 0 0;
-  box-sizing: border-box;
 }
 .field-hint {
   display: block;
