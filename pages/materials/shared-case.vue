@@ -22,32 +22,19 @@
     <view v-if="bookingVisible" class="booking-mask" @click="closeBooking">
       <view class="booking-sheet" role="dialog" aria-label="预约免费参观工地" @click.stop>
         <view class="booking-heading">
-          <view><text class="booking-title">预约免费参观工地</text><text class="booking-subtitle">留下联系信息，我们为您安排参观</text></view>
+          <view><text class="booking-title">预约免费参观工地</text><text class="booking-subtitle">授权联系电话，我们为您安排参观</text></view>
           <button class="booking-close" :disabled="bookingSubmitting" aria-label="关闭预约" @click="closeBooking">×</button>
         </view>
-        <view class="booking-profile">
-          <button class="booking-avatar" open-type="chooseAvatar" :disabled="bookingSubmitting"
-            @click="beginBookingAvatar" @chooseavatar="chooseBookingAvatar">
-            <image v-if="bookingAvatar" :src="bookingAvatar" mode="aspectFill" />
-            <text v-else>选择头像</text>
-          </button>
-          <view class="booking-name-field">
-            <text>客户昵称</text>
-            <input type="nickname" :value="bookingNickname" maxlength="32" :disabled="bookingSubmitting"
-              placeholder="请填写昵称" @input="updateBookingNickname" @blur="updateBookingNickname"
-              @nicknamereview="reviewBookingNickname" />
-          </view>
-        </view>
-        <view class="booking-consent" @click="toggleBookingConsent">
-          <checkbox :checked="bookingConsent" color="#e60012" :disabled="bookingSubmitting" />
-          <text>我同意提供昵称、头像和手机号，用于联系安排本次参观，并已阅读</text>
+        <view class="booking-consent">
+          <text>手机号仅用于工作人员联系安排本次参观。请阅读</text>
           <text class="booking-privacy" @click.stop="openBookingPrivacy">《隐私保护指引》</text>
+          <text>，确认后点击下方按钮同意并授权。</text>
         </view>
         <text v-if="bookingError" class="booking-error">{{ bookingError }}</text>
         <button v-if="!bookingSession" class="booking-cta" :loading="bookingSessionLoading"
           :disabled="bookingSessionLoading" @click="prepareBookingSession">{{ bookingSessionLoading ? '正在准备预约…' : '重试准备预约' }}</button>
-        <button v-else class="booking-cta" open-type="getPhoneNumber" :disabled="!bookingReady" :loading="bookingSubmitting"
-          @click="beginBookingPhone" @getphonenumber="submitBooking">{{ bookingSubmitting ? '正在提交…' : '授权手机号并提交预约' }}</button>
+        <button v-else class="booking-cta" open-type="getPhoneNumber|agreePrivacyAuthorization" :disabled="!bookingReady" :loading="bookingSubmitting"
+          @click="beginBookingPhone" @getphonenumber="submitBooking">{{ bookingSubmitting ? '正在提交…' : '同意并授权手机号预约' }}</button>
         <text class="booking-footnote">提交成功后，工作人员将电话联系您确认参观安排</text>
       </view>
     </view>
@@ -83,10 +70,6 @@ export default {
       shareCardCoverUrl: '',
       images: [],
       bookingVisible: false,
-      bookingNickname: '',
-      bookingAvatar: '',
-      bookingConsent: false,
-      bookingNicknameValid: true,
       bookingSession: '',
       bookingSessionExpiresAt: 0,
       bookingSessionLoading: false,
@@ -98,8 +81,7 @@ export default {
   computed: {
     statusMessage() { return caseShareStatusMessage(this.shareStatus) },
     bookingReady() {
-      return Boolean(this.bookingSession && this.bookingAvatar && this.bookingNickname.trim()
-        && this.bookingNicknameValid && this.bookingConsent && !this.bookingSessionLoading && !this.bookingSubmitting)
+      return Boolean(this.bookingSession && !this.bookingSessionLoading && !this.bookingSubmitting)
     }
   },
   onLoad(options) {
@@ -149,12 +131,6 @@ export default {
       this.bookingSession = ''
       this.bookingError = ''
       try {
-        // #ifdef MP-WEIXIN
-        if (typeof wx !== 'undefined' && typeof wx.requirePrivacyAuthorize === 'function') {
-          beginCaseComponentAction('bookingPrivacy', this)
-          await new Promise((resolve, reject) => wx.requirePrivacyAuthorize({ success: resolve, fail: reject }))
-        }
-        // #endif
         const login = await new Promise((resolve, reject) => uni.login({ timeout: 10000, success: resolve, fail: reject }))
         const session = await mpVisitorApi.createSession({ code: login.code, share_token: this.shareId })
         if (version !== this.bookingVersion) return
@@ -167,21 +143,6 @@ export default {
       } finally {
         if (version === this.bookingVersion) this.bookingSessionLoading = false
       }
-    },
-    beginBookingAvatar() {
-      beginCaseComponentAction('chooseAvatar', this)
-    },
-    chooseBookingAvatar(event) {
-      finishCaseComponentAction(this, !event.detail?.avatarUrl)
-      if (event.detail?.avatarUrl) this.bookingAvatar = event.detail.avatarUrl
-    },
-    updateBookingNickname(event) {
-      this.bookingNickname = String(event.detail?.value || '')
-      this.bookingNicknameValid = false
-    },
-    reviewBookingNickname(event) {
-      this.bookingNicknameValid = event.detail?.pass !== false
-      if (!this.bookingNicknameValid) this.bookingError = '昵称未通过微信审核，请修改后重试'
     },
     beginBookingPhone() {
       if (!this.bookingReady) return
@@ -202,8 +163,8 @@ export default {
       this.bookingSubmitting = true
       this.bookingError = ''
       try {
-        await mpVisitorApi.submitBooking(this.shareId, this.bookingAvatar, {
-          session_id: this.bookingSession, nickname: this.bookingNickname.trim(), phone_code: detail.code, consent: 'true'
+        await mpVisitorApi.submitBooking(this.shareId, {
+          session_id: this.bookingSession, phone_code: detail.code, consent: 'true'
         })
         if (version !== this.bookingVersion) return
         this.bookingVisible = false
@@ -216,9 +177,6 @@ export default {
       } finally {
         this.bookingSubmitting = false
       }
-    },
-    toggleBookingConsent() {
-      if (!this.bookingSubmitting) this.bookingConsent = !this.bookingConsent
     },
     openBookingPrivacy() {
       // #ifdef MP-WEIXIN
@@ -330,7 +288,7 @@ export default {
 .booking-cta { width: 100%; margin: 0; min-height: 52px; line-height: 52px; border-radius: 8px;
   background: #e60012; color: #fff; font-size: 16px; font-weight: 600; }
 .booking-cta[disabled] { background: #e4d9da; color: #8b7e7e; }
-.booking-cta::after, .booking-avatar::after, .booking-close::after { border: 0; }
+.booking-cta::after, .booking-close::after { border: 0; }
 .booking-mask { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.46);
   display: flex; align-items: flex-end; }
 .booking-sheet { width: 100%; box-sizing: border-box; padding: 24px 22px calc(24px + env(safe-area-inset-bottom));
@@ -340,14 +298,7 @@ export default {
 .booking-subtitle { display: block; margin-top: 8px; color: #837c7c; font-size: 13px; }
 .booking-close { padding: 0; margin: -6px -4px 0 0; width: 36px; height: 36px; line-height: 34px;
   background: transparent; font-size: 28px; color: #898080; flex-shrink: 0; }
-.booking-profile { display: flex; gap: 20px; align-items: center; margin: 28px 0 24px; }
-.booking-avatar { width: 72px; height: 72px; padding: 0; margin: 0; border-radius: 50%;
-  background: #f4eeee; color: #8d7474; font-size: 12px; line-height: 72px; flex-shrink: 0; }
-.booking-avatar image { width: 72px; height: 72px; display: block; }
-.booking-name-field { flex: 1; min-width: 0; color: #635959; font-size: 13px; }
-.booking-name-field input { height: 42px; margin-top: 4px; border-bottom: 1px solid #e8e2e2; font-size: 16px; color: #202020; }
-.booking-consent { font-size: 12px; line-height: 1.8; color: #817777; margin-bottom: 18px; }
-.booking-consent checkbox { transform: scale(.7); transform-origin: left center; width: 24px; }
+.booking-consent { font-size: 12px; line-height: 1.8; color: #817777; margin: 24px 0 18px; }
 .booking-privacy { color: #b62626; }
 .booking-error { display: block; color: #c32b2b; margin-bottom: 14px; font-size: 13px; line-height: 1.5; }
 .booking-footnote { display: block; text-align: center; font-size: 11px; color: #9c9191; margin-top: 14px; }

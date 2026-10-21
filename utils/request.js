@@ -1,5 +1,5 @@
-import { BASE_URL, TOKEN_KEY } from '../config'
 import { safeReLaunch } from './safe-navigation'
+import { BASE_URL, TOKEN_KEY } from '../config'
 
 export function getToken() {
   return uni.getStorageSync(TOKEN_KEY) || ''
@@ -218,9 +218,10 @@ export function request({
   header = {},
   requiresAuth = true,
   timeout = 60000,
-  // 启动身份探测会依次试多个 /me；401 时不要边查边 reLaunch，避免卡在入口页。
+  // 身份检查统一处理失效凭证；这里仅返回错误，不清理或跳转。
   silentAuth = false
 }) {
+  const token = requiresAuth ? getToken() : ''
   return new Promise((resolve, reject) => {
     uni.request({
       url: `${BASE_URL}${url}`,
@@ -229,13 +230,13 @@ export function request({
       timeout,
       header: {
         'Content-Type': 'application/json',
-        ...(requiresAuth && getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...header
       },
       success: (res) => {
         if (requiresAuth && res.statusCode === 401) {
-          setToken('')
-          if (!silentAuth) {
+          if (!silentAuth && getToken() === token) {
+            setToken('')
             const pages = getCurrentPages()
             const route = pages.length ? pages[pages.length - 1].route : ''
             if (route !== 'pages/login/login') {
@@ -257,6 +258,7 @@ export function request({
 }
 
 export function uploadFile({ url, filePath, name = 'file', formData = {}, timeout = 120000, requiresAuth = true }) {
+  const token = requiresAuth ? getToken() : ''
   return new Promise((resolve, reject) => {
     uni.uploadFile({
       url: `${BASE_URL}${url}`,
@@ -264,14 +266,16 @@ export function uploadFile({ url, filePath, name = 'file', formData = {}, timeou
       name,
       formData,
       timeout,
-      header: requiresAuth && getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      header: token ? { Authorization: `Bearer ${token}` } : {},
       success: (res) => {
         if (requiresAuth && res.statusCode === 401) {
-          setToken('')
-          const pages = getCurrentPages()
-          const route = pages.length ? pages[pages.length - 1].route : ''
-          if (route !== 'pages/login/login') {
-            safeReLaunch('/pages/login/login')
+          if (getToken() === token) {
+            setToken('')
+            const pages = getCurrentPages()
+            const route = pages.length ? pages[pages.length - 1].route : ''
+            if (route !== 'pages/login/login') {
+              safeReLaunch('/pages/login/login')
+            }
           }
           reject(res)
           return

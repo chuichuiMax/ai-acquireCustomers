@@ -1,5 +1,5 @@
 import { downloadMediaToTempFile, publicMediaUrl, getToken, request, setToken, uploadFile } from '../utils/request'
-import { employeeFromMe, hasMiniProgramAccess } from '../utils/internal-access-policy.mjs'
+import { employeeFromMe } from '../utils/internal-access-policy.mjs'
 import {
   isImageDesignAnalysisPendingError,
   sanitizeImageDesignPolishPayload
@@ -196,6 +196,10 @@ async function attachEmployee(result, account) {
 }
 
 export const mpAuthApi = {
+  lookupEmployee: (data) =>
+    request({ url: '/api/mp/auth/employee/lookup', method: 'POST', data, requiresAuth: false, timeout: 15000 }),
+  loginByEmployeeCode: (data) =>
+    request({ url: '/api/mp/auth/employee/login', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
   sendSms: (data) =>
     request({
       url: '/api/mp/auth/sms/send',
@@ -250,46 +254,8 @@ export const mpAuthApi = {
   logout: () => request({ url: '/api/mp/auth/logout', method: 'POST' })
 }
 
-function canUsePasswordIdentity(error) {
-  const status = error && error.statusCode
-  if (status === 401 || status === 403 || status === 404 || status === 405 || status === 408) return true
-  const errMsg = String((error && (error.errMsg || error.message)) || '')
-  return /timeout|fail|网络/i.test(errMsg)
-}
-
-async function loadFirstIdentity(urls) {
-  let lastError = null
-  let fallback = null
-  for (let index = 0; index < urls.length; index += 1) {
-    try {
-      const data = await request({
-        url: urls[index],
-        timeout: 5000,
-        silentAuth: true
-      })
-      if (hasMiniProgramAccess(data)) return data
-      if (!fallback) fallback = data
-    } catch (error) {
-      lastError = error
-      if (!canUsePasswordIdentity(error)) throw error
-    }
-  }
-  if (fallback) return fallback
-  if (lastError) throw lastError
-  return {}
-}
-
-async function loadMpIdentity() {
-  return loadFirstIdentity(['/api/mp/me', '/api/auth/me', '/api/mp/auth/profile'])
-}
-
 export const mpMeApi = {
-  get: async () => {
-    const data = await loadMpIdentity()
-    const employee = await loadEmployeeRecord(data)
-    if (employee) return Object.assign({}, data, { employee: employee })
-    return data
-  }
+  get: ({ silentAuth = false } = {}) => request({ url: '/api/mp/me', timeout: 15000, silentAuth })
 }
 
 export const mpContentApi = {
@@ -334,9 +300,9 @@ export const mpContentApi = {
     return request({ url: `/api/mp/content/gallery-items?${query.join('&')}` })
   },
   deleteGalleryItem: (itemId) => request({ url: `/api/mp/content/gallery-items/${encodeURIComponent(itemId)}`, method: 'DELETE' }),
-  createShare: (itemIds, requestToken) => request({
+  createShare: (itemIds, requestToken, contact = {}) => request({
     url: '/api/mp/share/cases', method: 'POST',
-    data: { item_ids: itemIds, request_token: requestToken }, timeout: 15000
+    data: { item_ids: itemIds, request_token: requestToken, ...contact }, timeout: 15000
   }),
   getShare: (shareId) =>
     request({ url: `/api/material-library/shares/${encodeURIComponent(shareId)}`, requiresAuth: false, timeout: 10000 }),
@@ -472,9 +438,9 @@ export const mpImageDesignApi = {
 export const mpVisitorApi = {
   resolveEntry: (code) => request({ url: `/api/material-library/share-entries/${encodeURIComponent(code)}`, requiresAuth: false }),
   createSession: (data) => request({ url: '/api/mp/visitor-sessions', method: 'POST', data, requiresAuth: false }),
-  submitBooking: (shareToken, avatar, data) => uploadFile({
+  submitBooking: (shareToken, data) => request({
     url: `/api/mp/share/cases/${encodeURIComponent(shareToken)}/appointments`,
-    filePath: avatar, name: 'avatar', formData: data, requiresAuth: false
+    method: 'POST', data, header: { 'Content-Type': 'application/x-www-form-urlencoded' }, requiresAuth: false
   })
 }
 

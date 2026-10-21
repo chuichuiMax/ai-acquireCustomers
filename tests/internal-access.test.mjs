@@ -23,7 +23,7 @@ test('missing local token cannot enter the internal workspace', async () => {
     getMe: async () => ({ employee: { id: 'should-not-be-called' } })
   })
 
-  assert.deepEqual(result, { allowed: false, clearToken: false })
+  assert.deepEqual(result, { allowed: false, clearToken: false, status: 'unauthenticated' })
 })
 
 test('validated employee can enter the internal workspace', async () => {
@@ -32,18 +32,18 @@ test('validated employee can enter the internal workspace', async () => {
     getMe: async () => ({ employee: { id: 'employee-1', name: '测试员工' } })
   })
 
-  assert.deepEqual(result, { allowed: true, clearToken: false })
+  assert.deepEqual(result, { allowed: true, clearToken: false, status: 'allowed' })
 })
 
 test('rejected identity clears the stale token and denies internal access', async () => {
   const result = await evaluateInternalAccess({
     token: 'expired-token',
     getMe: async () => {
-      throw new Error('MP_UNAUTHORIZED')
+      throw { statusCode: 401 }
     }
   })
 
-  assert.deepEqual(result, { allowed: false, clearToken: true })
+  assert.deepEqual(result, { allowed: false, clearToken: true, status: 'unauthenticated' })
 })
 
 test('the same token reuses one successful employee check across pages', async () => {
@@ -59,6 +59,23 @@ test('the same token reuses one successful employee check across pages', async (
   assert.equal(calls, 1)
 
   await evaluator.evaluate('new-token', getMe)
+  assert.equal(calls, 2)
+})
+
+test('temporary failures are not cached and a new check can recover with the same token', async () => {
+  let calls = 0
+  const evaluator = createCachedInternalAccessEvaluator()
+  const failed = await evaluator.evaluate('valid-token', async () => {
+    calls += 1
+    throw { errMsg: 'request:fail timeout' }
+  })
+  assert.equal(failed.status, 'unavailable')
+  assert.equal(failed.clearToken, false)
+  const recovered = await evaluator.evaluate('valid-token', async () => {
+    calls += 1
+    return { employee: { id: 'employee-1' } }
+  })
+  assert.equal(recovered.allowed, true)
   assert.equal(calls, 2)
 })
 

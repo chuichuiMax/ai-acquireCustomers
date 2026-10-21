@@ -22,7 +22,7 @@ export function caseEntryOptions(options = {}) {
   const raw = values.entryCode || (typeof values.scene === 'string' ? values.scene : '')
   let entryCode = String(raw || '')
   try { entryCode = decodeURIComponent(entryCode) } catch (error) { /* 显示无效入口，不能转入员工登录。 */ }
-  return { entryCode, booking: values.booking === '1' || Boolean(entryCode) }
+  return { entryCode, booking: values.booking === '1' || (Boolean(entryCode) && values.booking !== '0') }
 }
 
 export function isNeutralEmployeeLaunch(scene, route, path = '') {

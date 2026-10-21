@@ -19,8 +19,8 @@
     <view v-else-if="!items.length" class="state"><text>{{ appliedKeyword || startDate || endDate ? '没有符合条件的客资' : '暂无预约客资' }}</text><text class="state-note">业主通过您分享的案例提交预约后，会显示在这里。</text></view>
     <view v-for="item in items" :key="item.id" class="lead-card" @click="openDetail(item)">
       <view class="customer-row">
-        <view class="avatar-wrap"><image v-if="item.avatarSrc" class="avatar" :src="item.avatarSrc" mode="aspectFill" /><view v-else class="avatar avatar-placeholder">{{ item.nickname.slice(0, 1) }}</view><view v-if="item.unread" class="unread-dot" /></view>
-        <view class="customer-copy"><text class="customer-name">{{ item.nickname }}</text><text class="phone">{{ item.phone_masked }}</text></view>
+        <view class="avatar-wrap"><image v-if="item.avatarSrc" class="avatar" :src="item.avatarSrc" mode="aspectFill" /><view v-else class="avatar avatar-placeholder">{{ (item.nickname || '客').slice(0, 1) }}</view><view v-if="item.unread" class="unread-dot" /></view>
+        <view class="customer-copy"><text class="customer-name">{{ item.nickname || '预约客户' }}</text><text class="phone">{{ item.phone_masked }}</text></view>
         <text class="status-tag" :class="item.follow_status">{{ item.follow_status === 'followed' ? '已跟进' : '待跟进' }}</text>
       </view>
       <view class="source-row"><text class="source-title">案例分享：{{ item.source_title }}</text><text class="source-tag">{{ sourceLabel(item.source_platform) }}</text></view>
@@ -87,6 +87,7 @@ export default {
         this.items = reset ? rows : [...this.items, ...rows.filter(item => !known.has(item.id))]
         this.total = data.total; this.pageNumber = page; this._loaded = true
         for (const item of rows) {
+          if (!item.avatar_url) continue
           mpLeadApi.avatar(item.avatar_url).then(src => {
             if (avatarGeneration === this._avatarGeneration) this.items = this.items.map(row =>
               row.id === item.id && row.revision === item.revision ? { ...row, avatarSrc: src } : row)

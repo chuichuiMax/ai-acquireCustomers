@@ -10,9 +10,10 @@ const loginPage = readFileSync(resolve(projectRoot, 'pages/login/login.vue'), 'u
 const pagesConfig = readFileSync(resolve(projectRoot, 'pages.json'), 'utf8')
 const config = readFileSync(resolve(projectRoot, 'config.js'), 'utf8')
 
-test('login page only exposes one-click login and the employee-only notice', () => {
+test('login page exposes employee code login and the employee-only notice', () => {
   assert.match(loginPage, /该小程序仅限于鸿扬内部员工登入/)
-  assert.match(loginPage, /一键登录/)
+  assert.match(loginPage, /请输入工号/)
+  assert.match(loginPage, /@blur="lookupEmployee"/)
   assert.doesNotMatch(loginPage, /请输入手机号/)
   assert.doesNotMatch(loginPage, /请输入验证码/)
   assert.doesNotMatch(loginPage, /获取验证码/)
@@ -23,12 +24,7 @@ test('login page only exposes one-click login and the employee-only notice', () 
   assert.match(pagesConfig, /"navigationBarTitleText": "登录"/)
 })
 
-test('config points mini program API at production HTTPS host', () => {
-  assert.match(config, /useTestServer = false/)
-  assert.match(config, /ONLINE_BASE_URL = 'https:\/\/ai\.hi-run\.net'/)
-})
-
-test('release config uses production API in developer tools and on devices', () => {
+test('release login uses the production API in developer tools and on devices', () => {
   const script = config.replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const baseUrl = (platform) =>
     runInNewContext(`${script}\nBASE_URL`, {
@@ -41,18 +37,19 @@ test('release config uses production API in developer tools and on devices', () 
   assert.equal(baseUrl('ios'), 'https://ai.hi-run.net')
 })
 
-test('WeChat mini-program login still offers one-click phone authorization', () => {
-  assert.match(loginPage, /open-type="getPhoneNumber"/)
-  assert.match(loginPage, /@getphonenumber="onGetPhoneNumber"/)
-  assert.doesNotMatch(loginPage, /phoneOk/)
-  assert.doesNotMatch(loginPage, /wechatPhoneFrom/)
-  assert.doesNotMatch(loginPage, /loginByPhoneFallback/)
-  assert.doesNotMatch(loginPage, /#ifndef MP-WEIXIN/)
+test('employee code login does not require WeChat authorization and keeps readonly fields and the existing background', () => {
+  assert.doesNotMatch(loginPage, /getPhoneNumber|uni\.login|loginByWechat|bindWechatPhone/)
+  assert.match(loginPage, /employee \? employee\.name : ''[\s\S]*?disabled/)
+  assert.match(loginPage, /employee \? employee\.login_account : ''[\s\S]*?disabled/)
+  assert.match(loginPage, /\.page\s*\{[^}]*background:\s*#fff;/)
+  assert.match(loginPage, /遇到问题？/)
+  assert.match(loginPage, /忘记工号/)
+  assert.match(loginPage, /请确认工号是否正确，或联系管理员核对员工信息/)
 })
 
-test('one-click login confirms the bound session directly without a confirmation page', () => {
-  assert.match(loginPage, /mpAuthApi\.confirmLogin\(\{\s*session_id: session\.session_id/)
-  assert.match(loginPage, /setToken\(data\.access_token\)/)
+test('employee code login keeps confirmed-session handling and enters the existing workspace', () => {
+  assert.match(loginPage, /mpAuthApi\.loginByEmployeeCode\(\{ employee_code: code \}\)/)
+  assert.match(loginPage, /acceptConfirmedLogin\(data\)/)
   assert.match(loginPage, /uni\.reLaunch\(\{ url: '\/pages\/generate\/generate' \}\)/)
   assert.doesNotMatch(loginPage, /uni\.navigateTo\(\{ url: '\/pages\/login\/confirm' \}\)/)
   assert.doesNotMatch(pagesConfig, /"path": "pages\/login\/confirm"/)

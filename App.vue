@@ -1,6 +1,7 @@
 <script>
-import { requireInternalAccess } from './utils/internal-access'
 import { safeReLaunch } from './utils/safe-navigation'
+import { requireInternalAccess } from './utils/internal-access'
+import { errorMessage } from './utils/request'
 import { getActiveGeneration, resolveAllowedShowUrl } from './utils/active-generation.mjs'
 import {
   buildSharedCasePath,
@@ -122,8 +123,9 @@ export default {
 		const path = normalizeLaunchPath(options.path)
 		// 原生授权、图片预览和拨号返回优先恢复原页，不能重放上次的预约入口。
 		if (systemReturn && !SHARE_SCENES.has(scene)) return
+		// 扫码和网页打开同样是公开访客入口，交给目标页解析，避免先走员工登录。
 		if (!NORMAL_ENTRY_SCENES.has(scene) && bookingEntry.entryCode) {
-			if (path !== SHARED_CASE_ROUTE) safeReLaunch(`/pages/materials/shared-case?entryCode=${encodeURIComponent(bookingEntry.entryCode)}&booking=1`)
+			if (path !== SHARED_CASE_ROUTE) safeReLaunch(`/pages/materials/shared-case?entryCode=${encodeURIComponent(bookingEntry.entryCode)}&booking=${bookingEntry.booking ? '1' : '0'}`)
 			return
 		}
 		const normalCaseEntry = NORMAL_ENTRY_SCENES.has(scene) && (
@@ -131,7 +133,7 @@ export default {
 		)
 		// 分享卡片仍直达案例；桌面图标冷启动忽略残留 shareId，避免默认打开案例分享。
 		if (shouldHonorLaunchShareId({ scene, route, path: options.path, shareId, normalCaseEntry })) {
-			// 原生分享已经指定目标页，避免页面栈未就绪时重复跳转。
+			// 微信会打开启动参数中的目标页；页面栈尚未就绪时不能再次 reLaunch。
 			if (path !== SHARED_CASE_ROUTE) openSharedCase(shareId)
 			return
 		}
@@ -142,6 +144,7 @@ export default {
 			if (entryVersion !== this.entryVersion) return
 			const current = currentRoute()
 			if (allowed) {
+				// 从客资详情回看来源案例，保留页面栈和返回位置。
 				if (current === SHARED_CASE_ROUTE && getCurrentPages().some(page => page.route === 'pages/mine/lead-detail')) return
 				if (normalCaseEntry && (CASE_ROUTES.has(current) || current === ENTRY_ROUTE || !current)) {
 					safeReLaunch(WORKSPACE_URL)
@@ -169,7 +172,9 @@ export default {
 			if (current !== 'pages/login/login') safeReLaunch(LOGIN_URL)
 		} catch (error) {
 			if (entryVersion !== this.entryVersion) return
-			if (currentRoute() !== 'pages/login/login') safeReLaunch(LOGIN_URL)
+			if (error.code !== 'INTERNAL_ACCESS_STALE') {
+				uni.showToast({ title: errorMessage(error), icon: 'none' })
+			}
 		}
 	}
 }

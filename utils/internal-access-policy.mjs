@@ -66,14 +66,21 @@ export function hasMiniProgramAccess(data) {
 }
 
 export async function evaluateInternalAccess({ token, getMe }) {
-  if (!token) return { allowed: false, clearToken: false }
+  if (!token) return { allowed: false, clearToken: false, status: 'unauthenticated' }
 
   try {
     const data = await getMe()
-    if (!hasMiniProgramAccess(data)) return { allowed: false, clearToken: true }
-    return { allowed: true, clearToken: false }
+    if (!employeeFromMe(data)) {
+      return { allowed: false, clearToken: false, status: 'unavailable', error: new Error('身份接口返回数据异常，请联系管理员') }
+    }
+    if (!hasMiniProgramAccess(data)) return { allowed: false, clearToken: true, status: 'forbidden' }
+    return { allowed: true, clearToken: false, status: 'allowed' }
   } catch (error) {
-    return { allowed: false, clearToken: true }
+    const statusCode = error && error.statusCode
+    if (statusCode === 401 || statusCode === 403) {
+      return { allowed: false, clearToken: true, status: statusCode === 401 ? 'unauthenticated' : 'forbidden' }
+    }
+    return { allowed: false, clearToken: false, status: 'unavailable', error }
   }
 }
 
@@ -92,6 +99,12 @@ export function createCachedInternalAccessEvaluator(evaluate = evaluateInternalA
 
   return {
     clear,
+    // 仅供本次登录的服务端 confirm 成功响应使用，不恢复本地缓存的员工数据。
+    confirm(token) {
+      clear()
+      cachedToken = token
+      cachedDecision = { allowed: true, clearToken: false, status: 'allowed' }
+    },
     async evaluate(token, getMe) {
       if (!token) {
         clear()
@@ -111,7 +124,7 @@ export function createCachedInternalAccessEvaluator(evaluate = evaluateInternalA
       pendingCheck = check
       try {
         const decision = await check
-        if (cachedToken === token) cachedDecision = decision
+        if (cachedToken === token && pendingCheck === check && decision.allowed) cachedDecision = decision
         return decision
       } finally {
         if (cachedToken === token && pendingCheck === check) pendingCheck = null

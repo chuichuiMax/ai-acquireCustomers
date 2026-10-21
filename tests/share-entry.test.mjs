@@ -205,6 +205,12 @@ test('a validation rejection from an older entry cannot replace a new share card
   assert.deepEqual(app.jumps, ['/pages/materials/shared-case?shareId=case-B'])
 })
 
+test('a stale validation result cannot replace a newly confirmed login', async () => {
+  const app = loadApp({ allowed: () => Promise.reject({ code: 'INTERNAL_ACCESS_STALE' }) })
+  await app.show({ scene: 1089, query: {} })
+  assert.deepEqual(app.jumps, [])
+})
+
 for (const route of ['pages/materials/materials', 'pages/materials/shared-case']) {
   for (const hidesApp of [true, false]) {
     for (const completeAt of ['beforeHide', 'beforeShow', 'afterShow']) {
