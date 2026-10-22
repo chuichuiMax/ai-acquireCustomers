@@ -471,7 +471,8 @@ export default {
       templateThumbnailSources: {},
       templateThumbnailPending: {},
       directProduction: null,
-      directProductionLoading: false
+      directProductionLoading: false,
+      pendingDraftReset: false
     }
   },
   computed: {
@@ -663,6 +664,11 @@ export default {
     // 从系统相册选图返回会触发 onShow；此时不应重拉 schema，否则会把步骤打回内容类型选择。
     if (this.resumeAfterPicker) {
       this.resumeAfterPicker = false
+      return
+    }
+    if (this.pendingDraftReset) {
+      this.pendingDraftReset = false
+      this.resetProductionFormState()
       return
     }
     if (!this.schemaLoaded && !this.schemaLoading) this.loadSchema()
@@ -950,6 +956,29 @@ export default {
     typeCardIcon(item) {
       return contentTypeIcon(item)
     },
+    buildEmptyFormValues() {
+      const next = {}
+      for (const item of this.variables) {
+        const name = this.fieldName(item)
+        if (name) next[name] = ''
+      }
+      return next
+    },
+    resetProductionFormState() {
+      this.formValues = this.buildEmptyFormValues()
+      this.frameAreaBand = ''
+      this.photos = []
+      this.uploadCategoryId = 'uncategorized'
+      this.coverTemplateId = ''
+      this.coverMode = 'ai'
+      this.clearCover()
+      this.closeGallery()
+      this.closeRegion()
+      this.previewPhotoLocal = ''
+      this.previewError = ''
+      this.compositeFallback = false
+      this.compositeToken += 1
+    },
     async selectContentType(typeCode) {
       if (!typeCode) {
         uni.showToast({ title: '请选择内容类型', icon: 'none' })
@@ -959,7 +988,11 @@ export default {
         clearTimeout(this._typeSelectTimer)
         this._typeSelectTimer = null
       }
+      const shouldClearDraft = Boolean(this.contentTypeCode || this.typeStepDone)
       this.contentTypeCode = typeCode
+      if (shouldClearDraft) {
+        this.resetProductionFormState()
+      }
       this.directProduction = null
       let directReady = true
       if (this.isHomeDecor) {
@@ -1019,6 +1052,7 @@ export default {
         clearTimeout(this._typeSelectTimer)
         this._typeSelectTimer = null
       }
+      this.resetProductionFormState()
       this.typeStepDone = false
       this.directProduction = null
     },
@@ -1138,16 +1172,8 @@ export default {
       this.typeStepDone = false
       this.directProduction = null
       this.contentTypeCode = ''
-      this.formValues = {}
-      this.photos = []
-      this.uploadCategoryId = 'uncategorized'
-      this.coverLocal = ''
-      this.coverAssetId = ''
-      this.coverTemplateId = ''
-      this.coverMode = 'ai'
-      this.clearCover()
-      this.closeGallery()
-      this.closeRegion()
+      this.pendingDraftReset = false
+      this.resetProductionFormState()
       this.schema = createInitialSchema()
       this.schemaLoaded = false
       this.hycanvasTemplateExtras = []
@@ -1604,6 +1630,7 @@ export default {
         }
         const data = await mpContentApi.compileBrief(payload)
         saveActiveGeneration(data.task_id, this.serviceEntry)
+        this.pendingDraftReset = true
         uni.navigateTo({
           url: `/pages/generate/locked?task_id=${data.task_id}&service_entry=${encodeURIComponent(this.serviceEntry)}`
         })
