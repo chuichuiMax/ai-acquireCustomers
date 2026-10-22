@@ -37,8 +37,12 @@ test('release login uses the production API in developer tools and on devices', 
   assert.equal(baseUrl('ios'), 'https://ai.hi-run.net')
 })
 
-test('employee code login does not require WeChat authorization and keeps readonly fields and the existing background', () => {
-  assert.doesNotMatch(loginPage, /getPhoneNumber|uni\.login|loginByWechat|bindWechatPhone/)
+test('dual login keeps employee code independent of WeChat and preserves readonly fields and the existing background', () => {
+  const employeeLogin = loginPage.match(/async onLogin\(\)\s*\{([\s\S]*?)\n {4}\},/)[1]
+  assert.doesNotMatch(employeeLogin, /getPhoneNumber|uni\.login|loginByWechat|bindWechatPhone/)
+  assert.match(loginPage, /open-type="getPhoneNumber\|agreePrivacyAuthorization"/)
+  assert.match(loginPage, /@getphonenumber="onWechatLogin"/)
+  assert.match(loginPage, /一键登录/)
   assert.match(loginPage, /employee \? employee\.name : ''[\s\S]*?disabled/)
   assert.match(loginPage, /employee \? employee\.login_account : ''[\s\S]*?disabled/)
   assert.match(loginPage, /\.page\s*\{[^}]*background:\s*#fff;/)

@@ -26,14 +26,20 @@
           <button class="booking-close" :disabled="bookingSubmitting" aria-label="关闭预约" @click="closeBooking">×</button>
         </view>
         <view class="booking-consent">
-          <text>手机号仅用于工作人员联系安排本次参观。请阅读</text>
-          <text class="booking-privacy" @click.stop="openBookingPrivacy">《隐私保护指引》</text>
-          <text>，确认后点击下方按钮同意并授权。</text>
+          <button class="booking-consent-toggle" role="checkbox" :aria-checked="bookingConsent ? 'true' : 'false'"
+            aria-label="同意预约信息使用说明" :disabled="bookingSubmitting" @click="toggleBookingConsent">
+            <view class="booking-consent-circle" :class="{ checked: bookingConsent }"><text v-if="bookingConsent">✓</text></view>
+          </button>
+          <view class="booking-consent-text">
+            <text>手机号仅用于工作人员联系安排本次参观。请阅读</text>
+            <text class="booking-privacy" @click.stop="openBookingPrivacy">《隐私保护指引》</text>
+            <text>，确认后点击下方按钮同意并授权。</text>
+          </view>
         </view>
         <text v-if="bookingError" class="booking-error">{{ bookingError }}</text>
         <button v-if="!bookingSession" class="booking-cta" :loading="bookingSessionLoading"
           :disabled="bookingSessionLoading" @click="prepareBookingSession">{{ bookingSessionLoading ? '正在准备预约…' : '重试准备预约' }}</button>
-        <button v-else class="booking-cta" open-type="getPhoneNumber|agreePrivacyAuthorization" :disabled="!bookingReady" :loading="bookingSubmitting"
+        <button v-else class="booking-cta" :open-type="bookingReady ? 'getPhoneNumber|agreePrivacyAuthorization' : ''" :disabled="!bookingReady" :loading="bookingSubmitting"
           @click="beginBookingPhone" @getphonenumber="submitBooking">{{ bookingSubmitting ? '正在提交…' : '同意并授权手机号预约' }}</button>
         <text class="booking-footnote">提交成功后，工作人员将电话联系您确认参观安排</text>
       </view>
@@ -70,6 +76,7 @@ export default {
       shareCardCoverUrl: '',
       images: [],
       bookingVisible: false,
+      bookingConsent: false,
       bookingSession: '',
       bookingSessionExpiresAt: 0,
       bookingSessionLoading: false,
@@ -81,7 +88,7 @@ export default {
   computed: {
     statusMessage() { return caseShareStatusMessage(this.shareStatus) },
     bookingReady() {
-      return Boolean(this.bookingSession && !this.bookingSessionLoading && !this.bookingSubmitting)
+      return Boolean(this.bookingVisible && this.bookingConsent && this.bookingSession && !this.bookingSessionLoading && !this.bookingSubmitting)
     }
   },
   onLoad(options) {
@@ -99,6 +106,7 @@ export default {
     // #endif
   },
   onUnload() {
+    this.bookingConsent = false
     this.bookingVersion += 1
     this._shareDisposed = true
     this._shareLoadVersion = (this._shareLoadVersion || 0) + 1
@@ -114,6 +122,7 @@ export default {
   },
   methods: {
     openBooking() {
+      this.bookingConsent = false
       this.bookingVisible = true
       this.bookingError = ''
       if (!this.bookingSession || Date.now() >= this.bookingSessionExpiresAt) this.prepareBookingSession()
@@ -121,8 +130,12 @@ export default {
     closeBooking() {
       if (this.bookingSubmitting) return
       this.bookingVisible = false
+      this.bookingConsent = false
       this.bookingVersion += 1
       this.bookingSessionLoading = false
+    },
+    toggleBookingConsent() {
+      if (!this.bookingSubmitting) this.bookingConsent = !this.bookingConsent
     },
     async prepareBookingSession() {
       if (this.bookingSessionLoading) return
@@ -151,23 +164,23 @@ export default {
     async submitBooking(event) {
       const detail = event.detail || {}
       finishCaseComponentAction(this, !detail.code)
-      if (this.bookingSubmitting) return
+      if (!this.bookingReady) return
       if (!detail.code) {
         this.bookingError = /deny|cancel/i.test(detail.errMsg || '')
           ? '已取消手机号授权，预约尚未提交'
           : /frequently|too many/i.test(detail.errMsg || '') ? '手机号授权过于频繁，请稍后重试' : '未能获取微信手机号，请稍后重试'
         return
       }
-      if (!this.bookingReady) return
       const version = this.bookingVersion
       this.bookingSubmitting = true
       this.bookingError = ''
       try {
         await mpVisitorApi.submitBooking(this.shareId, {
-          session_id: this.bookingSession, phone_code: detail.code, consent: 'true'
+          session_id: this.bookingSession, phone_code: detail.code, consent: String(this.bookingConsent)
         })
         if (version !== this.bookingVersion) return
         this.bookingVisible = false
+        this.bookingConsent = false
         this.bookingSession = ''
         uni.showModal({ title: '预约申请已提交', content: '工作人员将联系您安排免费工地参观。', showCancel: false })
       } catch (error) {
@@ -288,7 +301,7 @@ export default {
 .booking-cta { width: 100%; margin: 0; min-height: 52px; line-height: 52px; border-radius: 8px;
   background: #e60012; color: #fff; font-size: 16px; font-weight: 600; }
 .booking-cta[disabled] { background: #e4d9da; color: #8b7e7e; }
-.booking-cta::after, .booking-close::after { border: 0; }
+.booking-cta::after, .booking-close::after, .booking-consent-toggle::after { border: 0; }
 .booking-mask { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.46);
   display: flex; align-items: flex-end; }
 .booking-sheet { width: 100%; box-sizing: border-box; padding: 24px 22px calc(24px + env(safe-area-inset-bottom));
@@ -298,7 +311,13 @@ export default {
 .booking-subtitle { display: block; margin-top: 8px; color: #837c7c; font-size: 13px; }
 .booking-close { padding: 0; margin: -6px -4px 0 0; width: 36px; height: 36px; line-height: 34px;
   background: transparent; font-size: 28px; color: #898080; flex-shrink: 0; }
-.booking-consent { font-size: 12px; line-height: 1.8; color: #817777; margin: 24px 0 18px; }
+.booking-consent { display: flex; align-items: flex-start; font-size: 12px; line-height: 1.8; color: #817777; margin: 24px 0 18px; }
+.booking-consent-toggle { display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 36px; height: 36px; padding: 0; margin: -7px 0 -7px -8px; background: transparent; }
+.booking-consent-circle { display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  width: 18px; height: 18px; border: 1px solid #b7adad; border-radius: 50%; color: #fff; font-size: 12px; line-height: 1; }
+.booking-consent-circle.checked { border-color: #e60012; background: #e60012; }
+.booking-consent-text { flex: 1; min-width: 0; }
 .booking-privacy { color: #b62626; }
 .booking-error { display: block; color: #c32b2b; margin-bottom: 14px; font-size: 13px; line-height: 1.5; }
 .booking-footnote { display: block; text-align: center; font-size: 11px; color: #9c9191; margin-top: 14px; }

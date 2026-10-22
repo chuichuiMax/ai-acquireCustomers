@@ -14,7 +14,7 @@
           <input
             class="field-input"
             :value="workId"
-            :disabled="loginLoading"
+            :disabled="loginLoading || wechatLoading"
             maxlength="64"
             placeholder="请输入工号"
             placeholder-class="input-placeholder"
@@ -23,7 +23,7 @@
             @blur="lookupEmployee"
             @confirm="onLogin"
           />
-          <button v-if="workId && !loginLoading" class="clear-button" aria-label="清空工号" @tap="clearWorkId">
+          <button v-if="workId && !loginLoading && !wechatLoading" class="clear-button" aria-label="清空工号" @tap="clearWorkId">
             ×
           </button>
         </view>
@@ -60,7 +60,15 @@
           />
         </view>
       </view>
-      <button class="login-button" :loading="loginLoading" :disabled="loginLoading" @tap="onLogin">登录</button>
+      <button class="login-button" :loading="loginLoading" :disabled="loginLoading || wechatLoading" @tap="onLogin">登录</button>
+      <!-- #ifdef MP-WEIXIN -->
+      <button class="login-button wechat-button" open-type="getPhoneNumber|agreePrivacyAuthorization"
+        :loading="wechatLoading" :disabled="loginLoading || wechatLoading" @getphonenumber="onWechatLogin">
+        <image v-if="!wechatLoading" class="wechat-icon" src="/static/login-icons/wechat.svg" mode="aspectFit" />
+        <text>一键登录</text>
+      </button>
+      <text v-if="wechatError" class="field-hint hint-error">{{ wechatError }}</text>
+      <!-- #endif -->
       <view class="form-actions">
         <button class="action-link" @tap="helpOpen = true"><text class="help-icon">?</text> 遇到问题？</button>
         <button class="action-link" @tap="showForgotWorkId">忘记工号</button>
@@ -93,6 +101,8 @@ export default {
       employeeError: '',
       lookupLoading: false,
       loginLoading: false,
+      wechatLoading: false,
+      wechatError: '',
       lookupCode: '',
       lookupPromise: null,
       lookupVersion: 0,
@@ -130,6 +140,7 @@ export default {
       this.onWorkIdInput({ detail: { value: '' } })
     },
     async lookupEmployee() {
+      if (this.wechatLoading) return null
       const code = this.workId.trim()
       if (!code) {
         this.employeeError = '请输入企业微信工号'
@@ -167,7 +178,8 @@ export default {
       return pending
     },
     async onLogin() {
-      if (this.loginLoading) return
+      if (!this.pageActive || this.loginLoading || this.wechatLoading) return
+      this.wechatError = ''
       const code = this.workId.trim()
       this.loginLoading = true
       let version = this.lookupVersion
@@ -186,6 +198,43 @@ export default {
         }
       } finally {
         this.loginLoading = false
+      }
+    },
+    async onWechatLogin(event) {
+      if (!this.pageActive || this.loginLoading || this.wechatLoading) return
+      const detail = event.detail || {}
+      this.employeeError = ''
+      if (!detail.code) {
+        const message = detail.errMsg || ''
+        this.wechatError = /privacy|隐私/i.test(message) ? '请同意微信隐私保护指引后重试'
+          : /deny|cancel/i.test(message) ? '已取消手机号授权'
+            : '未能获取微信手机号，请重试'
+        return
+      }
+      this.wechatLoading = true
+      this.wechatError = ''
+      this.lookupVersion++
+      this.lookupLoading = false
+      this.lookupPromise = null
+      try {
+        const login = await new Promise((resolve, reject) => uni.login({ provider: 'weixin', timeout: 10000, success: resolve, fail: reject }))
+        if (!this.pageActive) return
+        if (!login.code) {
+          this.wechatError = '微信登录失败，请重试'
+          return
+        }
+        const session = await mpAuthApi.loginByWechat({ code: login.code })
+        if (!this.pageActive) return
+        await mpAuthApi.bindWechatPhone({ session_id: session.session_id, code: detail.code })
+        if (!this.pageActive) return
+        const data = await mpAuthApi.confirmLogin({ session_id: session.session_id })
+        if (!this.pageActive) return
+        acceptConfirmedLogin(data)
+        uni.reLaunch({ url: '/pages/generate/generate' })
+      } catch (error) {
+        if (this.pageActive) this.wechatError = errorMessage(error)
+      } finally {
+        this.wechatLoading = false
       }
     },
     showForgotWorkId() {
@@ -338,6 +387,21 @@ export default {
 .login-button[disabled] {
   color: #fff;
   background: #cf6b64;
+}
+.wechat-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  background: linear-gradient(110deg, #60b967, #4d9e54);
+}
+.wechat-button[disabled] {
+  background: #91bf96;
+}
+.wechat-icon {
+  width: 25px;
+  height: 25px;
+  margin-right: 8px;
 }
 .form-actions {
   display: flex;
