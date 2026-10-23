@@ -141,7 +141,48 @@
         <view class="cover-actions">
           <view class="cover-action" @click="chooseCover">上传图片</view>
         </view>
-        <view class="ai-cover-note">
+        <view class="cover-mode-head">
+          <text class="block-title">封面方式</text>
+          <view class="cover-mode-tabs">
+            <text
+              class="cover-mode-tab"
+              :class="{ active: coverMode === 'builtin' }"
+              @click="setCoverMode('builtin')"
+            >内置封面</text>
+            <text
+              class="cover-mode-tab"
+              :class="{ active: coverMode === 'ai' }"
+              @click="setCoverMode('ai')"
+            >AI 封面</text>
+          </view>
+        </view>
+        <view v-if="coverMode === 'builtin'" class="cover-template-block">
+          <text class="block-title cover-template-title">小红书封面模板 *</text>
+          <scroll-view class="templates" scroll-x enable-flex>
+            <view
+              v-for="item in builtinCoverTemplates"
+              :key="item.id"
+              class="tpl"
+              :class="{ active: coverTemplateId === item.id }"
+              @click="selectCoverTemplate(item.id)"
+            >
+              <view class="tpl-preview">
+                <image
+                  class="tpl-image"
+                  :src="templateCardSrc(item)"
+                  mode="aspectFit"
+                  lazy-load
+                />
+              </view>
+              <text class="tpl-title">{{ item.title || '封面模板' }}</text>
+              <text v-if="item.format && item.format.width" class="tpl-meta">
+                {{ item.format.width }} × {{ item.format.height }}
+              </text>
+            </view>
+          </scroll-view>
+          <text v-if="!builtinCoverTemplates.length" class="tpl-empty">暂无内置封面模板，请稍后再试或改用 AI 封面</text>
+        </view>
+        <view v-else class="ai-cover-note">
           <text class="ai-cover-note-title">使用智能生成封面</text>
           <text class="ai-cover-note-text">只使用上方选择的封面原图，不叠加模板；生成时由封面 Agent 自动排版标题、副标题和标签。</text>
         </view>
@@ -792,15 +833,29 @@ export default {
         this.drawCoverComposite(token)
       })
     },
-    setCoverMode(mode) {
+    async setCoverMode(mode) {
       if (mode !== 'builtin' && mode !== 'ai') return
       if (this.coverMode === mode) return
       this.coverMode = mode
       if (mode === 'ai') {
         this.coverTemplateId = ''
-      } else if (!this.coverTemplateId && this.builtinCoverTemplates.length) {
-        this.coverTemplateId = this.builtinCoverTemplates[0].id
+      } else {
+        await this.ensureCoverTemplatesLoaded()
+        if (!this.coverTemplateId && this.builtinCoverTemplates.length) {
+          this.coverTemplateId = this.builtinCoverTemplates[0].id
+        }
       }
+    },
+    selectCoverTemplate(templateId) {
+      if (!templateId || this.coverTemplateId === templateId) return
+      this.coverTemplateId = templateId
+      this.queueCoverComposite()
+    },
+    async ensureCoverTemplatesLoaded() {
+      if (this.serviceEntry !== '装修家居') return
+      if ((this.schema.hycanvas_templates || []).length) return
+      await this.loadHycanvasTemplates(this.serviceEntry)
+      await this.loadCoverTemplateExtras(this.serviceEntry)
     },
     loadLocalImage(src) {
       return new Promise((resolve, reject) => {
@@ -1010,6 +1065,7 @@ export default {
           (!this.isHomeDecor || this.directProduction)
         ) {
           this.typeStepDone = true
+          this.ensureCoverTemplatesLoaded()
         } else {
           this.contentTypeCode = ''
           this.directProduction = null
@@ -2274,8 +2330,26 @@ input,
   color: #fff;
   background: #BE2D22;
 }
+.cover-template-block {
+  margin-top: 8px;
+}
 .cover-template-title {
   margin-top: 14px;
+}
+.tpl-meta {
+  display: block;
+  padding: 0 2px 6px;
+  font-size: 9px;
+  line-height: 12px;
+  color: #9a928c;
+  text-align: center;
+}
+.tpl-empty {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #9a928c;
 }
 .ai-cover-note {
   margin-top: 10px;
