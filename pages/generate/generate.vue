@@ -182,9 +182,36 @@
           </scroll-view>
           <text v-if="!builtinCoverTemplates.length" class="tpl-empty">暂无内置封面模板，请稍后再试或改用 AI 封面</text>
         </view>
-        <view v-else class="ai-cover-note">
-          <text class="ai-cover-note-title">使用智能生成封面</text>
-          <text class="ai-cover-note-text">只使用上方选择的封面原图，不叠加模板；生成时由封面 Agent 自动排版标题、副标题和标签。</text>
+        <view v-else class="cover-template-block">
+          <text class="block-title cover-template-title">选择封面模板 *</text>
+          <text v-if="aiCoverPromptCatalogLoading" class="tpl-empty">模板加载中…</text>
+          <scroll-view v-else class="templates" scroll-x enable-flex>
+            <view
+              v-for="item in aiCoverPromptCatalog"
+              :key="item.variant"
+              class="tpl"
+              :class="{
+                active: aiCoverPromptVariant === item.variant,
+                disabled: item.selectable === false
+              }"
+              @click="selectAiCoverPrompt(item)"
+            >
+              <view class="tpl-preview">
+                <image
+                  v-if="aiCoverPromptPreviewUrl(item)"
+                  class="tpl-image"
+                  :src="aiCoverPromptPreviewUrl(item)"
+                  mode="aspectFill"
+                  lazy-load
+                />
+              </view>
+              <text class="tpl-title">{{ item.title || item.label || '封面模板' }}</text>
+              <text v-if="item.description" class="tpl-meta">{{ item.description }}</text>
+            </view>
+          </scroll-view>
+          <text v-if="!aiCoverPromptCatalogLoading && !aiCoverPromptCatalog.length" class="tpl-empty">
+            暂无 AI 封面模板，请稍后再试
+          </text>
         </view>
         <view v-if="coverPhotoSrc" class="xhs-preview">
           <text class="block-title">小红书封面预览</text>
@@ -352,6 +379,11 @@ import { isGalleryItemUsed, loadAllGalleryItems } from '../../utils/gallery-item
 import { saveActiveGeneration } from '../../utils/active-generation.mjs'
 import { formatContentRequestJson } from '../../utils/content-request-payload.mjs'
 import { buildDirectProductionSelection, mapNrlxToCtCode } from '../../utils/mp-direct-production.mjs'
+import {
+  AI_COVER_SMART_RANDOM_VARIANT,
+  findAiCoverPromptOption,
+  isAiCoverSmartRandomVariant
+} from '../../utils/ai-cover-prompt-catalog.mjs'
 
 const REGION_INITIAL = {
   '芙': 'F', '天': 'T', '岳': 'Y', '开': 'K', '雨': 'Y', '望': 'W', '长': 'C', '浏': 'L', '宁': 'N',
@@ -513,7 +545,10 @@ export default {
       templateThumbnailPending: {},
       directProduction: null,
       directProductionLoading: false,
-      pendingDraftReset: false
+      pendingDraftReset: false,
+      aiCoverPromptVariant: AI_COVER_SMART_RANDOM_VARIANT,
+      aiCoverPromptCatalog: [],
+      aiCoverPromptCatalogLoading: false
     }
   },
   computed: {
@@ -655,6 +690,16 @@ export default {
     builtinCoverTemplates() {
       return (this.schema.hycanvas_templates || []).filter((item) => item && item.zone !== 'featured')
     },
+    aiCoverPromptCatalogQuery() {
+      const selected = this.contentTypes.find((item) => item.type_code === this.contentTypeCode)
+      return {
+        content_type_code: mapNrlxToCtCode(this.contentTypeCode, selected && selected.name),
+        content_type_name: (selected && selected.name) || ''
+      }
+    },
+    selectedAiCoverPromptOption() {
+      return findAiCoverPromptOption(this.aiCoverPromptVariant, this.aiCoverPromptCatalog)
+    },
     selectedTemplateTitle() {
       return (this.selectedTemplate && this.selectedTemplate.title) || ''
     },
@@ -723,6 +768,7 @@ export default {
         if (name && next[name] === undefined) next[name] = ''
       }
       this.formValues = next
+      if (this.typeStepDone) this.loadAiCoverPromptCatalog()
     },
     coverPhotoSrc() {
       this.previewPhotoLocal = ''
@@ -839,11 +885,58 @@ export default {
       this.coverMode = mode
       if (mode === 'ai') {
         this.coverTemplateId = ''
+        await this.loadAiCoverPromptCatalog()
       } else {
         await this.ensureCoverTemplatesLoaded()
         if (!this.coverTemplateId && this.builtinCoverTemplates.length) {
           this.coverTemplateId = this.builtinCoverTemplates[0].id
         }
+      }
+    },
+    selectAiCoverPrompt(item) {
+      if (!item || item.selectable === false) {
+        uni.showToast({ title: '当前内容类型不可选该模板', icon: 'none' })
+        return
+      }
+      this.aiCoverPromptVariant = item.variant
+    },
+    aiCoverPromptPreviewUrl(item) {
+      if (!item || !item.preview_url) return ''
+      const query = this.aiCoverPromptCatalogQuery
+      const params = []
+      if (query.content_type_code) {
+        params.push(`content_type_code=${encodeURIComponent(query.content_type_code)}`)
+      }
+      if (query.content_type_name) {
+        params.push(`content_type_name=${encodeURIComponent(query.content_type_name)}`)
+      }
+      const path = String(item.preview_url)
+      const joined = params.length ? `${path}${path.includes('?') ? '&' : '?'}${params.join('&')}` : path
+      return mediaUrl(joined)
+    },
+    async loadAiCoverPromptCatalog() {
+      if (this.serviceEntry !== '装修家居' || !this.contentTypeCode) return
+      if (this.aiCoverPromptCatalogLoading) return
+      this.aiCoverPromptCatalogLoading = true
+      const query = this.aiCoverPromptCatalogQuery
+      try {
+        const data = await mpContentApi.listAiCoverPrompts(query)
+        const prompts = (data && data.prompts) || []
+        this.aiCoverPromptCatalog = prompts
+        if (
+          this.aiCoverPromptVariant &&
+          !isAiCoverSmartRandomVariant(this.aiCoverPromptVariant) &&
+          !prompts.some((row) => row.variant === this.aiCoverPromptVariant)
+        ) {
+          this.aiCoverPromptVariant = AI_COVER_SMART_RANDOM_VARIANT
+        }
+        if (!this.aiCoverPromptVariant && prompts.length) {
+          this.aiCoverPromptVariant = prompts[0].variant
+        }
+      } catch (error) {
+        this.aiCoverPromptCatalog = []
+      } finally {
+        this.aiCoverPromptCatalogLoading = false
       }
     },
     selectCoverTemplate(templateId) {
@@ -1033,6 +1126,8 @@ export default {
       this.previewError = ''
       this.compositeFallback = false
       this.compositeToken += 1
+      this.aiCoverPromptVariant = AI_COVER_SMART_RANDOM_VARIANT
+      this.aiCoverPromptCatalog = []
     },
     async selectContentType(typeCode) {
       if (!typeCode) {
@@ -1066,6 +1161,7 @@ export default {
         ) {
           this.typeStepDone = true
           this.ensureCoverTemplatesLoaded()
+          this.loadAiCoverPromptCatalog()
         } else {
           this.contentTypeCode = ''
           this.directProduction = null
@@ -1641,6 +1737,10 @@ export default {
           uni.showToast({ title: '请选择小红书封面模板', icon: 'none' })
           return
         }
+        if (this.coverMode === 'ai' && !this.aiCoverPromptVariant) {
+          uni.showToast({ title: '请选择 AI 封面模板', icon: 'none' })
+          return
+        }
       }
       const formValues = { ...this.formValues }
       delete formValues.cover_asset_ids
@@ -1682,6 +1782,15 @@ export default {
           payload.cover_mode = this.coverMode === 'ai' ? 'ai' : 'builtin'
           payload.hycanvas_template_id =
             payload.cover_mode === 'builtin' ? this.coverTemplateId || undefined : null
+          if (payload.cover_mode === 'ai') {
+            const random = isAiCoverSmartRandomVariant(this.aiCoverPromptVariant)
+            payload.ai_cover_prompt_random = random
+            if (!random) {
+              payload.ai_cover_prompt_variant = this.aiCoverPromptVariant
+              const slotIndex = this.selectedAiCoverPromptOption && this.selectedAiCoverPromptOption.slot_index
+              if (slotIndex != null) payload.featured_cover_template_index = slotIndex
+            }
+          }
           formValues.cover_asset_ids = coverAssetIds
         }
         const data = await mpContentApi.compileBrief(payload)
@@ -2384,6 +2493,9 @@ input,
 }
 .tpl.active {
   border-color: #BE2D22;
+}
+.tpl.disabled {
+  opacity: 0.45;
 }
 .tpl-preview {
   width: 72px;

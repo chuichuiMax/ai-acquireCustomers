@@ -266,6 +266,14 @@ export const mpContentApi = {
       }`
     }),
   hycanvasTemplates: () => request({ url: '/api/mp/content/hycanvas-templates' }),
+  listAiCoverPrompts: ({ content_type_code = '', content_type_name = '' } = {}) => {
+    const query = []
+    if (content_type_code) query.push(`content_type_code=${encodeURIComponent(content_type_code)}`)
+    if (content_type_name) query.push(`content_type_name=${encodeURIComponent(content_type_name)}`)
+    return request({
+      url: `/api/mp/content/ai-cover-prompts${query.length ? `?${query.join('&')}` : ''}`
+    })
+  },
   pricing: (frameArea) =>
     request({ url: `/api/mp/content/pricing?frame_area=${encodeURIComponent(frameArea)}` }),
   coverTemplates: () => request({ url: '/api/mp/content/cover-templates' }),

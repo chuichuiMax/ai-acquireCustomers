@@ -14,7 +14,8 @@ test('generate page offers builtin and AI cover modes like PC content studio', (
   assert.match(page, /小红书封面模板 \*/)
   assert.match(page, /v-for="item in builtinCoverTemplates"/)
   assert.match(page, /selectCoverTemplate\(item\.id\)/)
-  assert.match(page, /使用智能生成封面/)
+  assert.match(page, /选择封面模板 \*/)
+  assert.match(page, /aiCoverPromptCatalog/)
 })
 
 test('builtin templates load after content type step without blocking first-screen schema', () => {
