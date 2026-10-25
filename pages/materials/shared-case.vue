@@ -12,13 +12,16 @@
       <button class="retry-button" @click="loadShare">重新加载</button>
     </view>
 
-    <scroll-view v-else class="case-scroll" scroll-y>
-      <case-share-content :case-info="caseInfo" :cover-url="coverUrl" :images="images"
-        @preview="previewImage" @call="callSharer" />
+    <template v-else>
+      <scroll-view class="case-scroll" scroll-y>
+        <case-share-content :case-info="caseInfo" :cover-url="coverUrl" :images="images"
+          @preview="previewImage" @call="callSharer" />
+        <view class="booking-spacer" />
+      </scroll-view>
       <view class="booking-entry">
         <button class="booking-cta" @click="openBooking">预约免费参观工地</button>
       </view>
-    </scroll-view>
+    </template>
     <view v-if="bookingVisible" class="booking-mask" @click="closeBooking">
       <view class="booking-sheet" role="dialog" aria-label="预约免费参观工地" @click.stop>
         <view class="booking-heading">
@@ -175,14 +178,20 @@ export default {
       this.bookingSubmitting = true
       this.bookingError = ''
       try {
-        await mpVisitorApi.submitBooking(this.shareId, {
+        const response = await mpVisitorApi.submitBooking(this.shareId, {
           session_id: this.bookingSession, phone_code: detail.code, consent: String(this.bookingConsent)
         })
         if (version !== this.bookingVersion) return
         this.bookingVisible = false
         this.bookingConsent = false
         this.bookingSession = ''
-        uni.showModal({ title: '预约申请已提交', content: '工作人员将联系您安排免费工地参观。', showCancel: false })
+        uni.showModal({
+          title: '预约申请已提交',
+          content: response.same_contact_phone === true
+            ? '分享人和授权人联系方式相同\n工作人员将联系您安排免费工地参观。'
+            : '工作人员将联系您安排免费工地参观。',
+          showCancel: false
+        })
       } catch (error) {
         if (version !== this.bookingVersion) return
         this.bookingError = errorMessage(error)
@@ -265,7 +274,8 @@ export default {
 
 <style scoped>
 .share-page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f5f5f5;
 }
 .case-scroll {
@@ -297,7 +307,9 @@ export default {
 .retry-button::after {
   border: 0;
 }
-.booking-entry { padding: 0 16px calc(24px + env(safe-area-inset-bottom)); }
+.booking-spacer { height: calc(88px + env(safe-area-inset-bottom)); }
+.booking-entry { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  padding: 12px 16px calc(24px + env(safe-area-inset-bottom)); background: #f5f5f5; }
 .booking-cta { width: 100%; margin: 0; min-height: 52px; line-height: 52px; border-radius: 8px;
   background: #e60012; color: #fff; font-size: 16px; font-weight: 600; }
 .booking-cta[disabled] { background: #e4d9da; color: #8b7e7e; }

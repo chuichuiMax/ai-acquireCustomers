@@ -45,7 +45,8 @@
 		{
 			"path": "pages/materials/shared-case",
 			"style": {
-				"navigationBarTitleText": "案例分享"
+				"navigationBarTitleText": "案例分享",
+				"disableScroll": true
 			}
 		},
 		{

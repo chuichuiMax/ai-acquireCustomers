@@ -1,12 +1,11 @@
 <template>
   <view class="page">
     <view class="hero">
-      <image class="logo" src="/static/hirun-logo.png" mode="aspectFit" />
+      <image class="logo" src="/static/hirun-logo.png" mode="aspectFill" />
       <text class="title">鸿扬获客</text>
     </view>
 
     <view class="login-card">
-      <text class="card-title">账号登录</text>
       <view class="field">
         <text class="field-label">企业微信工号 <text class="required">*</text></text>
         <view class="input-wrap" :class="{ 'input-error': employeeError }">
@@ -254,33 +253,35 @@ export default {
 
 <style scoped>
 .page {
+  --layout-space: clamp(0px, calc(10vh - 65px), 12px);
   min-height: 100vh;
   background: #fff;
-  padding: 32px 24px 24px;
+  padding: calc(8px + var(--layout-space)) 24px 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .hero {
-  margin-bottom: 24px;
+  margin-bottom: calc(8px + var(--layout-space));
   text-align: center;
 }
 .logo {
   display: block;
-  width: 220px;
-  height: 72px;
+  width: 120px;
+  height: 68px;
   margin: 0 auto;
-  transform: scale(1.25);
 }
 .title {
   display: block;
-  margin-top: 12px;
+  margin-top: 4px;
   font-size: 18px;
+  line-height: 24px;
   color: #2b2422;
 }
 .notice {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 24px auto 0;
+  margin: calc(8px + var(--layout-space)) auto 0;
 }
 .notice text {
   color: #be2d22;
@@ -290,26 +291,20 @@ export default {
 .login-card {
   max-width: 460px;
   margin: 0 auto;
-  padding: 24px 20px 16px;
+  padding: calc(12px + var(--layout-space)) 20px calc(8px + var(--layout-space));
   border: 1px solid #eee8e5;
   border-top: 4px solid #be2d22;
   border-radius: 20px;
   box-shadow: 0 8px 28px rgba(67, 34, 24, 0.07);
 }
-.card-title {
-  display: block;
-  margin-bottom: 20px;
-  font-size: 23px;
-  font-weight: 700;
-  color: #2b2422;
-}
 .field {
-  margin-bottom: 22px;
+  margin-bottom: calc(8px + var(--layout-space));
 }
 .field-label {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
   font-size: 15px;
+  line-height: 20px;
   font-weight: 600;
   color: #77716e;
 }
@@ -354,7 +349,7 @@ export default {
 .field-hint {
   display: block;
   min-height: 19px;
-  margin-top: 8px;
+  margin-top: 4px;
   font-size: 12px;
   line-height: 19px;
   color: #96918e;
@@ -392,7 +387,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 16px;
+  margin-top: calc(8px + var(--layout-space));
   background: linear-gradient(110deg, #60b967, #4d9e54);
 }
 .wechat-button[disabled] {
@@ -406,13 +401,13 @@ export default {
 .form-actions {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: calc(4px + var(--layout-space));
 }
 .action-link {
   display: flex;
   align-items: center;
   margin: 0;
-  padding: 8px 0;
+  padding: 6px 0;
   line-height: 22px;
   font-size: 13px;
   color: #8b8480;
@@ -427,6 +422,21 @@ export default {
   line-height: 15px;
   text-align: center;
   font-size: 11px;
+}
+@media (max-height: 650px) {
+  .logo {
+    height: 60px;
+  }
+  .title {
+    margin-top: 0;
+  }
+  .field-label {
+    margin-bottom: 4px;
+  }
+  .action-link {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
 }
 .help-mask {
   position: fixed;
