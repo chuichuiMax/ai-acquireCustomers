@@ -55,7 +55,7 @@ test('filterCaseGalleryItems by item design_style', () => {
   assert.deepEqual(filterCaseGalleryItems(items, '复古风潮').map((row) => row.id), ['2'])
 })
 
-test('cover and generate use the same case picker workspace as the materials tab', () => {
+test('cover and generate share the case picker workspace and building search', () => {
   const cover = readFileSync(new URL('../pages/cover/cover.vue', import.meta.url), 'utf8')
   const generate = readFileSync(new URL('../pages/generate/generate.vue', import.meta.url), 'utf8')
   const workspace = readFileSync(new URL('../components/case-gallery-picker-workspace.vue', import.meta.url), 'utf8')

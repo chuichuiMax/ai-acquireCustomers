@@ -3,7 +3,11 @@
     <view v-if="!activeGallery" class="library-view">
       <view class="heading">
         <text class="title">案例</text>
-        <text class="subtitle">按设计风格查看图库</text>
+        <text class="subtitle">按楼盘和设计风格查看图库</text>
+      </view>
+
+      <view class="search-wrap">
+        <case-building-search :value="buildingQuery" @input="buildingQuery = $event" />
       </view>
 
       <view class="library-workspace">
@@ -25,7 +29,9 @@
             <text>案例加载失败</text>
             <button class="retry-button" @click="loadGalleries">重新加载</button>
           </view>
-          <view v-else-if="!visibleGalleries.length" class="state-block">暂无二级图库</view>
+          <view v-else-if="!visibleGalleries.length" class="state-block">
+            {{ buildingQuery.trim() ? '未找到匹配的案例' : '暂无二级图库' }}
+          </view>
           <view v-else class="gallery-grid">
             <view
               v-for="gallery in visibleGalleries"
@@ -144,6 +150,8 @@
 <script>
 import { beginCaseComponentAction, clearCaseSystemAction, markCaseSystemReturn, openCaseSystemPage } from '../../utils/share-entry.mjs'
 import TabBar from '../../components/tab-bar.vue'
+import CaseBuildingSearch from '../../components/case-building-search.vue'
+import { filterCaseGalleryChildren } from '../../utils/case-gallery.mjs'
 import { mpContentApi, mpMeApi } from '../../apis/mp'
 import { errorMessage, galleryThumbUrl, getToken, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
@@ -160,12 +168,13 @@ import {
 import { publicMediaUrl } from '../../utils/request'
 
 export default {
-  components: { TabBar },
+  components: { TabBar, CaseBuildingSearch },
   mixins: [internalPageMixin],
   data() {
     return {
       styleOptions: MATERIAL_LIBRARY_STYLE_OPTIONS,
       selectedStyle: '全部',
+      buildingQuery: '',
       galleries: [],
       galleriesError: false,
       activeGalleryId: '',
@@ -201,12 +210,12 @@ export default {
     },
     visibleGalleries() {
       const secondaries = this.galleries.filter((item) => Boolean(item.parent_id))
-      if (this.selectedStyle === '全部') return secondaries
-      return secondaries.filter((item) => {
+      const styled = this.selectedStyle === '全部' ? secondaries : secondaries.filter((item) => {
         if (galleryStyle(item) === this.selectedStyle) return true
         const parent = this.galleries.find((candidate) => candidate.id === item.parent_id)
         return galleryStyle(parent) === this.selectedStyle
       })
+      return filterCaseGalleryChildren(styled, '全部', this.buildingQuery)
     },
     photoRows() {
       return groupGalleryItemsIntoRows(this.items)
@@ -564,6 +573,7 @@ export default {
   min-height: calc(100vh - 52px - env(safe-area-inset-bottom));
 }
 .heading {
+  flex-shrink: 0;
   padding: 20px 18px 14px;
   background: #fff;
 }
@@ -584,6 +594,11 @@ export default {
   margin-top: 6px;
   color: #8a817c;
   font-size: 13px;
+}
+.search-wrap {
+  flex-shrink: 0;
+  padding: 0 18px;
+  background: #fff;
 }
 .library-workspace {
   flex: 1;
