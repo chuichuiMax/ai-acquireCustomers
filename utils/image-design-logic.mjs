@@ -51,6 +51,8 @@ export const DEFAULT_DESCRIPTION_TEXT = DEFAULT_DESCRIPTION_PARAGRAPHS.join('\n'
 const DEFAULT_DESCRIPTION_MARKER = '以毛坯图为唯一结构底图'
 const DEFAULT_DESCRIPTION_LIGHTING_MARKER = '临时裸灯泡'
 
+export const MAX_BATCH_SOURCE_IMAGES = 9
+
 export function createImageDesignDrafts() {
   return {
     redesign: createDraft(),
@@ -68,6 +70,8 @@ export function createImageDesignDrafts() {
 function createDraft() {
   return {
     source: null,
+    source_batch: [],
+    batch_refinements: [],
     style: '',
     description: DEFAULT_DESCRIPTION_TEXT,
     description_keywords: [...DEFAULT_DESCRIPTION_KEYWORDS],
@@ -139,8 +143,45 @@ export function restoreImageDesignDraftDescription(draft = {}) {
 
 export function updateImageDesignDraftImage(draft = {}, role, image) {
   if (!requiredImageRoles('redesign').concat(['reference', 'rough']).includes(role)) return draft
+  if (draft[role] === image && role !== 'source') return draft
+  if (role === 'source') {
+    const list = image && image.id ? [image] : []
+    const sameBatch = list.length === 1 && draft.source && draft.source.id === image.id
+      && batchSourceImages(draft).length === 1
+    if (sameBatch && draft[role] === image) return draft
+    return clearStalePolish({ ...draft, source: image || null, source_batch: list })
+  }
   if (draft[role] === image) return draft
   return clearStalePolish({ ...draft, [role]: image || null })
+}
+
+export function pickerAllowsMultiSelect(slot) {
+  return slot === 'source'
+}
+
+export function batchSourceImages(draft = {}) {
+  const batch = (Array.isArray(draft.source_batch) ? draft.source_batch : [])
+    .filter((item) => item && item.id)
+  if (batch.length) return batch.slice(0, MAX_BATCH_SOURCE_IMAGES)
+  return draft.source && draft.source.id ? [draft.source] : []
+}
+
+export function updateImageDesignDraftSourceBatch(draft = {}, images = []) {
+  const list = images.filter((item) => item && item.id).slice(0, MAX_BATCH_SOURCE_IMAGES)
+  return clearStalePolish({ ...draft, source: list[0] || null, source_batch: list })
+}
+
+export function batchPolishComplete(draft = {}) {
+  const images = batchSourceImages(draft)
+  if (images.length <= 1) return false
+  const description = imageDesignDescription(draft)
+  const entries = Array.isArray(draft.batch_refinements) ? draft.batch_refinements : []
+  return images.every((image) => entries.some((entry) =>
+    entry.library_item_id === image.id
+    && String(entry.refinement_id || '').trim()
+    && String(entry.polished_prompt || '').trim()
+    && entry.polished_for === description
+  ))
 }
 
 function transferChoiceId(options, value, legacyIds = {}) {
@@ -188,7 +229,13 @@ export function imageDesignTransferPayload(draft, spaces) {
 }
 
 function clearStalePolish(draft) {
-  return { ...draft, polished_prompt: '', polished_for: '', refinement_id: '' }
+  return {
+    ...draft,
+    polished_prompt: '',
+    polished_for: '',
+    refinement_id: '',
+    batch_refinements: []
+  }
 }
 
 export function migrateLegacyDefaultImageCount(drafts) {
@@ -216,6 +263,15 @@ export function normalizeImageDesignDrafts(received, scopes = [], spaces = []) {
     }
     next[key].description_keywords = normalizeDescriptionKeywords(next[key].description_keywords)
     if (next[key].polished_for !== imageDesignDescription(next[key])) next[key] = clearStalePolish(next[key])
+    if (key === 'redesign') {
+      const batch = batchSourceImages(next[key])
+      next[key] = {
+        ...next[key],
+        source: batch[0] || next[key].source || null,
+        source_batch: batch,
+        batch_refinements: Array.isArray(next[key].batch_refinements) ? next[key].batch_refinements : []
+      }
+    }
     if (key === 'transfer') next[key] = normalizeTransferDraft(next[key], spaces)
     let selectedTarget = normalizeSaveTarget(next[key].save_target) || migrateLegacySaveTarget(next[key], scopes)
     if (selectedTarget?.scope === 'private' && (!selectedTarget.gallery_id || selectedTarget.gallery_id === 'private-root') && scopes.length) {
@@ -241,9 +297,16 @@ export function requiredImageRoles(workflow) {
 
 export function draftCanGenerate(workflow, draft, spaces = []) {
   if (!draft || !imageDesignDescription(draft) || imageDesignDescription(draft).length > 3000) return false
-  if (!String(draft.polished_prompt || '').trim()) return false
-  if (String(draft.polished_for || '') !== imageDesignDescription(draft)) return false
-  if (!normalizeSaveTarget(draft.save_target) || !String(draft.refinement_id || '').trim()) return false
+  const description = imageDesignDescription(draft)
+  const batchReady = workflow === 'redesign' && batchPolishComplete(draft)
+  if (batchReady) {
+    if (!normalizeSaveTarget(draft.save_target)) return false
+  } else {
+    if (!String(draft.polished_prompt || '').trim()) return false
+    if (String(draft.polished_for || '') !== description) return false
+    if (!String(draft.refinement_id || '').trim()) return false
+    if (!normalizeSaveTarget(draft.save_target)) return false
+  }
   if (!draft.ratio || !draft.count || !draft.quality) return false
   if (workflow === 'redesign' && !isSupportedImageDesignStyle(draft.style)) return false
   if (workflow === 'transfer' && !validTransferSelection(draft, spaces)) return false

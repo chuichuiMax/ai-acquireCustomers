@@ -17,8 +17,17 @@ test('folder selection saves a generation-library reference before filling its s
   const method = page.match(/async confirmPicker\(\) \{([\s\S]*?)\r?\n    \},\r?\n    chooseUpload/)
   assert.ok(method)
   assert.match(method[1], /mpImageDesignApi\.addLibraryItem/)
-  assert.match(method[1], /this\.setImageSlot\(this\.pickerSlot, saved\)/)
+  assert.match(method[1], /updateImageDesignDraftSourceBatch/)
   assert.match(method[1], /this\.closePicker\(\)/)
+})
+
+test('redesign source picker supports multi-select up to nine images', () => {
+  assert.match(page, /togglePickerItem\(item\)/)
+  assert.match(page, /MAX_BATCH_SOURCE_IMAGES/)
+  assert.match(page, /pickerMultiSelect/)
+  assert.match(page, /最多选择 \$\{MAX_BATCH_SOURCE_IMAGES\} 张/)
+  assert.match(page, /batchSourceImages/)
+  assert.match(page, /batchPolishComplete/)
 })
 
 test('local uploads use the dedicated image-design endpoint and immediately fill the current slot', () => {

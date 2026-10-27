@@ -23,8 +23,15 @@
 
         <view v-if="workflow === 'redesign'" class="section">
           <view class="field-title"><text>*</text>原房实拍图</view>
+          <text class="field-note">从图库最多可同时选择 9 张原房图，将按相同参数分别生成。</text>
           <image-source-selector :entries="sourceEntries('source')" :loading="sourceFoldersLoading" @select-gallery="openPicker('source', $event)" @upload="chooseUpload('source')" />
-          <view v-if="slotImage('source')" class="selected-input" @click="previewImage(slotImage('source'))"><image :src="imageUrl(slotImage('source'))" mode="aspectFill" /><view><text>已选择原房图</text><text>{{ imageSourceLabel(slotImage('source').source_role) }}</text></view><text @click.stop="chooseUpload('source')">更换</text></view>
+          <view v-if="redesignSourceImages.length > 1" class="selected-batch">
+            <view class="selected-batch-head"><text>已选择 {{ redesignSourceImages.length }} 张原房图</text><text @click.stop="chooseUpload('source')">上传替换</text></view>
+            <scroll-view class="selected-batch-scroll" scroll-x enable-flex>
+              <view v-for="item in redesignSourceImages" :key="item.id" class="selected-batch-item" @click="previewImage(item)"><image :src="imageUrl(item)" mode="aspectFill" /></view>
+            </scroll-view>
+          </view>
+          <view v-else-if="slotImage('source')" class="selected-input" @click="previewImage(slotImage('source'))"><image :src="imageUrl(slotImage('source'))" mode="aspectFill" /><view><text>已选择原房图</text><text>{{ imageSourceLabel(slotImage('source').source_role) }}</text></view><text @click.stop="chooseUpload('source')">更换</text></view>
         </view>
 
         <view v-if="workflow === 'adapt'" class="section">
@@ -135,11 +142,14 @@
         <view v-if="folderItemsLoading && !folderItems.length" class="state">正在加载图片…</view>
         <view v-else-if="folderItemsError && !folderItems.length" class="state"><text>图库加载失败</text><button class="retry" @click="retryFolderItems">重新加载</button></view>
         <view v-else-if="!visibleFolderItems.length && !visiblePickerFolders.length" class="state">该图库暂无图片或子图库</view>
-        <view v-else-if="visibleFolderItems.length" class="picker-grid"><view v-for="item in visibleFolderItems" :key="item.id" class="picker-image" :class="{ selected: selectedFolderItem && selectedFolderItem.id === item.id }" @click="selectedFolderItem = item"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ selectedFolderItem && selectedFolderItem.id === item.id ? '✓' : '' }}</text></view></view>
+        <template v-else-if="visibleFolderItems.length">
+          <text v-if="pickerMultiSelect" class="picker-hint">可多选，最多 {{ maxBatchSourceImages }} 张</text>
+          <view class="picker-grid"><view v-for="item in visibleFolderItems" :key="item.id" class="picker-image" :class="{ selected: isPickerItemSelected(item) }" @click="togglePickerItem(item)"><image :src="imageUrl(item)" mode="aspectFill" lazy-load /><text>{{ isPickerItemSelected(item) ? '✓' : '' }}</text></view></view>
+        </template>
         <view v-if="folderItemsLoadingMore" class="load-more">正在加载更多…</view>
         <view v-else-if="folderItemsError && folderItems.length" class="load-more load-more-error"><text>加载更多失败</text><text @click="retryFolderItems">重试</text></view>
       </scroll-view>
-      <button class="picker-confirm" :loading="pickerSaving" :disabled="!selectedFolderItem || pickerSaving" @click="confirmPicker">确定</button>
+      <button class="picker-confirm" :loading="pickerSaving" :disabled="pickerConfirmDisabled || pickerSaving" @click="confirmPicker">{{ pickerConfirmLabel }}</button>
     </view>
 
     <view v-if="comparisonVisible" class="layer compare-layer"><view class="layer-head"><text class="back" @click="comparisonVisible = false">‹</text><text>对比</text><text class="close" @click="comparisonVisible = false">关闭</text></view><scroll-view class="layer-body" scroll-y><view class="compare-list"><view v-for="item in comparisonImages" :key="item.label"><text>{{ item.label }}</text><image :src="mediaUrl(item.url)" mode="widthFix" /></view></view></scroll-view></view>
@@ -165,8 +175,10 @@ import { errorMessage, galleryThumbUrl, mediaUrl } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import {
   IMAGE_COUNTS, IMAGE_DESIGN_STYLE_OPTIONS, IMAGE_DESIGN_WORKFLOWS, IMAGE_QUALITIES, IMAGE_RATIOS,
+  MAX_BATCH_SOURCE_IMAGES,
   migrateLegacyDefaultImageCount,
-  buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
+  batchPolishComplete, batchSourceImages, buildImageDesignPayload, comparisonSources, createImageDesignDrafts, draftCanGenerate, imageFileUrl, imageSourceLabel,
+  pickerAllowsMultiSelect,
   fixedSaveTargetOptions, imageDesignLibraryDate,
   imageDesignStyleForPayload, isSupportedImageDesignStyle, normalizeImageDesignDrafts,
   imageDesignDescription,
@@ -175,7 +187,7 @@ import {
   updateImageDesignDraftKeywords,
   childFolders, imageSourceEntries, mergeGalleryItems, normalizeImageDesignLibraryItem, normalizeImageSourceFolders, normalizeSaveTarget, normalizeTransferElements, toggleTransferElement as toggleTransferElementValue,
   imageDesignTransferPayload, normalizeTransferDraft, validTransferSelection, updateImageDesignDraftSpace,
-  updateImageDesignDraftDescription, updateImageDesignDraftImage, updateImageDesignDraftStyle
+  updateImageDesignDraftDescription, updateImageDesignDraftImage, updateImageDesignDraftSourceBatch, updateImageDesignDraftStyle
 } from '../../utils/image-design-logic.mjs'
 
 const DRAFT_CACHE_KEY = 'image-design-drafts-v2'
@@ -194,7 +206,8 @@ export default {
       keywordInputVisible: false, keywordInput: '',
       sourceFolders: [], sourceFoldersLoading: false, sourceFolderErrors: { private: false, enterprise: false }, designLibrary: [], libraryLoading: false, libraryError: false, results: [], resultsLoading: false, tasks: {},
       pickerVisible: false, pickerStyleFilter: '全部', pickerBuildingQuery: '', pickerFolders: [], pickerFolderStack: [], pickerSlot: '', pickerSourceRole: '', pickerScopeLabel: '', pickerTitle: '', activeFolder: null,
-      folderItems: [], folderItemsPage: 0, folderItemsTotal: 0, folderItemsHasMore: false, folderItemsLoading: false, folderItemsLoadingMore: false, folderItemsError: false, selectedFolderItem: null, pickerSaving: false,
+      folderItems: [], folderItemsPage: 0, folderItemsTotal: 0, folderItemsHasMore: false, folderItemsLoading: false, folderItemsLoadingMore: false, folderItemsError: false, selectedFolderItem: null, selectedFolderItems: [], pickerSaving: false,
+      maxBatchSourceImages: MAX_BATCH_SOURCE_IMAGES,
       comparisonVisible: false, comparisonImages: [], polishing: false, generating: false, draftSyncIssue: false, draftSaveTimer: null, taskPollTimer: null,
       saveTargetScopes: [], saveTargetsLoaded: false, saveTargetsLoading: false, saveTargetsError: '',
       libraryPage: 0, libraryTotal: 0, libraryHasMore: false, libraryLoadingMore: false, libraryMoreError: false, libraryRequestId: 0, libraryRemovingId: ''
@@ -246,7 +259,17 @@ export default {
       if (this.sourceFolderErrors.enterprise) return '企业图库加载失败，请重新加载。'
       return ''
     },
-    taskList() { return Object.keys(this.tasks).map((id) => this.tasks[id]).filter((item) => item && !this.isTaskDone(item)) }
+    taskList() { return Object.keys(this.tasks).map((id) => this.tasks[id]).filter((item) => item && !this.isTaskDone(item)) },
+    pickerMultiSelect() { return pickerAllowsMultiSelect(this.pickerSlot) },
+    redesignSourceImages() { return this.workflow === 'redesign' ? batchSourceImages(this.activeDraft) : [] },
+    pickerConfirmDisabled() {
+      if (this.pickerMultiSelect) return !this.selectedFolderItems.length
+      return !this.selectedFolderItem
+    },
+    pickerConfirmLabel() {
+      if (this.pickerMultiSelect && this.selectedFolderItems.length) return `确定(${this.selectedFolderItems.length})`
+      return '确定'
+    }
   },
   async onShow() {
     if (!(await this.ensureInternalAccess())) return
@@ -309,7 +332,7 @@ export default {
     },
     updateDraft(patch) {
       const invalidatesPolish = ['target_space', 'layout_type', 'extra_element'].some((key) => Object.prototype.hasOwnProperty.call(patch, key) && patch[key] !== this.activeDraft[key])
-      const draft = invalidatesPolish ? { ...this.activeDraft, ...patch, polished_prompt: '', polished_for: '', refinement_id: '' } : { ...this.activeDraft, ...patch }
+      const draft = invalidatesPolish ? { ...this.activeDraft, ...patch, polished_prompt: '', polished_for: '', refinement_id: '', batch_refinements: [] } : { ...this.activeDraft, ...patch }
       this.drafts = { ...this.drafts, [this.workflow]: draft }; this.scheduleDraftSave()
     },
     selectDesignStyle(style) { this.drafts = { ...this.drafts, [this.workflow]: updateImageDesignDraftStyle(this.activeDraft, style) }; this.scheduleDraftSave() },
@@ -460,6 +483,7 @@ export default {
       this.folderItemsHasMore = false
       this.folderItemsError = false
       this.selectedFolderItem = null
+      this.selectedFolderItems = []
       this.loadFolderItems(true)
     },
     openPicker(slot, entry) {
@@ -470,29 +494,50 @@ export default {
       this.pickerFolderStack = [entry.folder]; this.activeFolder = entry.folder
       this.pickerTitle = `${this.pickerScopeLabel} / ${entry.folder.name || '未分类'}`
       this.pickerFolders = childFolders(this.sourceFolders, entry.folder.id)
-      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null
+      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null; this.selectedFolderItems = []
       this.pickerVisible = true
       this.loadFolderItems(true)
+    },
+    isPickerItemSelected(item) {
+      if (!item || !item.id) return false
+      if (this.pickerMultiSelect) return this.selectedFolderItems.some((entry) => entry.id === item.id)
+      return Boolean(this.selectedFolderItem && this.selectedFolderItem.id === item.id)
+    },
+    togglePickerItem(item) {
+      if (!item || !item.id) return
+      if (!this.pickerMultiSelect) {
+        this.selectedFolderItem = item
+        return
+      }
+      if (this.selectedFolderItems.some((entry) => entry.id === item.id)) {
+        this.selectedFolderItems = this.selectedFolderItems.filter((entry) => entry.id !== item.id)
+        return
+      }
+      if (this.selectedFolderItems.length >= MAX_BATCH_SOURCE_IMAGES) {
+        uni.showToast({ title: `最多选择 ${MAX_BATCH_SOURCE_IMAGES} 张`, icon: 'none' })
+        return
+      }
+      this.selectedFolderItems = [...this.selectedFolderItems, item]
     },
     selectPickerFolder(folder) {
       if (!folder) return
       this.pickerFolderStack = [...this.pickerFolderStack, folder]; this.activeFolder = folder
       this.pickerTitle = `${this.pickerScopeLabel} / ${this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')}`
-      this.pickerFolders = childFolders(this.sourceFolders, folder.id); this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null
+      this.pickerFolders = childFolders(this.sourceFolders, folder.id); this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null; this.selectedFolderItems = []
       this.loadFolderItems(true)
     },
     backPicker() {
       if (this.pickerFolderStack.length > 1) {
         this.pickerFolderStack = this.pickerFolderStack.slice(0, -1); this.activeFolder = this.pickerFolderStack[this.pickerFolderStack.length - 1]
         this.pickerTitle = `${this.pickerScopeLabel} / ${this.pickerFolderStack.map((item) => item.name || '未分类').join(' / ')}`
-        this.pickerFolders = childFolders(this.sourceFolders, this.activeFolder.id); this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null; this.loadFolderItems(true)
+        this.pickerFolders = childFolders(this.sourceFolders, this.activeFolder.id); this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsError = false; this.selectedFolderItem = null; this.selectedFolderItems = []; this.loadFolderItems(true)
         return
       }
       this.closePicker()
     },
     closePicker() {
       this.pickerVisible = false; this.pickerStyleFilter = '全部'; this.pickerBuildingQuery = ''; this.pickerFolders = []; this.pickerFolderStack = []; this.pickerSlot = ''; this.pickerSourceRole = ''; this.pickerScopeLabel = ''; this.pickerTitle = ''; this.activeFolder = null
-      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsLoading = false; this.folderItemsLoadingMore = false; this.folderItemsError = false; this.selectedFolderItem = null
+      this.folderItems = []; this.folderItemsPage = 0; this.folderItemsTotal = 0; this.folderItemsHasMore = false; this.folderItemsLoading = false; this.folderItemsLoadingMore = false; this.folderItemsError = false; this.selectedFolderItem = null; this.selectedFolderItems = []
     },
     async loadFolderItems(reset = false) {
       if (!this.activeFolder || this.folderItemsLoading || this.folderItemsLoadingMore) return
@@ -515,15 +560,29 @@ export default {
     loadMoreFolderItems() { if (!this.folderItemsError) this.loadFolderItems(false) },
     retryFolderItems() { const reset = !this.folderItems.length; this.folderItemsError = false; this.loadFolderItems(reset) },
     async confirmPicker() {
-      if (!this.selectedFolderItem || this.pickerSaving) return
+      if (this.pickerConfirmDisabled || this.pickerSaving) return
+      const picked = this.pickerMultiSelect
+        ? this.selectedFolderItems
+        : (this.selectedFolderItem ? [this.selectedFolderItem] : [])
+      if (!picked.length) return
       this.pickerSaving = true
       try {
-        const response = await mpImageDesignApi.addLibraryItem({ source_library_item_id: this.selectedFolderItem.id, source_role: this.pickerSourceRole, source_gallery_id: this.activeFolder ? this.activeFolder.id : '' })
-        const saved = normalizeImageDesignLibraryItem(response.item || response.library_item || response, { source_item_id: this.selectedFolderItem.id, asset_id: this.selectedFolderItem.asset_id || '', file_url: imageFileUrl(this.selectedFolderItem), thumbnail_file_url: this.selectedFolderItem.thumbnail_file_url || '', file_name: this.selectedFolderItem.file_name || this.selectedFolderItem.name || '', source_role: this.pickerSourceRole })
-        if (!saved.id) throw new Error('图库保存失败，请稍后重试')
-        this.setImageSlot(this.pickerSlot, saved)
+        const savedItems = []
+        for (const item of picked) {
+          const response = await mpImageDesignApi.addLibraryItem({ source_library_item_id: item.id, source_role: this.pickerSourceRole, source_gallery_id: this.activeFolder ? this.activeFolder.id : '' })
+          const saved = normalizeImageDesignLibraryItem(response.item || response.library_item || response, { source_item_id: item.id, asset_id: item.asset_id || '', file_url: imageFileUrl(item), thumbnail_file_url: item.thumbnail_file_url || '', file_name: item.file_name || item.name || '', source_role: this.pickerSourceRole })
+          if (!saved.id) throw new Error('图库保存失败，请稍后重试')
+          savedItems.push(saved)
+        }
+        if (this.pickerMultiSelect && this.pickerSlot === 'source') {
+          this.drafts = { ...this.drafts, redesign: updateImageDesignDraftSourceBatch(this.drafts.redesign, savedItems) }
+          this.scheduleDraftSave()
+        } else {
+          this.setImageSlot(this.pickerSlot, savedItems[0])
+        }
         await this.loadDesignLibrary()
-        this.closePicker(); uni.showToast({ title: '已加入图库并填入图片', icon: 'none' })
+        this.closePicker()
+        uni.showToast({ title: savedItems.length > 1 ? `已加入 ${savedItems.length} 张原房图` : '已加入图库并填入图片', icon: 'none' })
       } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.pickerSaving = false }
     },
     chooseUpload(slot) {
@@ -546,7 +605,10 @@ export default {
     setImageSlot(slot, image, workflow = this.workflow) { this.drafts = { ...this.drafts, [workflow]: updateImageDesignDraftImage(this.drafts[workflow], slot, image) }; this.scheduleDraftSave() },
     previewImage(item) { const url = this.imageUrl(item); if (url) uni.previewImage({ current: url, urls: [url] }) },
     requiredRoles() { return this.workflow === 'adapt' ? ['reference', 'rough'] : this.workflow === 'transfer' ? ['reference'] : ['source'] },
-    requiredRoleMissing() { return this.requiredRoles().find((role) => !this.activeDraft[role]) || '' },
+    requiredRoleMissing() {
+      if (this.workflow === 'redesign' && batchSourceImages(this.activeDraft).length) return ''
+      return this.requiredRoles().find((role) => !this.activeDraft[role]) || ''
+    },
     roleLabel(role) { return { source: '原房实拍图', reference: '参考效果图', rough: '毛坯实拍图' }[role] || '图片' },
     async polishDescription() {
       const transferError = this.transferSelectionError()
@@ -560,12 +622,41 @@ export default {
       if (this.workflow === 'redesign' && !isSupportedImageDesignStyle(this.activeDraft.style)) { uni.showToast({ title: '请选择换装风格', icon: 'none' }); return }
       this.polishing = true
       try {
-        const images = this.requiredRoles().map((role) => ({ role, library_item_id: this.activeDraft[role].id }))
         const transfer = workflow === 'transfer' ? imageDesignTransferPayload(draftAtRequest, this.transferSpaces) : {}
-        const data = await mpImageDesignApi.polish({ workflow, description, style: imageDesignStyleForPayload(draftAtRequest.style), images, ...transfer })
-        const polished = data.polished_prompt || data.prompt || data.result || ''; if (!polished) throw new Error('AI 未返回润色结果，请重试')
-        const refinementId = String(data.refinement_id || '').trim(); if (!refinementId) throw new Error('AI 未返回润色凭证，请重试')
-        if (this.workflow === workflow && this.activeDraft === draftAtRequest) this.updateDraft({ polished_prompt: polished, polished_for: description, refinement_id: refinementId })
+        const style = imageDesignStyleForPayload(draftAtRequest.style)
+        const batchSources = workflow === 'redesign' ? batchSourceImages(draftAtRequest) : []
+        if (batchSources.length > 1) {
+          const batchRefinements = []
+          let firstPolish = null
+          for (const sourceImage of batchSources) {
+            const data = await mpImageDesignApi.polish({
+              workflow,
+              description,
+              style,
+              images: [{ role: 'source', library_item_id: sourceImage.id }],
+              ...transfer
+            })
+            const polished = data.polished_prompt || data.prompt || data.result || ''
+            const refinementId = String(data.refinement_id || '').trim()
+            if (!polished || !refinementId) throw new Error('AI 未返回润色结果，请重试')
+            batchRefinements.push({ library_item_id: sourceImage.id, polished_prompt: polished, refinement_id: refinementId, polished_for: description })
+            if (!firstPolish) firstPolish = { polished_prompt: polished, refinement_id: refinementId }
+          }
+          if (this.workflow === workflow && this.activeDraft === draftAtRequest) {
+            this.updateDraft({
+              batch_refinements: batchRefinements,
+              polished_prompt: firstPolish.polished_prompt,
+              polished_for: description,
+              refinement_id: firstPolish.refinement_id
+            })
+          }
+        } else {
+          const images = this.requiredRoles().map((role) => ({ role, library_item_id: this.activeDraft[role].id }))
+          const data = await mpImageDesignApi.polish({ workflow, description, style, images, ...transfer })
+          const polished = data.polished_prompt || data.prompt || data.result || ''; if (!polished) throw new Error('AI 未返回润色结果，请重试')
+          const refinementId = String(data.refinement_id || '').trim(); if (!refinementId) throw new Error('AI 未返回润色凭证，请重试')
+          if (this.workflow === workflow && this.activeDraft === draftAtRequest) this.updateDraft({ polished_prompt: polished, polished_for: description, refinement_id: refinementId, batch_refinements: [] })
+        }
       } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.polishing = false }
     },
     showSaveTargetUnavailable(reason) { uni.showToast({ title: reason, icon: 'none' }) },
@@ -587,17 +678,43 @@ export default {
       const description = imageDesignDescription(this.activeDraft)
       if (!description) return '请填写补充描述'
       if (description.length > 3000) return '关键词与描述合计不能超过3000字'
+      if (this.workflow === 'redesign' && batchPolishComplete(this.activeDraft)) {
+        return this.isWritableSaveTarget(this.activeDraft.save_target) ? '' : '请选择有效的保存路径'
+      }
       if (!this.activeDraft.polished_prompt || this.activeDraft.polished_for !== description || !this.activeDraft.refinement_id) return '请先完成 AI 深度润色'
       return this.isWritableSaveTarget(this.activeDraft.save_target) ? '' : '请选择有效的保存路径'
+    },
+    draftForBatchSource(draft, sourceImage) {
+      const entry = (draft.batch_refinements || []).find((item) => item.library_item_id === sourceImage.id)
+      return {
+        ...draft,
+        source: sourceImage,
+        polished_prompt: entry?.polished_prompt || draft.polished_prompt,
+        refinement_id: entry?.refinement_id || draft.refinement_id
+      }
     },
     async generateImages() {
       const validation = this.validateGeneration(); if (validation) { uni.showToast({ title: validation, icon: 'none' }); return }
       if (!draftCanGenerate(this.workflow, this.activeDraft, this.transferSpaces)) { uni.showToast({ title: '生成参数尚未填写完整', icon: 'none' }); return }
       this.generating = true
       try {
-        const workflow = this.workflow; const payload = buildImageDesignPayload(workflow, this.activeDraft, this.transferSpaces)
-        await this.persistDraftsNow(); const data = await mpImageDesignApi.createTask(payload); const task = data.task || data; const id = task.id || task.task_id || task.job_id
-        if (id) this.tasks = { ...this.tasks, [id]: { ...task, id, status_text: task.status_text || '正在生成图片…' } }
+        const workflow = this.workflow
+        const batchSources = workflow === 'redesign' ? batchSourceImages(this.activeDraft) : []
+        const sourceQueue = batchSources.length > 1 ? batchSources : [null]
+        await this.persistDraftsNow()
+        let created = 0
+        for (const sourceImage of sourceQueue) {
+          const draftForTask = sourceImage ? this.draftForBatchSource(this.activeDraft, sourceImage) : this.activeDraft
+          const payload = buildImageDesignPayload(workflow, draftForTask, this.transferSpaces)
+          const data = await mpImageDesignApi.createTask(payload)
+          const task = data.task || data
+          const id = task.id || task.task_id || task.job_id
+          if (id) {
+            created += 1
+            this.tasks = { ...this.tasks, [id]: { ...task, id, status_text: task.status_text || '正在生成图片…' } }
+          }
+        }
+        if (created > 1) uni.showToast({ title: `已提交 ${created} 个生成任务`, icon: 'none' })
         this.activeTab = 'results'; await this.loadResults(); this.startTaskPolling()
       } catch (error) { uni.showToast({ title: error.message || errorMessage(error), icon: 'none' }) } finally { this.generating = false }
     },
@@ -646,6 +763,13 @@ export default {
 .source-folder-error { margin: 10px 18px 0; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; color: #9b5d27; font-size: 12px; background: #fff4e8; }.source-folder-error text:last-child { margin-left: 12px; color: #be2d22; white-space: nowrap; }
 .field-title { color: #201d1a; font-size: 16px; font-weight: 700; }.field-title > text, .field-title > view > text { margin-right: 3px; color: #be2d22; }.field-title-with-action { display: flex; align-items: center; justify-content: space-between; }.field-title-with-action .upload-link { margin: 0; color: #be2d22; font-size: 14px; font-weight: 400; }.field-note { display: block; margin-top: 6px; color: #817872; font-size: 12px; line-height: 1.55; }.source-actions { display: flex; gap: 14px; margin-top: 15px; }.source-actions-three { gap: 9px; }.source-folder, .source-upload { min-width: 0; flex: 1; min-height: 93px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #3b3531; font-size: 13px; }.source-folder { border: 0; background: transparent; }.source-upload { border: 0; background: transparent; }.mini-folder { position: relative; width: 54px; height: 39px; margin-bottom: 8px; border-radius: 4px 6px 6px 6px; background: #ffc238; }.mini-folder view { position: absolute; top: -6px; left: 0; width: 26px; height: 9px; border-radius: 4px 4px 0 0; background: #ffc238; }.source-upload > text:first-child { width: 31px; height: 31px; margin-bottom: 9px; border-radius: 50%; color: #be2d22; font-size: 27px; line-height: 29px; text-align: center; background: #f5e4e1; }
 .selected-input { min-height: 66px; margin-top: 13px; padding: 7px 10px; box-sizing: border-box; display: flex; align-items: center; background: #f8f6f4; }.selected-input image { width: 52px; height: 52px; margin-right: 11px; background: #e5ddd7; }.selected-input view text { display: block; color: #38322e; font-size: 13px; font-weight: 700; }.selected-input view text + text { margin-top: 4px; color: #918780; font-size: 11px; font-weight: 400; }.selected-input > text { margin-left: auto; color: #be2d22; font-size: 13px; }
+.selected-batch { margin-top: 13px; padding: 10px 10px 12px; background: #f8f6f4; }
+.selected-batch-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: #38322e; font-size: 13px; font-weight: 700; }
+.selected-batch-head text:last-child { color: #be2d22; font-size: 13px; font-weight: 400; }
+.selected-batch-scroll { display: flex; white-space: nowrap; }
+.selected-batch-item { flex-shrink: 0; width: 72px; height: 72px; margin-right: 8px; background: #e5ddd7; }
+.selected-batch-item image { width: 100%; height: 100%; display: block; }
+.picker-hint { display: block; padding: 0 15px 8px; color: #756d67; font-size: 12px; }
 .chip-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }.choice-chip { min-height: 40px; padding: 0 13px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 20px; color: #8a817c; font-size: 13px; line-height: 1.25; text-align: center; background: #fff; }.choice-chip.active { color: #fff; font-weight: 700; background: #be2d22; }.three-column .choice-chip { width: calc((100% - 20px) / 3); padding: 0 4px; }.two-column .choice-chip { width: calc((100% - 10px) / 2); padding: 0 5px; }.sub-title { margin-top: 21px; color: #292421; font-size: 16px; font-weight: 700; }
 .design-style-grid .choice-chip { border: 1px solid #d8d0ca; }.design-style-grid .choice-chip.active { border-color: #be2d22; }
 .transfer-options-section .choice-chip { border: 1px solid #d8d0ca; }.transfer-options-section .choice-chip.active { border-color: #be2d22; }

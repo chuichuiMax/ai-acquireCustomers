@@ -22,6 +22,12 @@ import {
   savePathOptions,
   saveableFolders,
   updateImageDesignDraftStyle,
+  updateImageDesignDraftSourceBatch,
+  batchPolishComplete,
+  batchSourceImages,
+  imageDesignDescription,
+  MAX_BATCH_SOURCE_IMAGES,
+  pickerAllowsMultiSelect,
   uniqueFolders
 } from '../utils/image-design-logic.mjs'
 
@@ -342,4 +348,25 @@ test('explicit legacy private-root resolves to the real AI gallery', () => {
   const scopes = [{ scope: 'private', can_write_root: true, folders: [{ id: 'ai-real', personal_folder: 'generated' }] }]
   const drafts = normalizeImageDesignDrafts({ transfer: { save_target: { scope: 'private', gallery_id: 'private-root' } } }, scopes)
   assert.deepEqual(drafts.transfer.save_target, { scope: 'private', gallery_id: 'ai-real' })
+})
+
+test('redesign source batch keeps up to nine images and tracks polish per source', () => {
+  assert.equal(MAX_BATCH_SOURCE_IMAGES, 9)
+  assert.equal(pickerAllowsMultiSelect('source'), true)
+  assert.equal(pickerAllowsMultiSelect('reference'), false)
+  const images = Array.from({ length: 10 }, (_, index) => ({ id: `img-${index}` }))
+  const draft = updateImageDesignDraftSourceBatch(createImageDesignDrafts().redesign, images)
+  assert.equal(batchSourceImages(draft).length, 9)
+  assert.equal(draft.source.id, 'img-0')
+  const polished = {
+    ...draft,
+    batch_refinements: batchSourceImages(draft).map((image) => ({
+      library_item_id: image.id,
+      refinement_id: `ref-${image.id}`,
+      polished_prompt: 'prompt',
+      polished_for: imageDesignDescription(draft)
+    }))
+  }
+  assert.equal(batchPolishComplete(polished), true)
+  assert.equal(batchPolishComplete({ ...polished, batch_refinements: [] }), false)
 })
