@@ -35,7 +35,7 @@ function createLogin(api = {}) {
 test('empty code is rejected without a network request', async () => {
   const { instance } = createLogin()
   await instance.onLogin()
-  assert.equal(instance.employeeError, '请输入企业微信工号')
+  assert.equal(instance.employeeError, '请输入工号')
   assert.equal(instance.loginLoading, false)
 })
 

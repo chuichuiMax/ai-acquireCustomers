@@ -7,7 +7,7 @@
 
     <view class="login-card">
       <view class="field">
-        <text class="field-label">企业微信工号 <text class="required">*</text></text>
+        <text class="field-label">工号 <text class="required">*</text></text>
         <view class="input-wrap" :class="{ 'input-error': employeeError }">
           <image class="field-icon" src="/static/login-icons/envelope.png" mode="aspectFit" />
           <input
@@ -61,10 +61,14 @@
       </view>
       <button class="login-button" :loading="loginLoading" :disabled="loginLoading || wechatLoading" @tap="onLogin">登录</button>
       <!-- #ifdef MP-WEIXIN -->
-      <button class="login-button wechat-button" open-type="getPhoneNumber|agreePrivacyAuthorization"
-        :loading="wechatLoading" :disabled="loginLoading || wechatLoading" @getphonenumber="onWechatLogin">
-        <image v-if="!wechatLoading" class="wechat-icon" src="/static/login-icons/wechat.svg" mode="aspectFit" />
-        <text>一键登录</text>
+      <button
+        class="login-button wechat-button"
+        open-type="getPhoneNumber|agreePrivacyAuthorization"
+        :loading="wechatLoading"
+        :disabled="loginLoading || wechatLoading"
+        @getphonenumber="onWechatLogin"
+      >
+        手机号快捷登录
       </button>
       <text v-if="wechatError" class="field-hint hint-error">{{ wechatError }}</text>
       <!-- #endif -->
@@ -142,7 +146,7 @@ export default {
       if (this.wechatLoading) return null
       const code = this.workId.trim()
       if (!code) {
-        this.employeeError = '请输入企业微信工号'
+        this.employeeError = '请输入工号'
         return null
       }
       if (this.employee && this.employee.employee_code === code) return this.employee
@@ -384,19 +388,11 @@ export default {
   background: #cf6b64;
 }
 .wechat-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   margin-top: calc(8px + var(--layout-space));
   background: linear-gradient(110deg, #60b967, #4d9e54);
 }
 .wechat-button[disabled] {
   background: #91bf96;
-}
-.wechat-icon {
-  width: 25px;
-  height: 25px;
-  margin-right: 8px;
 }
 .form-actions {
   display: flex;
