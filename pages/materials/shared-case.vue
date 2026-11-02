@@ -186,9 +186,9 @@ export default {
         this.bookingConsent = false
         this.bookingSession = ''
         uni.showModal({
-          title: '预约申请已提交',
-          content: response.same_contact_phone === true
-            ? '分享人和授权人联系方式相同\n工作人员将联系您安排免费工地参观。'
+          title: response.recorded === false ? '无需提交预约' : '预约申请已提交',
+          content: response.recorded === false
+            ? '您授权的手机号与分享账号相同，无需预约自己分享的案例。'
             : '工作人员将联系您安排免费工地参观。',
           showCancel: false
         })
