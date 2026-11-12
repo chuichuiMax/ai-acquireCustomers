@@ -73,6 +73,14 @@
 			"style": { "navigationBarTitleText": "我的客资", "enablePullDownRefresh": true }
 		},
 		{
+			"path": "pages/mine/requirement-list",
+			"style": { "navigationBarTitleText": "需求清单" }
+		},
+		{
+			"path": "pages/mine/requirement-list-fill",
+			"style": { "navigationBarTitleText": "填写需求清单" }
+		},
+		{
 			"path": "pages/mine/lead-detail",
 			"style": { "navigationBarTitleText": "客资详情" }
 		},

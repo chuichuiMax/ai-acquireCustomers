@@ -11,6 +11,8 @@ export const WORKSPACE_STAY_ROUTES = new Set([
   'pages/mine/mine',
   'pages/mine/leads',
   'pages/mine/lead-detail',
+  'pages/mine/requirement-list',
+  'pages/mine/requirement-list-fill',
   'pages/mine/works',
   'pages/mine/uploads',
   'pages/home/home'

@@ -1,0 +1,17 @@
+_RENOVATION_ANSWER_FIELDS = (
+    ("field003", "text", False),
+    ("field005", "check", False),
+    ("field006", "check", False),
+    ("field007", "text", False),
+    ("field008", "check", True),
+    ("field009", "check", False),
+    ("field010", "check", False),
+    ("field011", "check", False),
+    ("field012", "check", True),
+    ("field013", "check", False),
+    ("field014", "check", False),
+    ("field015", "check", False),
+    ("field016", "check", False),
+    ("field017", "check", False),
+    ("field018", "check", False),
+)

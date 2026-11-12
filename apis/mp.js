@@ -452,6 +452,33 @@ export const mpVisitorApi = {
   })
 }
 
+function requirementListQuery(params = {}) {
+  return Object.entries(params)
+    .filter(([, value]) => value !== '' && value != null)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join('&')
+}
+
+/** 与 PC `requirementListApi` 同源（/api/requirement-lists），小程序走 /api/mp/requirement-lists */
+export const mpRequirementListApi = {
+  list: (params = {}) => request({ url: `/api/mp/requirement-lists?${requirementListQuery(params)}` }),
+  create: (data) => request({ url: '/api/mp/requirement-lists', method: 'POST', data }),
+  /** 客户通过分享卡片填写，工号归属分享员工（与 PC /api/requirement-lists/public 同源） */
+  createShared: async (data) => {
+    try {
+      return await request({ url: '/api/mp/requirement-lists/public', method: 'POST', data, requiresAuth: false })
+    } catch (error) {
+      if (error && error.statusCode === 404) {
+        return await request({ url: '/api/requirement-lists/public', method: 'POST', data, requiresAuth: false })
+      }
+      throw error
+    }
+  },
+  get: (id) => request({ url: `/api/mp/requirement-lists/${encodeURIComponent(id)}` })
+}
+
+export const mpRequirementRecordApi = mpRequirementListApi
+
 export const mpLeadApi = {
   list: (params = {}) => {
     const query = Object.entries(params).filter(([, value]) => value !== '' && value != null)

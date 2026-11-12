@@ -25,6 +25,10 @@
           <text class="arrow">›</text>
         </view>
       </view>
+      <view class="menu-row" @click="openRequirementList">
+        <text class="menu-label">需求清单</text>
+        <text class="arrow">›</text>
+      </view>
     </view>
 
     <button class="logout" @click="logout">退出登录</button>
@@ -39,6 +43,7 @@ import { mpAuthApi, mpMeApi } from '../../apis/mp'
 import { errorMessage, setToken } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { safeReLaunch } from '../../utils/safe-navigation'
+import { clearPersistedEmployeeCode } from '../../utils/requirement-list-employee.mjs'
 import { leadReminderState } from '../../utils/lead-reminder'
 
 export default {
@@ -85,6 +90,9 @@ export default {
     openLeads() {
       uni.navigateTo({ url: '/pages/mine/leads' })
     },
+    openRequirementList() {
+      uni.navigateTo({ url: '/pages/mine/requirement-list' })
+    },
     async logout() {
       try {
         await mpAuthApi.logout()
@@ -92,6 +100,7 @@ export default {
         /* 本地退出即可 */
       }
       setToken('')
+      clearPersistedEmployeeCode()
       safeReLaunch('/pages/login/login')
     }
   }

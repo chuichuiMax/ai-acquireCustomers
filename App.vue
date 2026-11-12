@@ -18,6 +18,10 @@ import {
   shouldRestoreLastShare,
   normalizeLaunchPath
 } from './utils/share-entry.mjs'
+import {
+  buildRequirementListGuestPath,
+  isRequirementListGuestLaunch
+} from './utils/requirement-list-share.mjs'
 
 const ENTRY_URL = '/pages/index/index'
 const WORKSPACE_URL = '/pages/generate/generate'
@@ -126,6 +130,11 @@ export default {
 		// 扫码和网页打开同样是公开访客入口，交给目标页解析，避免先走员工登录。
 		if (!NORMAL_ENTRY_SCENES.has(scene) && bookingEntry.entryCode) {
 			if (path !== SHARED_CASE_ROUTE) safeReLaunch(`/pages/materials/shared-case?entryCode=${encodeURIComponent(bookingEntry.entryCode)}&booking=${bookingEntry.booking ? '1' : '0'}`)
+			return
+		}
+		if (isRequirementListGuestLaunch(options)) {
+			const guestPath = buildRequirementListGuestPath(options)
+			if (guestPath && path !== 'pages/mine/requirement-list-fill') safeReLaunch(guestPath)
 			return
 		}
 		const normalCaseEntry = NORMAL_ENTRY_SCENES.has(scene) && (

@@ -4,7 +4,7 @@ const LOCAL_BASE_URL = 'http://127.0.0.1:5050'
 const TEST_BASE_URL = 'http://124.232.148.28:8080'
 const TEST_DEVICE_BASE_URL = 'https://ai.hi-run.net'
 const ONLINE_BASE_URL = 'https://ai.hi-run.net'
-// 小程序统一连接生产 API（开发者工具与真机一致）。
+// 默认连接线上 API；本地联调可将 isDevelopment 改为 true 并启动本机 api-dev。
 const isDevelopment = false
 const useTestServer = false
 

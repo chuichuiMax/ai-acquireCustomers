@@ -17,6 +17,8 @@ test('the profile page does not render retired bio editor', () => {
   assert.doesNotMatch(page, /点击填写简介/)
   assert.match(page, /我的素材/)
   assert.match(page, /企业共享/)
+  assert.match(page, /我的客资/)
+  assert.match(page, /需求清单/)
   assert.doesNotMatch(page, /brand-banner/)
   assert.doesNotMatch(page, /生产记录/)
 })

@@ -1,0 +1,568 @@
+[
+  {
+    "type": "TEXT",
+    "field": "field047",
+    "title": "楼盘位置",
+    "select_type": "",
+    "options": [],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field001",
+    "title": "1、新居使用定位",
+    "select_type": "checkbox",
+    "options": [
+      "首套居所",
+      "改善居所",
+      "养老",
+      "婚房",
+      "陪读房",
+      "投资",
+      "度假"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field002",
+    "title": "2、新居常住人口",
+    "select_type": "checkbox",
+    "options": [
+      "1人",
+      "2人",
+      "3口之家",
+      "4口之家",
+      "三代同堂",
+      "四代同堂"
+    ],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field003",
+    "title": "3、新居养宠需求",
+    "select_type": "checkbox",
+    "options": [
+      "有宠，需独立空间",
+      "有宠，不需独立空间",
+      "无宠物"
+    ],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field004",
+    "title": "4、您对新家装修最关注的是？",
+    "select_type": "checkbox",
+    "options": [
+      "环保",
+      "外观好看",
+      "功能好用",
+      "价格",
+      "工期",
+      "工艺"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field005",
+    "title": "5、装修风格倾向",
+    "select_type": "checkbox",
+    "options": [
+      "现代简约风",
+      "轻法奶油风",
+      "侘寂风",
+      "北欧风",
+      "新中式风"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field006",
+    "title": "6、您计划拎包入住预算是？",
+    "select_type": "checkbox",
+    "options": [
+      "9-12万",
+      "12-15万",
+      "15-20万",
+      "20-30万",
+      "30万以上"
+    ],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field007",
+    "title": "7、您是通过哪种渠道了解过鸿扬？",
+    "select_type": "checkbox",
+    "options": [
+      "户外广告",
+      "亲戚朋友",
+      "工地",
+      "电话邀约",
+      "其他渠道"
+    ],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field008",
+    "title": "您对空间改造的需求？",
+    "select_type": "checkbox",
+    "options": [
+      "局部微调",
+      "不做改造",
+      "可考虑大改",
+      "空间全改"
+    ],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field009",
+    "title": "您对全房弱电的需求？",
+    "select_type": "checkbox",
+    "options": [
+      "全房WiFi覆盖",
+      "全房WiFi+局部空间网线覆盖",
+      "全房WiFi+全房网线覆盖"
+    ],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field010",
+    "title": "您对全房暖通设备的需求？",
+    "select_type": "checkbox",
+    "options": [
+      "风管机",
+      "中央空调",
+      "全房暖气片",
+      "全房地暖",
+      "地暖+暖气片",
+      "新风",
+      "无"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field011",
+    "title": "您对智能系统的需求？",
+    "select_type": "checkbox",
+    "options": [
+      "智能灯光",
+      "电动窗帘",
+      "可视监控",
+      "背景音乐",
+      "智能控温",
+      "无 "
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field012",
+    "title": "您对封窗的需求？",
+    "select_type": "checkbox",
+    "options": [
+      "阳台封窗",
+      "室内窗户全换",
+      "室内窗户局部更换 "
+    ],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field013",
+    "title": "您对玄关需要补充的功能？",
+    "select_type": "checkbox",
+    "options": [
+      "储藏功能",
+      "挂放功能",
+      "穿衣镜",
+      "换鞋凳",
+      "更换鞋柜"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field014",
+    "title": "您希望的客厅类型是？",
+    "select_type": "checkbox",
+    "options": [
+      "传统会客型",
+      "书吧型",
+      "亲子互动型"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field015",
+    "title": "您希望客厅满足的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "影音娱乐",
+      "品茶",
+      "养花",
+      "健身",
+      "乐器",
+      "养宠"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field016",
+    "title": "您对客厅照明的需求是？",
+    "select_type": "checkbox",
+    "options": [
+      "主灯型",
+      "无主灯型",
+      "主灯+辅助照明"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field017",
+    "title": "您希望的餐厅类型是？",
+    "select_type": "checkbox",
+    "options": [
+      "传统型",
+      "开放式岛台",
+      "餐厨一体型"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field018",
+    "title": "您希望餐厅满足的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "品酒",
+      "补充收纳",
+      "影音",
+      "亲子互动"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field019",
+    "title": "您希望主卧室满足的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "影音欣赏",
+      "睡前阅读",
+      "办公",
+      "梳妆",
+      "衣物临时挂放",
+      "贵重物品存放",
+      "婴儿床",
+      "水吧区"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field020",
+    "title": "您对睡眠的特殊需求？",
+    "select_type": "checkbox",
+    "options": [
+      "起夜需求",
+      "睡眠光源敏感",
+      "静音要求高",
+      "特殊床垫"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field021",
+    "title": "您的收纳需求？",
+    "select_type": "checkbox",
+    "options": [
+      "衣帽间型",
+      "衣柜型",
+      "衣帽间+衣柜型"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field022",
+    "title": "您希望老人房满足的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "影音欣赏",
+      "睡前阅读",
+      "扶手等辅助设施",
+      "衣物临时挂放",
+      "药品存放",
+      "水吧区"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field023",
+    "title": "老人对睡眠的特殊需求？",
+    "select_type": "checkbox",
+    "options": [
+      "起夜需求",
+      "睡眠光源敏感",
+      "静音要求高",
+      "特殊床垫",
+      "分床睡"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field024",
+    "title": "小孩房的使用类型？",
+    "select_type": "checkbox",
+    "options": [
+      "单睡眠型",
+      "睡眠+学习型"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field025",
+    "title": "您希望小孩房满足的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "睡前阅读",
+      "考虑辅导空间",
+      "玩具收纳",
+      "乐器",
+      "高低双层床"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field026",
+    "title": "您家多功能房的类型？",
+    "select_type": "checkbox",
+    "options": [
+      "书房",
+      "棋牌室",
+      "书房兼客房",
+      "书房兼茶室",
+      "书房兼电竞房",
+      "书房兼兴趣培养"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field027",
+    "title": "您对多功能房的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "多人办公",
+      "沙发床",
+      "影音欣赏",
+      "亲子共用",
+      "品茶会客",
+      "乐器"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field028",
+    "title": "您对生活阳台的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "洗烘一体",
+      "洗烘分体",
+      "多台洗衣机",
+      "洗衣台",
+      "拖把池"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field029",
+    "title": "您对休闲阳台的个性需求？",
+    "select_type": "checkbox",
+    "options": [
+      "养花",
+      "养宠",
+      "健身",
+      "学习办公",
+      "品茶会客"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field030",
+    "title": "您对厨房空间的补充需求？",
+    "select_type": "checkbox",
+    "options": [
+      "台面更换",
+      "柜门更换",
+      "整体橱柜更换"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field031",
+    "title": "您对厨房需补充的设备？",
+    "select_type": "checkbox",
+    "options": [
+      "蒸烤箱",
+      "微波炉",
+      "消毒柜",
+      "洗碗机",
+      "咖啡机",
+      "垃圾处理器",
+      "净水设备",
+      "空调"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field032",
+    "title": "主卫：",
+    "select_type": "checkbox",
+    "options": [
+      "座便改蹲便",
+      "整体更换"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field033",
+    "title": "次卫：",
+    "select_type": "checkbox",
+    "options": [
+      "座便改蹲便",
+      "蹲便改座便",
+      "整体更换 "
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field034",
+    "title": "主卫：",
+    "select_type": "checkbox",
+    "options": [
+      "浴缸",
+      "智能马桶",
+      "扶手坐板",
+      "电热毛巾架"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "SELECT",
+    "field": "field035",
+    "title": "次卫：",
+    "select_type": "checkbox",
+    "options": [
+      "小便池",
+      "智能马桶",
+      "扶手坐板",
+      "电热毛巾架"
+    ],
+    "has_other": true,
+    "required": false
+  },
+  {
+    "type": "NAME",
+    "field": "field044",
+    "title": "填表人（有效）",
+    "select_type": "",
+    "options": [],
+    "has_other": false,
+    "required": true
+  },
+  {
+    "type": "TELEPHONE",
+    "field": "field041",
+    "title": "联系方式（有效）",
+    "select_type": "",
+    "options": [],
+    "has_other": false,
+    "required": true
+  },
+  {
+    "type": "NAME",
+    "field": "field045",
+    "title": "分享人工号（有效）",
+    "select_type": "",
+    "options": [],
+    "has_other": false,
+    "required": false
+  },
+  {
+    "type": "COMBOBOX",
+    "field": "field046",
+    "title": "店面",
+    "select_type": "",
+    "options": [
+      "袁家岭店",
+      "芙蓉店",
+      "河西店",
+      "金星店",
+      "星沙店",
+      "洋湖店",
+      "芙蓉店（旧改）"
+    ],
+    "has_other": false,
+    "required": false
+  }
+]

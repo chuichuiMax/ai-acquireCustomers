@@ -95,6 +95,7 @@
 import { mpAuthApi } from '../../apis/mp'
 import { errorMessage } from '../../utils/request'
 import { acceptConfirmedLogin, requireInternalAccess } from '../../utils/internal-access'
+import { persistEmployeeCode } from '../../utils/requirement-list-employee.mjs'
 
 export default {
   data() {
@@ -192,6 +193,7 @@ export default {
         version = this.lookupVersion
         const data = await mpAuthApi.loginByEmployeeCode({ employee_code: code })
         if (!this.pageActive || version !== this.lookupVersion) return
+        persistEmployeeCode(code)
         acceptConfirmedLogin(data)
         uni.reLaunch({ url: '/pages/generate/generate' })
       } catch (error) {

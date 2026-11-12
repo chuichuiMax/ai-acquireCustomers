@@ -1,0 +1,2514 @@
+{
+  "data": {
+    "formId": -437,
+    "comps": [
+      {
+        "uuid": "1fab243019cd48ae90c879103d525446",
+        "type": "FORM_HEADER",
+        "fieldId": -1,
+        "config": {
+          "title": "老房焕新需求表",
+          "desc": ""
+        },
+        "showOrder": 1,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "876e8e3efdd049c88f53d665d89699cc",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": "1",
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><span style=\"font-size:14px;\">尊敬的业主朋友：</span></p>\n\n<p><span style=\"font-size:14px;\">&nbsp;&nbsp; 诚挚地欢迎您及家人走进鸿扬，美好的家居生活，从精准梳理焕新需求开始。</span></p>\n\n<p><span style=\"font-size:14px;\">家的需求=（a%）过去生活习惯+（b%）现时生活需要+（c%）未来生活愿望；</span></p>\n\n<p><span style=\"font-size:14px;\">为了居住更舒适，更适合您的改造需求，接下来可能需要您静下心来，花费10分钟，对焕新的居住需求做个梳理！</span></p>\n"
+        },
+        "showOrder": 2,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "df399bcc34034e01b1bd2ca691b3a6e4",
+        "type": "TEXT",
+        "fieldId": 189954,
+        "config": {
+          "validateTypes": [
+            "v_limit"
+          ],
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": "",
+          "readOnly": "1",
+          "title": "分享人工号",
+          "required": "0",
+          "IDcardVerification": "",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "placeholder": "",
+          "value": "",
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 3,
+        "pid": "",
+        "fieldName": "field001",
+        "detailTable": ""
+      },
+      {
+        "uuid": "0b92ab3e71364bf7890f3b24bcc1b337",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": "1",
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p style=\"text-align: center;\"><span style=\"font-size:16px;\"><b>基本定位</b></span></p>\n"
+        },
+        "showOrder": 4,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "b84c5fd69bdf4ec0a80558761ac8f3e2",
+        "type": "TEXT",
+        "fieldId": 193004,
+        "config": {
+          "validateTypes": [
+            "v_limit"
+          ],
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": "",
+          "readOnly": "0",
+          "title": "姓名：",
+          "required": "1",
+          "IDcardVerification": "",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "placeholder": "",
+          "value": "",
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 5,
+        "pid": "",
+        "fieldName": "field040",
+        "detailTable": ""
+      },
+      {
+        "uuid": "7989316863cc4c698bdc1e7ef4ef05e8",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><span style=\"font-size:14px;\">1、住房概况</span></p>\n"
+        },
+        "showOrder": 6,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "c024ac3edfe240798692f69f8fd62e89",
+        "type": "COLUMNPANEL3",
+        "fieldId": -1,
+        "config": {
+          "size": 3,
+          "coms": [
+            "81a2c516ef8242e29f8d4cc43c156d07",
+            "dd4f00ec1949403b897f5e432bd54585",
+            "ee3303fc0c3746afab39cc2b6c2a0b89"
+          ],
+          "selected": false
+        },
+        "showOrder": 7,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "ead3b48e1e094ee69739736b6706c83f",
+        "type": "SELECT",
+        "fieldId": 189958,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "2、住房户型",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "两房两厅",
+              "key": "1",
+              "selected": false
+            },
+            {
+              "showname": "三房两厅",
+              "key": "2",
+              "selected": false
+            },
+            {
+              "showname": "四房两厅",
+              "key": "3",
+              "selected": false
+            },
+            {
+              "showname": "五房两厅及以上",
+              "key": "4",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 11,
+        "pid": "",
+        "fieldName": "field005",
+        "detailTable": ""
+      },
+      {
+        "uuid": "7a8825951695414ea2f7bd799719cb5d",
+        "type": "SELECT",
+        "fieldId": 189959,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "3、房屋现状",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "自住",
+              "key": "5",
+              "selected": false
+            },
+            {
+              "showname": "出租",
+              "key": "6",
+              "selected": false
+            },
+            {
+              "showname": "闲置",
+              "key": "7",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 12,
+        "pid": "",
+        "fieldName": "field006",
+        "detailTable": ""
+      },
+      {
+        "uuid": "1d81ff93c61c457499709dab417a98d9",
+        "type": "TEXT",
+        "fieldId": 189960,
+        "config": {
+          "validateTypes": [
+            "v_limit"
+          ],
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": "",
+          "readOnly": "0",
+          "title": "4、预计改造时间",
+          "required": "1",
+          "IDcardVerification": "",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "placeholder": "示例：2023年9月",
+          "value": "",
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 13,
+        "pid": "",
+        "fieldName": "field007",
+        "detailTable": ""
+      },
+      {
+        "uuid": "e906dd43e05643f3b84141cca3bf3e21",
+        "type": "SELECT",
+        "fieldId": 189961,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "5、住房使用定位",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "养老",
+              "key": "8",
+              "selected": false
+            },
+            {
+              "showname": "婚房",
+              "key": "9",
+              "selected": false
+            },
+            {
+              "showname": "陪读房",
+              "key": "10",
+              "selected": false
+            },
+            {
+              "showname": "投资",
+              "key": "11",
+              "selected": false
+            },
+            {
+              "showname": "度假",
+              "key": "12",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 14,
+        "pid": "",
+        "fieldName": "field008",
+        "detailTable": ""
+      },
+      {
+        "uuid": "cc4d59363aa44b9593fe046c9c1439f8",
+        "type": "SELECT",
+        "fieldId": 189962,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "6、常住人口",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "1人",
+              "key": "8",
+              "selected": false
+            },
+            {
+              "showname": "2人",
+              "key": "9",
+              "selected": false
+            },
+            {
+              "showname": "3口之家",
+              "key": "10",
+              "selected": false
+            },
+            {
+              "showname": "4口之家",
+              "key": "11",
+              "selected": false
+            },
+            {
+              "showname": "三代同堂",
+              "key": "12",
+              "selected": false
+            },
+            {
+              "showname": "四代同堂",
+              "key": "13",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 15,
+        "pid": "",
+        "fieldName": "field009",
+        "detailTable": ""
+      },
+      {
+        "uuid": "e0024e06b1fb433bbd262a6bddb394cc",
+        "type": "SELECT",
+        "fieldId": 189963,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "7、养宠需求",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "有宠，需独立空间",
+              "key": "8",
+              "selected": false
+            },
+            {
+              "showname": "有宠，不需独立空间",
+              "key": "9",
+              "selected": false
+            },
+            {
+              "showname": "无宠物",
+              "key": "10",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 16,
+        "pid": "",
+        "fieldName": "field010",
+        "detailTable": ""
+      },
+      {
+        "uuid": "1704f96e2a4f413581aa39b54664c99e",
+        "type": "SELECT",
+        "fieldId": 189964,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "1",
+            "value": 3
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "8、您对焕新装修最关注的是？",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "1",
+            "value": 3
+          },
+          "subTitle": [
+            {
+              "id": "33251",
+              "text": "选择"
+            },
+            {
+              "id": "",
+              "text": " 3 "
+            },
+            {
+              "id": "518384",
+              "text": "项"
+            }
+          ],
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "环保",
+              "key": "11",
+              "selected": false
+            },
+            {
+              "showname": "外观好看",
+              "key": "12",
+              "selected": false
+            },
+            {
+              "showname": "功能好用",
+              "key": "13",
+              "selected": false
+            },
+            {
+              "showname": "价格",
+              "key": "14",
+              "selected": false
+            },
+            {
+              "showname": "工期",
+              "key": "15",
+              "selected": false
+            },
+            {
+              "showname": "工艺",
+              "key": "16",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 17,
+        "pid": "",
+        "fieldName": "field011",
+        "detailTable": ""
+      },
+      {
+        "uuid": "2962923e24b24316a125dd7f5cc4f7cf",
+        "type": "SELECT",
+        "fieldId": 189965,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": 3
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "9、焕新风格倾向",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": 3
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "现代简约风",
+              "key": "17",
+              "selected": false
+            },
+            {
+              "showname": "轻法奶油风",
+              "key": "18",
+              "selected": false
+            },
+            {
+              "showname": "侘寂风",
+              "key": "19",
+              "selected": false
+            },
+            {
+              "showname": "北欧风",
+              "key": "20",
+              "selected": false
+            },
+            {
+              "showname": "新中式风",
+              "key": "21",
+              "selected": false
+            },
+            {
+              "showname": "意式轻奢风",
+              "key": "22",
+              "selected": false
+            },
+            {
+              "showname": "美式风",
+              "key": "23",
+              "selected": false
+            },
+            {
+              "showname": "中古风",
+              "key": "24",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 18,
+        "pid": "",
+        "fieldName": "field012",
+        "detailTable": ""
+      },
+      {
+        "uuid": "d66b5984ed834c00b076f3d1824b8b37",
+        "type": "SELECT",
+        "fieldId": 189966,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "10、您计划焕新预算是多少？",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "3-5万",
+              "key": "8",
+              "selected": false
+            },
+            {
+              "showname": "5-7万",
+              "key": "9",
+              "selected": false
+            },
+            {
+              "showname": "7-9万",
+              "key": "10",
+              "selected": false
+            },
+            {
+              "showname": "9-12万",
+              "key": "11",
+              "selected": false
+            },
+            {
+              "showname": "12-15万",
+              "key": "12",
+              "selected": false
+            },
+            {
+              "showname": "15-20万",
+              "key": "13",
+              "selected": false
+            },
+            {
+              "showname": "20-30万",
+              "key": "14",
+              "selected": false
+            },
+            {
+              "showname": "30万以上",
+              "key": "15",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 19,
+        "pid": "",
+        "fieldName": "field013",
+        "detailTable": ""
+      },
+      {
+        "uuid": "fbaf17f732fa43e0807b030c3cd1714a",
+        "type": "SELECT",
+        "fieldId": 189967,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "11、您是通过哪种渠道了解过鸿扬？",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "户外广告",
+              "key": "16",
+              "selected": false
+            },
+            {
+              "showname": "亲戚朋友",
+              "key": "17",
+              "selected": false
+            },
+            {
+              "showname": "工地",
+              "key": "18",
+              "selected": false
+            },
+            {
+              "showname": "电话邀约",
+              "key": "19",
+              "selected": false
+            },
+            {
+              "showname": "其他渠道",
+              "key": "20",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 20,
+        "pid": "",
+        "fieldName": "field014",
+        "detailTable": ""
+      },
+      {
+        "uuid": "d5b2ae0dde624567bb23306410fbacc7",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": "1",
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p style=\"text-align: center;\"><b><span style=\"font-size:16px;\">旧改焕新需求梳理</span></b></p>\n"
+        },
+        "showOrder": 21,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "80ab9bb6999b4e7c925499871aa9fd23",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"font-size:14px;\">一、全房需求</span></b></p>\n"
+        },
+        "showOrder": 22,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "92625e137aac44ae985ca0449f99b4d8",
+        "type": "SELECT",
+        "fieldId": 189968,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "readOnly": "0",
+          "title": "您对焕新的需求？",
+          "type": "checkbox",
+          "required": "1",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "全房焕新",
+              "key": "21",
+              "selected": false
+            },
+            {
+              "showname": "空间焕新（厨房、卫生间等）",
+              "key": "22",
+              "selected": false
+            },
+            {
+              "showname": "项目焕新（墙漆、暖气片、木制品等）",
+              "key": "23",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 23,
+        "pid": "",
+        "fieldName": "field015",
+        "detailTable": ""
+      },
+      {
+        "uuid": "fda9be168a384da0b8f03d0cd73c385d",
+        "type": "SELECT",
+        "fieldId": 189969,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对全房弱电的需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "全房WiFi覆盖",
+              "key": "24",
+              "selected": false
+            },
+            {
+              "showname": "全房WiFi+局部空间网线覆盖",
+              "key": "25",
+              "selected": false
+            },
+            {
+              "showname": "全房WiFi+全房网线覆盖 ",
+              "key": "26",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 24,
+        "pid": "",
+        "fieldName": "field016",
+        "detailTable": ""
+      },
+      {
+        "uuid": "868586f794b74389a0a7fe1ef6c25096",
+        "type": "SELECT",
+        "fieldId": 189970,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对全房暖通设备的需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "风管机",
+              "key": "27",
+              "selected": false
+            },
+            {
+              "showname": "中央空调",
+              "key": "28",
+              "selected": false
+            },
+            {
+              "showname": "全房暖气片",
+              "key": "29",
+              "selected": false
+            },
+            {
+              "showname": "全房地暖",
+              "key": "30",
+              "selected": false
+            },
+            {
+              "showname": "地暖+暖气片",
+              "key": "31",
+              "selected": false
+            },
+            {
+              "showname": "新风",
+              "key": "32",
+              "selected": false
+            },
+            {
+              "showname": "无",
+              "key": "33",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 25,
+        "pid": "",
+        "fieldName": "field017",
+        "detailTable": ""
+      },
+      {
+        "uuid": "c94480f63d2e4892904b05595310e491",
+        "type": "SELECT",
+        "fieldId": 189971,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对智能系统的需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "智能灯光",
+              "key": "34",
+              "selected": false
+            },
+            {
+              "showname": "电动窗帘",
+              "key": "35",
+              "selected": false
+            },
+            {
+              "showname": "可视监控",
+              "key": "36",
+              "selected": false
+            },
+            {
+              "showname": "背景音乐",
+              "key": "37",
+              "selected": false
+            },
+            {
+              "showname": "智能控温",
+              "key": "38",
+              "selected": false
+            },
+            {
+              "showname": "无",
+              "key": "39",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 26,
+        "pid": "",
+        "fieldName": "field018",
+        "detailTable": ""
+      },
+      {
+        "uuid": "6fc9057bbcef4bc0b05dbde50cd1818b",
+        "type": "SELECT",
+        "fieldId": 189972,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对封窗的需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "室内窗户全换",
+              "key": "40",
+              "selected": false
+            },
+            {
+              "showname": "室内窗户局部更换 ",
+              "key": "41",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 27,
+        "pid": "",
+        "fieldName": "field019",
+        "detailTable": ""
+      },
+      {
+        "uuid": "e8d8a0d2479546bfb838a462d381a216",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"line-height: 150%; font-family: 宋体; font-size: 20px;\">空间焕新</span></b></p>\n"
+        },
+        "showOrder": 28,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "2b533694750b441b88d9dd6784189e3b",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"font-size:14px;\">1、厨房空间 </span></b></p>\n"
+        },
+        "showOrder": 29,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "6758fe16e86e498ea858eefc4a8739dc",
+        "type": "SELECT",
+        "fieldId": 189973,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对厨房空间的焕新需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "整体空间（含橱柜）焕新",
+              "key": "42",
+              "selected": false
+            },
+            {
+              "showname": "橱柜焕新",
+              "key": "43",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 30,
+        "pid": "",
+        "fieldName": "field020",
+        "detailTable": ""
+      },
+      {
+        "uuid": "d664bda30cbf4a39abcb1ac2d8525c25",
+        "type": "SELECT",
+        "fieldId": 189974,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对厨房设备的需求有哪些？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "分体灶和油烟机",
+              "key": "44",
+              "selected": false
+            },
+            {
+              "showname": "集成灶",
+              "key": "45",
+              "selected": false
+            },
+            {
+              "showname": "蒸烤箱",
+              "key": "46",
+              "selected": false
+            },
+            {
+              "showname": "微波炉",
+              "key": "47",
+              "selected": false
+            },
+            {
+              "showname": "消毒柜",
+              "key": "48",
+              "selected": false
+            },
+            {
+              "showname": "洗碗机",
+              "key": "49",
+              "selected": false
+            },
+            {
+              "showname": "咖啡机",
+              "key": "50",
+              "selected": false
+            },
+            {
+              "showname": "垃圾处理器",
+              "key": "51",
+              "selected": false
+            },
+            {
+              "showname": "净水设备",
+              "key": "52",
+              "selected": false
+            },
+            {
+              "showname": "空调",
+              "key": "53",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 31,
+        "pid": "",
+        "fieldName": "field021",
+        "detailTable": ""
+      },
+      {
+        "uuid": "e664ab89453145ddba09ff000f031db5",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"font-size:14px;\">2、卫生空间 </span></b></p>\n"
+        },
+        "showOrder": 32,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "7b560446bf3e47eca0a3935d5737cd41",
+        "type": "SELECT",
+        "fieldId": 189975,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对卫生间的焕新需求？（主卫）",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "整体空间焕新",
+              "key": "42",
+              "selected": false
+            },
+            {
+              "showname": "铝合金门更换",
+              "key": "43",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 33,
+        "pid": "",
+        "fieldName": "field022",
+        "detailTable": ""
+      },
+      {
+        "uuid": "cc9e1cf389a14d1ab833ea8d38f1c948",
+        "type": "SELECT",
+        "fieldId": 189976,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对卫生间的焕新需求？（次卫）",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "整体空间焕新",
+              "key": "42",
+              "selected": false
+            },
+            {
+              "showname": "铝合金门更换",
+              "key": "43",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 34,
+        "pid": "",
+        "fieldName": "field023",
+        "detailTable": ""
+      },
+      {
+        "uuid": "f11bd01391e5431296afd3021d2a3a82",
+        "type": "SELECT",
+        "fieldId": 189977,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对卫生间的设备需求有哪些？（主卫）",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "浴缸",
+              "key": "44",
+              "selected": false
+            },
+            {
+              "showname": "智能马桶",
+              "key": "45",
+              "selected": false
+            },
+            {
+              "showname": "扶手坐板",
+              "key": "46",
+              "selected": false
+            },
+            {
+              "showname": "电热毛巾架",
+              "key": "47",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 35,
+        "pid": "",
+        "fieldName": "field024",
+        "detailTable": ""
+      },
+      {
+        "uuid": "562ab977a05742b0baaaebb4e118f43e",
+        "type": "SELECT",
+        "fieldId": 189978,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对卫生间的设备需求有哪些？（次卫）",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "小便池",
+              "key": "44",
+              "selected": false
+            },
+            {
+              "showname": "智能马桶",
+              "key": "45",
+              "selected": false
+            },
+            {
+              "showname": "扶手坐板",
+              "key": "46",
+              "selected": false
+            },
+            {
+              "showname": "电热毛巾架",
+              "key": "47",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 36,
+        "pid": "",
+        "fieldName": "field025",
+        "detailTable": ""
+      },
+      {
+        "uuid": "85791001056048d7a2d5ea52d01545c0",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"font-size:14px;\">3、客厅空间 </span></b></p>\n"
+        },
+        "showOrder": 37,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "152218c4d59c4adf8478993f6c3a3cf7",
+        "type": "SELECT",
+        "fieldId": 189979,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对客厅的焕新需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "电视背景墙焕新",
+              "key": "48",
+              "selected": false
+            },
+            {
+              "showname": "吊顶焕新",
+              "key": "49",
+              "selected": false
+            },
+            {
+              "showname": "地面瓷砖/木地板焕新",
+              "key": "50",
+              "selected": false
+            },
+            {
+              "showname": "增加储物木制品",
+              "key": "51",
+              "selected": false
+            },
+            {
+              "showname": "墙面焕新",
+              "key": "52",
+              "selected": false
+            },
+            {
+              "showname": "增加插座",
+              "key": "53",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 38,
+        "pid": "",
+        "fieldName": "field026",
+        "detailTable": ""
+      },
+      {
+        "uuid": "de0bfd8b6e2c49c88b9e9a3cc3789093",
+        "type": "SELECT",
+        "fieldId": 189980,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您希望客厅增加的个性需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "影音娱乐",
+              "key": "54",
+              "selected": false
+            },
+            {
+              "showname": "品茶",
+              "key": "55",
+              "selected": false
+            },
+            {
+              "showname": "养花",
+              "key": "56",
+              "selected": false
+            },
+            {
+              "showname": "健身",
+              "key": "57",
+              "selected": false
+            },
+            {
+              "showname": "乐器",
+              "key": "58",
+              "selected": false
+            },
+            {
+              "showname": "养宠",
+              "key": "59",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 39,
+        "pid": "",
+        "fieldName": "field027",
+        "detailTable": ""
+      },
+      {
+        "uuid": "ba0281109b9941ecbb1f239d656a767b",
+        "type": "SELECT",
+        "fieldId": 189981,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对客厅照明的需求是？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "主灯型",
+              "key": "60",
+              "selected": false
+            },
+            {
+              "showname": "无主灯型",
+              "key": "61",
+              "selected": false
+            },
+            {
+              "showname": "主灯+辅助照明",
+              "key": "62",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 40,
+        "pid": "",
+        "fieldName": "field028",
+        "detailTable": ""
+      },
+      {
+        "uuid": "7d328cdd3bb34927b8e0b6d058dca491",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"font-size:14px;\">4、卧室空间</span></b></p>\n"
+        },
+        "showOrder": 41,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "4cd902af331e4e869a7b5ebbed7e2393",
+        "type": "SELECT",
+        "fieldId": 189982,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对卧室的焕新需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "背景墙焕新",
+              "key": "63",
+              "selected": false
+            },
+            {
+              "showname": "吊顶焕新",
+              "key": "64",
+              "selected": false
+            },
+            {
+              "showname": "木地板焕新",
+              "key": "65",
+              "selected": false
+            },
+            {
+              "showname": "衣柜焕新",
+              "key": "66",
+              "selected": false
+            },
+            {
+              "showname": "墙面焕新",
+              "key": "67",
+              "selected": false
+            },
+            {
+              "showname": "增加储物木制品",
+              "key": "68",
+              "selected": false
+            },
+            {
+              "showname": "增加插座",
+              "key": "69",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 42,
+        "pid": "",
+        "fieldName": "field029",
+        "detailTable": ""
+      },
+      {
+        "uuid": "21b196ebd5fe451a80009163106aead9",
+        "type": "SELECT",
+        "fieldId": 189983,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您希望卧室空间增加的个性需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "影音欣赏",
+              "key": "70",
+              "selected": false
+            },
+            {
+              "showname": "睡前阅读",
+              "key": "71",
+              "selected": false
+            },
+            {
+              "showname": "办公",
+              "key": "72",
+              "selected": false
+            },
+            {
+              "showname": "梳妆",
+              "key": "73",
+              "selected": false
+            },
+            {
+              "showname": "衣物临时挂放",
+              "key": "74",
+              "selected": false
+            },
+            {
+              "showname": "贵重物品存放",
+              "key": "75",
+              "selected": false
+            },
+            {
+              "showname": "婴儿床",
+              "key": "76",
+              "selected": false
+            },
+            {
+              "showname": "水吧区",
+              "key": "77",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 43,
+        "pid": "",
+        "fieldName": "field030",
+        "detailTable": ""
+      },
+      {
+        "uuid": "3a0e87beca844cae803ac4b225aef9ea",
+        "type": "SELECT",
+        "fieldId": 189984,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对睡眠的特殊需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "起夜需求",
+              "key": "78",
+              "selected": false
+            },
+            {
+              "showname": "睡眠光源敏感",
+              "key": "79",
+              "selected": false
+            },
+            {
+              "showname": "静音要求高",
+              "key": "80",
+              "selected": false
+            },
+            {
+              "showname": "特殊床垫",
+              "key": "81",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 44,
+        "pid": "",
+        "fieldName": "field031",
+        "detailTable": ""
+      },
+      {
+        "uuid": "cafa86e5abff421b8528abe13468fe2c",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"font-size:14px;\">5、阳台空间</span></b></p>\n"
+        },
+        "showOrder": 45,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "db3a36cc4eeb4357a2671ddde7057392",
+        "type": "SELECT",
+        "fieldId": 189985,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对阳台的焕新需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "储物柜焕新",
+              "key": "82",
+              "selected": false
+            },
+            {
+              "showname": "墙面焕新",
+              "key": "83",
+              "selected": false
+            },
+            {
+              "showname": "增加储物木制品",
+              "key": "84",
+              "selected": false
+            },
+            {
+              "showname": "增加插座",
+              "key": "85",
+              "selected": false
+            },
+            {
+              "showname": "增加排水",
+              "key": "86",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 46,
+        "pid": "",
+        "fieldName": "field032",
+        "detailTable": ""
+      },
+      {
+        "uuid": "e380d62dc0414bc6bfc76db1471ba3a3",
+        "type": "SELECT",
+        "fieldId": 189986,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对生活阳台的个性需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "洗烘一体",
+              "key": "87",
+              "selected": false
+            },
+            {
+              "showname": "洗烘分体",
+              "key": "88",
+              "selected": false
+            },
+            {
+              "showname": "多台洗衣机",
+              "key": "89",
+              "selected": false
+            },
+            {
+              "showname": "洗衣台",
+              "key": "90",
+              "selected": false
+            },
+            {
+              "showname": "拖把池",
+              "key": "91",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 47,
+        "pid": "",
+        "fieldName": "field033",
+        "detailTable": ""
+      },
+      {
+        "uuid": "5cf78f658ff9453fab260382bc667547",
+        "type": "SELECT",
+        "fieldId": 189987,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "您对休闲阳台的个性需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "养花",
+              "key": "92",
+              "selected": false
+            },
+            {
+              "showname": "养宠",
+              "key": "93",
+              "selected": false
+            },
+            {
+              "showname": "健身",
+              "key": "94",
+              "selected": false
+            },
+            {
+              "showname": "学习办公",
+              "key": "95",
+              "selected": false
+            },
+            {
+              "showname": "品茶会客",
+              "key": "96",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 48,
+        "pid": "",
+        "fieldName": "field034",
+        "detailTable": ""
+      },
+      {
+        "uuid": "9085e2cb8c8d4d9d8d2b8b3a3f915c48",
+        "type": "DESCRIPTION",
+        "fieldId": -1,
+        "config": {
+          "divider": 0,
+          "title": "",
+          "value": "",
+          "selected": false,
+          "desc": "<p><b><span style=\"line-height: 150%; font-family: 宋体; font-size: 20px;\">项目焕新</span></b></p>\n"
+        },
+        "showOrder": 49,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "d031a7145a014e7dbf09c508cd295bc6",
+        "type": "SELECT",
+        "fieldId": 189988,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "1、墙面焕新",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "全房墙面、顶面",
+              "key": "97",
+              "selected": false
+            },
+            {
+              "showname": "客餐厅",
+              "key": "98",
+              "selected": false
+            },
+            {
+              "showname": "卧室",
+              "key": "99",
+              "selected": false
+            },
+            {
+              "showname": "阳台",
+              "key": "100",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 50,
+        "pid": "",
+        "fieldName": "field035",
+        "detailTable": ""
+      },
+      {
+        "uuid": "f136a3100f2743c3b2d1502b03f6099d",
+        "type": "SELECT",
+        "fieldId": 189989,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "2、墙面的焕新产品需求？",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "乳胶漆",
+              "key": "101",
+              "selected": false
+            },
+            {
+              "showname": "艺术涂料",
+              "key": "102",
+              "selected": false
+            },
+            {
+              "showname": "木制墙挂板",
+              "key": "103",
+              "selected": false
+            },
+            {
+              "showname": "墙纸",
+              "key": "104",
+              "selected": false
+            },
+            {
+              "showname": "墙布",
+              "key": "105",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 51,
+        "pid": "",
+        "fieldName": "field036",
+        "detailTable": ""
+      },
+      {
+        "uuid": "05c2adc4d46849d8ac8af775c4b48634",
+        "type": "SELECT",
+        "fieldId": 189990,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "3、设备加装（焕新）",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "暖气片",
+              "key": "106",
+              "selected": false
+            },
+            {
+              "showname": "地暖",
+              "key": "107",
+              "selected": false
+            },
+            {
+              "showname": "中央空调",
+              "key": "108",
+              "selected": false
+            },
+            {
+              "showname": "风管机",
+              "key": "109",
+              "selected": false
+            },
+            {
+              "showname": "新风",
+              "key": "110",
+              "selected": false
+            },
+            {
+              "showname": "分体空调",
+              "key": "111",
+              "selected": false
+            },
+            {
+              "showname": "净水",
+              "key": "112",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 52,
+        "pid": "",
+        "fieldName": "field037",
+        "detailTable": ""
+      },
+      {
+        "uuid": "a3229799fe7c4771bd8dee053557edff",
+        "type": "SELECT",
+        "fieldId": 189991,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "4、木制品加装（焕新）",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "房门",
+              "key": "113",
+              "selected": false
+            },
+            {
+              "showname": "门套",
+              "key": "114",
+              "selected": false
+            },
+            {
+              "showname": "鞋柜",
+              "key": "115",
+              "selected": false
+            },
+            {
+              "showname": "衣柜",
+              "key": "116",
+              "selected": false
+            },
+            {
+              "showname": "书柜",
+              "key": "117",
+              "selected": false
+            },
+            {
+              "showname": "书桌",
+              "key": "118",
+              "selected": false
+            },
+            {
+              "showname": "墙挂板",
+              "key": "119",
+              "selected": false
+            },
+            {
+              "showname": "橱柜",
+              "key": "120",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 53,
+        "pid": "",
+        "fieldName": "field038",
+        "detailTable": ""
+      },
+      {
+        "uuid": "e644ae00032f4cd093c9b0315bff8a9a",
+        "type": "SELECT",
+        "fieldId": 189992,
+        "config": {
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": [],
+          "title": "5、其他产品焕新",
+          "type": "checkbox",
+          "required": "0",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "subTitle": "",
+          "isVertical": 1,
+          "options": [
+            {
+              "showname": "封窗",
+              "key": "121",
+              "selected": false
+            },
+            {
+              "showname": "铝合金门",
+              "key": "122",
+              "selected": false
+            },
+            {
+              "showname": "马桶",
+              "key": "123",
+              "selected": false
+            },
+            {
+              "showname": "木地板",
+              "key": "124",
+              "selected": false
+            },
+            {
+              "showname": "全房开关插座",
+              "key": "125",
+              "selected": false
+            },
+            {
+              "showname": "软装产品",
+              "key": "126",
+              "selected": false
+            },
+            {
+              "showname": "电器",
+              "key": "127",
+              "selected": false
+            },
+            {
+              "showname": "其他",
+              "key": "-1",
+              "selected": false
+            }
+          ],
+          "value": [],
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 54,
+        "pid": "",
+        "fieldName": "field039",
+        "detailTable": ""
+      },
+      {
+        "uuid": "03ff1d6a772f4ef4be20db4bef1453ce",
+        "type": "FORM_FOOTER",
+        "fieldId": -1,
+        "config": {
+          "btnText": "提交"
+        },
+        "showOrder": 55,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "8e9b2b5dd79b49c39258528d84a47a51",
+        "type": "FOOTER",
+        "fieldId": -1,
+        "config": {
+          "desc": ""
+        },
+        "showOrder": 56,
+        "pid": "",
+        "fieldName": null,
+        "detailTable": null
+      },
+      {
+        "uuid": "81a2c516ef8242e29f8d4cc43c156d07",
+        "type": "TEXT",
+        "fieldId": 189955,
+        "config": {
+          "validateTypes": [
+            "v_limit"
+          ],
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": "",
+          "readOnly": "0",
+          "title": "楼盘",
+          "required": "1",
+          "IDcardVerification": "",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "placeholder": "",
+          "value": "",
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 8,
+        "pid": "c024ac3edfe240798692f69f8fd62e89",
+        "fieldName": "field002",
+        "detailTable": ""
+      },
+      {
+        "uuid": "dd4f00ec1949403b897f5e432bd54585",
+        "type": "TEXT",
+        "fieldId": 189956,
+        "config": {
+          "validateTypes": [
+            "v_limit"
+          ],
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": "",
+          "readOnly": "0",
+          "title": "面积",
+          "required": "1",
+          "IDcardVerification": "",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "placeholder": "",
+          "value": "",
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 9,
+        "pid": "c024ac3edfe240798692f69f8fd62e89",
+        "fieldName": "field003",
+        "detailTable": ""
+      },
+      {
+        "uuid": "ee3303fc0c3746afab39cc2b6c2a0b89",
+        "type": "TEXT",
+        "fieldId": 189957,
+        "config": {
+          "validateTypes": [
+            "v_limit"
+          ],
+          "hidden": "0",
+          "max": {
+            "checked": "0",
+            "value": ""
+          },
+          "defaultValue": "",
+          "readOnly": "0",
+          "title": "您的电话",
+          "required": "1",
+          "IDcardVerification": "",
+          "min": {
+            "checked": "0",
+            "value": ""
+          },
+          "placeholder": "",
+          "value": "",
+          "selected": false,
+          "desc": ""
+        },
+        "showOrder": 10,
+        "pid": "c024ac3edfe240798692f69f8fd62e89",
+        "fieldName": "field004",
+        "detailTable": ""
+      }
+    ],
+    "edcLabelTips": {
+      "SUBMITTIME_NOTMATCH_TIP": "抱歉！你访问的表单暂未开放。每日开启时间为{begintime}-{endtime}",
+      "MESSAGE_ARRIVAL_TIP": "有新的HTML表单提交信息（{appname}）",
+      "SUBMITFORM_TIP": "提交成功",
+      "SUBMITTED_ONCE_FOR_MONTH_TIP": "抱歉！你访问的表单每月限填一次",
+      "FORM_NOTOPEN_TIP": "抱歉！你访问的表单已停止收集数据",
+      "REFUSE_SUBMIT_TIP": "很遗憾，{handler} 已拒绝您填写表单 {appname} 的申请",
+      "AGREE_SUBMIT_TIP": "{handler} 已同意您填写表单 {appname} 的申请",
+      "SUBMITTED_ONCE_FOR_DAY_TIP": "抱歉！你访问的表单每天限填一次",
+      "SUBMITTED_ONCE_FOR_WEEK_TIP": "抱歉！你访问的表单每周限填一次",
+      "APPLICATION_FORM_TIP": "{applicant} 正在向您申请表单 {appname} 的可填写权限",
+      "FORM_UPPER_LIMMIT_TIP": "抱歉！你访问的表单数据收集已达上限，已停止收集数据",
+      "SUBMITED_ONCE_TIP": "抱歉！你访问的表单限填一次"
+    },
+    "formmodeId": 49501,
+    "isEdit": "NO_EDIT",
+    "codeBlock": "{\"JS\":\"\",\"CSS\":\"\"}",
+    "style": "{\"background\":{\"type\":\"0\",\"repeat\":\"0\",\"css\":{\"backgroundImage\":\"url(/edc/images/theme/bg_anthony.jpg)\",\"backgroundRepeat\":\"no-repeat\",\"backgroundPosition\":\"top center\",\"backgroundAttachment\":\"fixed\",\"backgroundSize\":\"cover\"}},\"form\":{\"mFullWidth\":false,\"border\":{\"color\":\"#ffffff\",\"width\":\"0\",\"css\":{\"border\":\"none\"}},\"divider\":{\"visible\":false,\"color\":\"#c3c9d0\"},\"css\":{\"backgroundColor\":\"#fff\",\"WebkitBoxShadow\":\"0 3px 5px rgba(0,0,0,0.15)\",\"boxShadow\":\"0 3px 5px rgba(0,0,0,0.15)\",\"border\":\"none\"},\"shadow\":true},\"header\":{\"visible\":true,\"type\":\"0\",\"text\":\"\",\"img\":\"\",\"css\":{\"fontFamily\":\"inherit\",\"fontSize\":\"16px\",\"fontWeight\":\"normal\",\"color\":\"#fff\",\"backgroundColor\":\"#5077aa\",\"textAlign\":\"left\"}},\"title\":{\"css\":{\"fontFamily\":\"inherit\",\"fontSize\":\"20px\",\"fontWeight\":\"bold\",\"color\":\"rgb(9, 53, 89)\",\"textAlign\":\"center\"}},\"field\":{\"css\":{\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"fontWeight\":\"normal\",\"color\":\"rgb(9, 53, 89)\"},\"space\":\"10px\"},\"submitBtn\":{\"textAlign\":\"left\",\"css\":{\"backgroundColor\":\"#5077aa\",\"borderColor\":\"#5077aa\",\"color\":\"#fff\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"fontWeight\":\"normal\"}}}",
+    "imageVerifyEnable": false,
+    "isSetCategory": false
+  },
+  "api_status": true
+}

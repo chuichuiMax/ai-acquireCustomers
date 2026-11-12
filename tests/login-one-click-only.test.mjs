@@ -24,7 +24,7 @@ test('login page exposes employee code login and the employee-only notice', () =
   assert.match(pagesConfig, /"navigationBarTitleText": "登录"/)
 })
 
-test('release login uses the production API in developer tools and on devices', () => {
+test('config uses the online API in developer tools and on devices', () => {
   const script = config.replace(/^import .*$/gm, '').replace(/^export /gm, '')
   const baseUrl = (platform) =>
     runInNewContext(`${script}\nBASE_URL`, {
