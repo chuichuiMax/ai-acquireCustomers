@@ -1,4 +1,11 @@
 unpackage/
+dist/
+node_modules/
+package.json
+package-lock.json
+vite.config.js
+tests/ai-cover-prompt-catalog.test.mjs
+tests/generate-type-grid-layout.test.mjs
 .DS_Store
 .hbuilderx/*
 !.hbuilderx/launch.json

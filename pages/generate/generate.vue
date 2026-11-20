@@ -158,9 +158,15 @@
         </view>
         <view v-if="coverMode === 'builtin'" class="cover-template-block">
           <text class="block-title cover-template-title">小红书封面模板 *</text>
-          <scroll-view class="templates" scroll-x enable-flex>
+          <scroll-view
+            class="templates"
+            scroll-x
+            enable-flex
+            lower-threshold="120"
+            @scrolltolower="loadMoreBuiltinCoverImages"
+          >
             <view
-              v-for="item in builtinCoverTemplates"
+              v-for="item in visibleBuiltinCoverTemplates"
               :key="item.id"
               class="tpl"
               :class="{ active: coverTemplateId === item.id }"
@@ -168,6 +174,7 @@
             >
               <view class="tpl-preview">
                 <image
+                  v-if="templateCardSrc(item)"
                   class="tpl-image"
                   :src="templateCardSrc(item)"
                   mode="aspectFit"
@@ -180,7 +187,8 @@
               </text>
             </view>
           </scroll-view>
-          <text v-if="!builtinCoverTemplates.length" class="tpl-empty">暂无内置封面模板，请稍后再试或改用 AI 封面</text>
+          <text v-if="!builtinCoverTemplates.length" class="tpl-empty">{{ builtinCoverEmptyHint }}</text>
+          <text v-else-if="builtinCoverUncategorizedTip" class="tpl-empty">{{ builtinCoverUncategorizedTip }}</text>
         </view>
         <view v-else class="cover-template-block">
           <text class="block-title cover-template-title">选择封面模板 *</text>
@@ -380,6 +388,15 @@ import { saveActiveGeneration } from '../../utils/active-generation.mjs'
 import { formatContentRequestJson } from '../../utils/content-request-payload.mjs'
 import { buildDirectProductionSelection, mapNrlxToCtCode } from '../../utils/mp-direct-production.mjs'
 import {
+  BUILTIN_COVER_PRELOAD_COUNT,
+  builtinCoverEmptyText,
+  builtinCoverUncategorizedHint,
+  filterBuiltinCoverTemplates,
+  nextTemplateBatchCount,
+  sliceTemplateBatch,
+  syncBuiltinCoverSelection
+} from '../../utils/builtin-cover-templates.mjs'
+import {
   AI_COVER_SMART_RANDOM_VARIANT,
   findAiCoverPromptOption,
   isAiCoverSmartRandomVariant
@@ -479,7 +496,8 @@ function createInitialSchema() {
     regions: [],
     region_tree: [],
     cover_templates: [],
-    hycanvas_templates: []
+    hycanvas_templates: [],
+    ai_cover_prompts_by_type_code: {}
   }
 }
 
@@ -543,12 +561,16 @@ export default {
       homeTypeCardSize: null,
       templateThumbnailSources: {},
       templateThumbnailPending: {},
+      builtinCoverVisibleCount: BUILTIN_COVER_PRELOAD_COUNT,
+      _builtinCoverBatchToken: 0,
+      _builtinCoverBatchLoading: false,
       directProduction: null,
       directProductionLoading: false,
       pendingDraftReset: false,
       aiCoverPromptVariant: AI_COVER_SMART_RANDOM_VARIANT,
       aiCoverPromptCatalog: [],
-      aiCoverPromptCatalogLoading: false
+      aiCoverPromptCatalogLoading: false,
+      _aiCoverCatalogRequestId: 0
     }
   },
   computed: {
@@ -568,10 +590,6 @@ export default {
     contentTypes() {
       if (this.isReviewNotes) return [REVIEW_NOTES_TYPE]
       return this.schema.content_types || []
-    },
-    selectedContentTypeName() {
-      const selected = this.contentTypes.find((item) => item.type_code === this.contentTypeCode)
-      return (selected && selected.name) || '未选择'
     },
     variables() {
       let list = []
@@ -687,8 +705,27 @@ export default {
     selectedTemplate() {
       return (this.schema.hycanvas_templates || []).find((item) => item.id === this.coverTemplateId) || null
     },
+    selectedContentTypeName() {
+      const selected = this.contentTypes.find((item) => item.type_code === this.contentTypeCode)
+      return (selected && selected.name) || (this.contentTypeCode ? '' : '未选择')
+    },
     builtinCoverTemplates() {
-      return (this.schema.hycanvas_templates || []).filter((item) => item && item.zone !== 'featured')
+      // 与 PC ContentStudio 一致：排除 featured；按内容类型分类过滤（含「通用」与同 CT 别名）。
+      return filterBuiltinCoverTemplates(
+        this.schema.hycanvas_templates || [],
+        this.selectedContentTypeName === '未选择' ? '' : this.selectedContentTypeName
+      )
+    },
+    builtinCoverEmptyHint() {
+      const typeName = this.selectedContentTypeName === '未选择' ? '' : this.selectedContentTypeName
+      return builtinCoverEmptyText(this.schema.hycanvas_templates || [], typeName)
+    },
+    builtinCoverUncategorizedTip() {
+      const typeName = this.selectedContentTypeName === '未选择' ? '' : this.selectedContentTypeName
+      return builtinCoverUncategorizedHint(this.schema.hycanvas_templates || [], typeName)
+    },
+    visibleBuiltinCoverTemplates() {
+      return sliceTemplateBatch(this.builtinCoverTemplates, 0, this.builtinCoverVisibleCount)
     },
     aiCoverPromptCatalogQuery() {
       const selected = this.contentTypes.find((item) => item.type_code === this.contentTypeCode)
@@ -768,7 +805,7 @@ export default {
         if (name && next[name] === undefined) next[name] = ''
       }
       this.formValues = next
-      if (this.typeStepDone) this.loadAiCoverPromptCatalog()
+      // AI 封面目录由 selectContentType / setCoverMode 显式加载，避免切换类型时重复请求。
     },
     coverPhotoSrc() {
       this.previewPhotoLocal = ''
@@ -784,6 +821,11 @@ export default {
       this.previewPhotoLocal = ''
       this.compositeFallback = this.coverMode !== 'builtin'
       this.queueCoverComposite()
+    },
+    builtinCoverTemplates(list) {
+      if (this.coverMode !== 'builtin') return
+      const nextId = syncBuiltinCoverSelection(this.coverTemplateId, list, { autoSelectFirst: true })
+      if (nextId !== this.coverTemplateId) this.coverTemplateId = nextId
     }
   },
   methods: {
@@ -794,7 +836,8 @@ export default {
       const source = this.templateCardOriginalSrc(item)
       if (!source) return ''
       const key = this.templateThumbnailKey(item, source)
-      return this.templateThumbnailSources[key] || source
+      // 仅展示已完成批次处理的图，避免未进入批次或处理中时提前打 preview 接口。
+      return this.templateThumbnailSources[key] || ''
     },
     templateCardOriginalSrc(item) {
       if (!item) return ''
@@ -804,9 +847,15 @@ export default {
     templateThumbnailKey(item, source) {
       return `${String((item && item.id) || '')}:${String(source || '')}`
     },
-    async prepareTemplateThumbnails(templates) {
+    resetBuiltinCoverImageBatch() {
+      this.builtinCoverVisibleCount = BUILTIN_COVER_PRELOAD_COUNT
+      this._builtinCoverBatchToken += 1
+      this._builtinCoverBatchLoading = false
+    },
+    async prepareTemplateThumbnails(templates, limit = BUILTIN_COVER_PRELOAD_COUNT) {
       const list = Array.isArray(templates) ? templates : []
-      for (const item of list) {
+      const capped = limit > 0 ? list.slice(0, limit) : list
+      for (const item of capped) {
         await this.prepareTemplateThumbnail(item)
       }
     },
@@ -814,14 +863,15 @@ export default {
       const source = this.templateCardOriginalSrc(item)
       const key = this.templateThumbnailKey(item, source)
       if (!source || this.templateThumbnailSources[key] || this.templateThumbnailPending[key]) return
-      this.$set(this.templateThumbnailPending, key, true)
+      this.templateThumbnailPending[key] = true
       try {
         const path = await this.renderTemplateThumbnail(source)
-        if (path) this.$set(this.templateThumbnailSources, key, path)
+        // Canvas 失败时回退原图 URL，保证该批仍能显示，且不会在 pending 阶段提前请求。
+        this.templateThumbnailSources[key] = path || source
       } catch (error) {
-        // Keep the original preview when Canvas processing is unavailable.
+        this.templateThumbnailSources[key] = source
       } finally {
-        this.$delete(this.templateThumbnailPending, key)
+        delete this.templateThumbnailPending[key]
       }
     },
     renderTemplateThumbnail(source) {
@@ -888,9 +938,10 @@ export default {
         await this.loadAiCoverPromptCatalog()
       } else {
         await this.ensureCoverTemplatesLoaded()
-        if (!this.coverTemplateId && this.builtinCoverTemplates.length) {
-          this.coverTemplateId = this.builtinCoverTemplates[0].id
-        }
+        this.coverTemplateId = syncBuiltinCoverSelection(this.coverTemplateId, this.builtinCoverTemplates, {
+          autoSelectFirst: true
+        })
+        await this.ensureBuiltinCoverImageBatch(BUILTIN_COVER_PRELOAD_COUNT)
       }
     },
     selectAiCoverPrompt(item) {
@@ -914,29 +965,61 @@ export default {
       const joined = params.length ? `${path}${path.includes('?') ? '&' : '?'}${params.join('&')}` : path
       return mediaUrl(joined)
     },
+    preloadedAiCoverPromptsFor(typeCode) {
+      const code = String(typeCode || '').trim()
+      if (!code) return []
+      const map = (this.schema && this.schema.ai_cover_prompts_by_type_code) || {}
+      const direct = map[code]
+      if (Array.isArray(direct) && direct.length) return direct
+      const selected = this.contentTypes.find((item) => item.type_code === code)
+      const ctCode = mapNrlxToCtCode(code, selected && selected.name)
+      const mapped = ctCode ? map[ctCode] : null
+      return Array.isArray(mapped) && mapped.length ? mapped : []
+    },
+    applyAiCoverPromptCatalog(prompts) {
+      const list = Array.isArray(prompts) ? prompts : []
+      this.aiCoverPromptCatalog = list
+      if (
+        this.aiCoverPromptVariant &&
+        !isAiCoverSmartRandomVariant(this.aiCoverPromptVariant) &&
+        !list.some((row) => row.variant === this.aiCoverPromptVariant)
+      ) {
+        this.aiCoverPromptVariant = AI_COVER_SMART_RANDOM_VARIANT
+      }
+      if (!this.aiCoverPromptVariant && list.length) {
+        this.aiCoverPromptVariant = list[0].variant
+      }
+    },
     async loadAiCoverPromptCatalog() {
       if (this.serviceEntry !== '装修家居' || !this.contentTypeCode) return
-      if (this.aiCoverPromptCatalogLoading) return
-      this.aiCoverPromptCatalogLoading = true
+      const typeCode = this.contentTypeCode
       const query = this.aiCoverPromptCatalogQuery
+      const requestId = this._aiCoverCatalogRequestId + 1
+      this._aiCoverCatalogRequestId = requestId
+      const preloaded = this.preloadedAiCoverPromptsFor(typeCode)
+      // 先用 form-schema 预加载结果占位，避免切换内容类型时短暂空白或停留在旧模板。
+      if (preloaded.length) this.applyAiCoverPromptCatalog(preloaded)
+      this.aiCoverPromptCatalogLoading = true
       try {
         const data = await mpContentApi.listAiCoverPrompts(query)
+        if (requestId !== this._aiCoverCatalogRequestId || this.contentTypeCode !== typeCode) return
         const prompts = (data && data.prompts) || []
-        this.aiCoverPromptCatalog = prompts
-        if (
-          this.aiCoverPromptVariant &&
-          !isAiCoverSmartRandomVariant(this.aiCoverPromptVariant) &&
-          !prompts.some((row) => row.variant === this.aiCoverPromptVariant)
-        ) {
-          this.aiCoverPromptVariant = AI_COVER_SMART_RANDOM_VARIANT
-        }
-        if (!this.aiCoverPromptVariant && prompts.length) {
-          this.aiCoverPromptVariant = prompts[0].variant
-        }
+        this.applyAiCoverPromptCatalog(prompts)
+        const byType = { ...((this.schema && this.schema.ai_cover_prompts_by_type_code) || {}) }
+        byType[typeCode] = prompts
+        const ctCode = query.content_type_code
+        if (ctCode && ctCode !== typeCode) byType[ctCode] = prompts
+        this.schema = { ...this.schema, ai_cover_prompts_by_type_code: byType }
       } catch (error) {
-        this.aiCoverPromptCatalog = []
+        if (requestId !== this._aiCoverCatalogRequestId || this.contentTypeCode !== typeCode) return
+        // 列表接口失败时保留预加载/已有模板，避免误显示「暂无 AI 封面模板」。
+        if (!this.aiCoverPromptCatalog.length && preloaded.length) {
+          this.applyAiCoverPromptCatalog(preloaded)
+        }
       } finally {
-        this.aiCoverPromptCatalogLoading = false
+        if (requestId === this._aiCoverCatalogRequestId) {
+          this.aiCoverPromptCatalogLoading = false
+        }
       }
     },
     selectCoverTemplate(templateId) {
@@ -946,9 +1029,63 @@ export default {
     },
     async ensureCoverTemplatesLoaded() {
       if (this.serviceEntry !== '装修家居') return
-      if ((this.schema.hycanvas_templates || []).length) return
-      await this.loadHycanvasTemplates(this.serviceEntry)
-      await this.loadCoverTemplateExtras(this.serviceEntry)
+      if (this._coverTemplatesLoaded && (this.schema.hycanvas_templates || []).length) return
+      if (this._coverTemplatesPromise) return this._coverTemplatesPromise
+      const serviceEntry = this.serviceEntry
+      this._coverTemplatesPromise = (async () => {
+        let templates = []
+        try {
+          const data = await mpContentApi.hycanvasTemplates()
+          if (this.serviceEntry !== serviceEntry) return
+          templates = data.hycanvas_templates || []
+        } catch (error) {}
+        try {
+          const extra = extraTemplateList(await mpContentApi.coverTemplates())
+          if (this.serviceEntry !== serviceEntry) return
+          this.hycanvasTemplateExtras = extra
+        } catch (error) {}
+        if (this.serviceEntry !== serviceEntry) return
+        // 列表只拉一次；缩略图由 preload / 切到内置封面时按前 N 条处理。
+        this.applyHycanvasTemplates(templates)
+        this._coverTemplatesLoaded = true
+      })().finally(() => {
+        this._coverTemplatesPromise = null
+      })
+      return this._coverTemplatesPromise
+    },
+    async preloadBuiltinCoverTemplates() {
+      if (this.serviceEntry !== '装修家居' || !this.contentTypeCode) return
+      this.resetBuiltinCoverImageBatch()
+      await this.ensureCoverTemplatesLoaded()
+      await this.ensureBuiltinCoverImageBatch(BUILTIN_COVER_PRELOAD_COUNT)
+    },
+    async ensureBuiltinCoverImageBatch(count = BUILTIN_COVER_PRELOAD_COUNT) {
+      const templates = this.builtinCoverTemplates
+      const target = Math.min(templates.length, Math.max(this.builtinCoverVisibleCount, count))
+      this.builtinCoverVisibleCount = target
+      const token = this._builtinCoverBatchToken
+      const batch = sliceTemplateBatch(templates, 0, target)
+      await this.prepareTemplateThumbnails(batch, 0)
+      if (token !== this._builtinCoverBatchToken) return
+    },
+    async loadMoreBuiltinCoverImages() {
+      if (this.coverMode !== 'builtin' || this._builtinCoverBatchLoading) return
+      const total = this.builtinCoverTemplates.length
+      if (this.builtinCoverVisibleCount >= total) return
+      const from = this.builtinCoverVisibleCount
+      const next = nextTemplateBatchCount(from, total, BUILTIN_COVER_PRELOAD_COUNT)
+      if (next <= from) return
+      this._builtinCoverBatchLoading = true
+      const token = this._builtinCoverBatchToken
+      this.builtinCoverVisibleCount = next
+      try {
+        const batch = sliceTemplateBatch(this.builtinCoverTemplates, from, next - from)
+        await this.prepareTemplateThumbnails(batch, 0)
+      } finally {
+        if (token === this._builtinCoverBatchToken) {
+          this._builtinCoverBatchLoading = false
+        }
+      }
     },
     loadLocalImage(src) {
       return new Promise((resolve, reject) => {
@@ -1139,10 +1276,11 @@ export default {
         this._typeSelectTimer = null
       }
       const shouldClearDraft = Boolean(this.contentTypeCode || this.typeStepDone)
-      this.contentTypeCode = typeCode
+      // 先清草稿再写入新类型，避免 watcher 预加载后被 reset 清空。
       if (shouldClearDraft) {
         this.resetProductionFormState()
       }
+      this.contentTypeCode = typeCode
       this.directProduction = null
       let directReady = true
       if (this.isHomeDecor) {
@@ -1152,6 +1290,11 @@ export default {
           return
         }
       }
+      // 直出准备成功后只拉一次 AI 封面；内置封面列表预拉并只处理前 10 条缩略图。
+      if (this.isHomeDecor) {
+        this.loadAiCoverPromptCatalog()
+        this.preloadBuiltinCoverTemplates()
+      }
       // 先高亮卡片，再进入业务变量步骤
       this._typeSelectTimer = setTimeout(() => {
         if (
@@ -1160,8 +1303,6 @@ export default {
           (!this.isHomeDecor || this.directProduction)
         ) {
           this.typeStepDone = true
-          this.ensureCoverTemplatesLoaded()
-          this.loadAiCoverPromptCatalog()
         } else {
           this.contentTypeCode = ''
           this.directProduction = null
@@ -1329,6 +1470,9 @@ export default {
       this.schema = createInitialSchema()
       this.schemaLoaded = false
       this.hycanvasTemplateExtras = []
+      this._coverTemplatesLoaded = false
+      this._coverTemplatesPromise = null
+      this.resetBuiltinCoverImageBatch()
       this.loadSchema()
     },
     captureHomeTypeCardSize() {
@@ -1377,31 +1521,13 @@ export default {
     applyHycanvasTemplates(templates) {
       const mergedTemplates = mergeCoverTemplates(templates, this.hycanvasTemplateExtras)
       this.schema = { ...this.schema, hycanvas_templates: mergedTemplates }
-      this.prepareTemplateThumbnails(mergedTemplates)
-      const builtins = mergedTemplates.filter((item) => item && item.zone !== 'featured')
       if (this.coverMode === 'builtin') {
-        if (!this.coverTemplateId || !builtins.some((item) => item.id === this.coverTemplateId)) {
-          this.coverTemplateId = builtins.length ? builtins[0].id : ''
-        }
+        this.coverTemplateId = syncBuiltinCoverSelection(this.coverTemplateId, this.builtinCoverTemplates, {
+          autoSelectFirst: true
+        })
       } else {
         this.coverTemplateId = ''
       }
-    },
-    async loadHycanvasTemplates(serviceEntry) {
-      if (serviceEntry !== '装修家居') return
-      try {
-        const data = await mpContentApi.hycanvasTemplates()
-        if (this.serviceEntry !== serviceEntry) return
-        this.applyHycanvasTemplates(data.hycanvas_templates || [])
-      } catch (error) {}
-    },
-    async loadCoverTemplateExtras(serviceEntry) {
-      try {
-        const extra = extraTemplateList(await mpContentApi.coverTemplates())
-        if (this.serviceEntry !== serviceEntry) return
-        this.hycanvasTemplateExtras = extra
-        this.applyHycanvasTemplates(this.schema.hycanvas_templates || [])
-      } catch (error) {}
     },
     matchFrameArea(text) {
       const band = matchFrameAreaValue(text)
