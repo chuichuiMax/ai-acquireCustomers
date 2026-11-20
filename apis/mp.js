@@ -481,17 +481,16 @@ function requirementListQuery(params = {}) {
 export const mpRequirementListApi = {
   list: (params = {}) => request({ url: `/api/mp/requirement-lists?${requirementListQuery(params)}` }),
   create: (data) => request({ url: '/api/mp/requirement-lists', method: 'POST', data }),
-  /** 客户通过分享卡片填写，工号归属分享员工（与 PC /api/requirement-lists/public 同源） */
-  createShared: async (data) => {
-    try {
-      return await request({ url: '/api/mp/requirement-lists/public', method: 'POST', data, requiresAuth: false })
-    } catch (error) {
-      if (error && error.statusCode === 404) {
-        return await request({ url: '/api/requirement-lists/public', method: 'POST', data, requiresAuth: false })
-      }
-      throw error
-    }
-  },
+  createVisitorSession: (data) =>
+    request({
+      url: '/api/mp/requirement-lists/visitor-sessions',
+      method: 'POST',
+      data,
+      requiresAuth: false
+    }),
+  /** 客户通过分享卡片填写：需微信会话、手机号授权码与昵称 */
+  createShared: (data) =>
+    request({ url: '/api/mp/requirement-lists/public', method: 'POST', data, requiresAuth: false }),
   get: (id) => request({ url: `/api/mp/requirement-lists/${encodeURIComponent(id)}` })
 }
 

@@ -123,14 +123,25 @@ export default {
     const typeId = (dataset && dataset.type) || this.shareTypeId || 'rough'
     const item = this.formItems.find((entry) => entry.id === typeId) || this.formItems[0]
     const code = this.employee.employee_code || readPersistedEmployeeCode()
+    const path = buildRequirementListSharePath({ typeId: item ? item.id : typeId, staffCode: code })
+    if (!path) {
+      return {
+        title: `${item ? item.title : '需求清单'} · 鸿扬家居`,
+        path: '/pages/mine/requirement-list'
+      }
+    }
     return {
       title: `${item ? item.title : '需求清单'} · 鸿扬家居`,
-      path: buildRequirementListSharePath({ typeId: item ? item.id : typeId, staffCode: code })
+      path
     }
   },
   methods: {
     prepareShare(item) {
       if (item && item.id) this.shareTypeId = item.id
+      const code = this.employee.employee_code || readPersistedEmployeeCode()
+      if (!code) {
+        uni.showToast({ title: '当前账号没有员工工号，无法分享给客户填写', icon: 'none' })
+      }
     },
     formatTime: formatRequirementRecordTime,
     customerLine: requirementRecordCustomerLine,

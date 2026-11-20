@@ -28,11 +28,39 @@
         <text class="lbl">分享人工号</text>
         <input v-model="staffCode" class="txt" />
       </view>
+      <view v-if="guestShare && !readonly" class="preview-card guest-consent-card">
+        <text class="lbl">提交人 · {{ guestNickname || '请先填写微信昵称' }}</text>
+        <view class="guest-consent">
+          <view class="guest-consent-toggle" @tap.stop="toggleGuestConsent">
+            <view class="guest-consent-circle" :class="{ checked: guestConsent }"><text v-if="guestConsent">✓</text></view>
+          </view>
+          <view class="guest-consent-text">
+            <text>手机号与昵称将记录为提交人，仅用于设计师联系。请阅读</text>
+            <text class="guest-privacy" @tap.stop="openGuestPrivacy">《隐私保护指引》</text>
+            <text>并勾选同意。</text>
+          </view>
+        </view>
+        <text v-if="guestAuthError" class="guest-error">{{ guestAuthError }}</text>
+      </view>
     </scroll-view>
     <view class="wizard-foot preview-foot">
       <view v-if="!readonly" class="foot-btn outline" @tap.stop="leavePreview">返回修改</view>
       <view v-if="readonly" class="foot-btn outline" @tap.stop="goBack">返回</view>
-      <view v-if="!readonly" class="foot-btn primary" :class="{ loading: submitting }" @tap.stop="submitForm">提交</view>
+      <!-- #ifdef MP-WEIXIN -->
+      <button
+        v-if="!readonly && guestShare"
+        class="foot-btn primary guest-submit-btn"
+        :class="{ loading: submitting }"
+        :open-type="guestSubmitReady ? 'getPhoneNumber|agreePrivacyAuthorization' : ''"
+        :disabled="submitting || !guestSubmitReady"
+        :loading="submitting"
+        @tap.stop="beginGuestSubmit"
+        @getphonenumber="submitGuestWithPhone"
+      >
+        {{ submitting ? '正在提交…' : '同意授权并提交' }}
+      </button>
+      <!-- #endif -->
+      <view v-if="!readonly && !guestShare" class="foot-btn primary" :class="{ loading: submitting }" @tap.stop="submitForm">提交</view>
     </view>
   </view>
 
@@ -47,14 +75,37 @@
     </view>
 
     <scroll-view scroll-y class="wizard-body" :show-scrollbar="true">
+      <view v-if="stepIndex === 0 && guestShare" class="card">
+        <text class="card-title">微信身份</text>
+        <!-- #ifdef MP-WEIXIN -->
+        <input
+          v-model="guestNickname"
+          class="txt block"
+          type="nickname"
+          placeholder="微信昵称（点击使用微信昵称）"
+          @blur="normalizeGuestNickname"
+        />
+        <!-- #endif -->
+        <!-- #ifndef MP-WEIXIN -->
+        <input v-model="guestNickname" class="txt block" placeholder="您的称呼" />
+        <!-- #endif -->
+        <text v-if="guestSessionLoading" class="field-note">正在连接微信…</text>
+        <text v-else-if="guestSessionError" class="guest-error block">{{ guestSessionError }}</text>
+        <button v-else-if="!guestSession" class="guest-retry" @tap.stop="prepareGuestSession">重新连接微信</button>
+        <text v-else class="field-note">提交时将授权微信手机号，手机号与昵称记入「提交人」。</text>
+      </view>
+
       <view v-if="stepIndex === 0" class="card">
         <text class="card-title">客户信息</text>
         <input v-model="address" class="txt block" placeholder="楼盘地址" />
-        <view class="row-2">
+        <template v-if="guestShare">
+          <input v-model="customerName" class="txt block" placeholder="客户姓名（选填）" />
+        </template>
+        <view v-else class="row-2">
           <input v-model="customerName" class="txt" placeholder="姓名" />
           <input v-model="phone" class="txt" type="number" maxlength="11" placeholder="手机号码" />
         </view>
-        <text class="field-note">楼盘地址 / 姓名 / 手机至少填写一项即可提交</text>
+        <text class="field-note">{{ guestShare ? '楼盘地址或客户姓名至少填一项；手机号在提交时微信授权获取' : '楼盘地址 / 姓名 / 手机至少填写一项即可提交' }}</text>
       </view>
 
       <view v-for="question in stepQuestions" :key="question.key" class="card q-card">
@@ -167,10 +218,26 @@ export default {
       submitting: false,
       stepIndex: 0,
       previewMode: false,
-      previewFilledOnly: false
+      previewFilledOnly: false,
+      guestNickname: '',
+      guestSession: '',
+      guestSessionExpiresAt: 0,
+      guestSessionLoading: false,
+      guestSessionError: '',
+      guestConsent: false,
+      guestAuthError: ''
     }
   },
   computed: {
+    guestSubmitReady() {
+      if (!this.guestShare) return false
+      if (!String(this.guestNickname || '').trim()) return false
+      if (!this.guestSession) return false
+      if (!this.guestConsent) return false
+      const name = String(this.customerName || '').trim()
+      const place = String(this.address || '').trim()
+      return Boolean(name || place)
+    },
     stepCount() {
       return this.formSteps.length
     },
@@ -211,13 +278,7 @@ export default {
   },
   async onLoad(options) {
     const safeOptions = options || {}
-    this.guestShare = isRequirementGuestPageOptions(safeOptions)
-    if (this.guestShare) {
-      this.staffCode = String(safeOptions.staff || safeOptions.usercode || '').trim()
-      if (!this.staffCode) {
-        uni.showToast({ title: '分享链接无效，缺少员工工号', icon: 'none' })
-      }
-    }
+    this.applyGuestShareOptions(safeOptions)
     const typeId = safeOptions.type ? safeOptions.type : 'rough'
     const form = REQUIREMENT_FORM_ITEMS.find((item) => item.id === typeId) || REQUIREMENT_FORM_ITEMS[0]
     this.requirementType = requirementTypeForForm(form)
@@ -230,15 +291,17 @@ export default {
     uni.setNavigationBarTitle({ title: this.readonly ? '填写预览' : form.title })
   },
   async onShow() {
+    const pages = getCurrentPages()
+    const current = pages[pages.length - 1]
+    const options = (current && current.options) || {}
+    if (!this.guestShare) this.applyGuestShareOptions(options)
     if (this.guestShare) {
       this.internalAccessGranted = true
     } else if (!(await this.ensureInternalAccess())) {
       return
     }
-    const pages = getCurrentPages()
-    const current = pages[pages.length - 1]
-    const options = (current && current.options) || {}
     if (!this.guestShare && !this.readonly) await this.loadStaffCode(true)
+    if (this.guestShare && !this.readonly) await this.prepareGuestSession()
     if (options.id && !this._detailLoaded) {
       this.readonly = true
       this.previewMode = true
@@ -248,6 +311,16 @@ export default {
   },
   methods: {
     kindLabel,
+    applyGuestShareOptions(pageOptions = {}) {
+      if (!isRequirementGuestPageOptions(pageOptions)) return
+      this.guestShare = true
+      const staff = String(pageOptions.staff || pageOptions.usercode || '').trim()
+      if (staff) this.staffCode = staff
+      else if (!this._guestStaffWarned) {
+        this._guestStaffWarned = true
+        uni.showToast({ title: '分享链接无效，缺少员工工号', icon: 'none' })
+      }
+    },
     applyFormPack(typeId) {
       const pack = requirementFormPack(typeId)
       this.formTypeId = pack.id
@@ -261,7 +334,16 @@ export default {
       return String(row.value || '').trim()
     },
     async openPreview() {
-      if (!this.guestShare) await this.loadStaffCode(true)
+      if (this.guestShare) {
+        this.normalizeGuestNickname()
+        if (!String(this.guestNickname || '').trim()) {
+          uni.showToast({ title: '请先填写微信昵称', icon: 'none' })
+          return
+        }
+        if (!this.guestSession) await this.prepareGuestSession()
+      } else {
+        await this.loadStaffCode(true)
+      }
       this.previewMode = true
       uni.setNavigationBarTitle({ title: '填写预览' })
     },
@@ -328,8 +410,114 @@ export default {
       else list.push(value)
       this.answers[key] = list
     },
+    normalizeGuestNickname() {
+      this.guestNickname = String(this.guestNickname || '').trim().slice(0, 32)
+    },
+    toggleGuestConsent() {
+      if (!this.submitting) this.guestConsent = !this.guestConsent
+    },
+    openGuestPrivacy() {
+      // #ifdef MP-WEIXIN
+      if (typeof wx !== 'undefined' && typeof wx.openPrivacyContract === 'function') {
+        wx.openPrivacyContract({
+          fail: () => {
+            this.guestAuthError = '隐私保护指引暂时无法打开，请稍后重试'
+          }
+        })
+      }
+      // #endif
+    },
+    async prepareGuestSession() {
+      if (!this.guestShare || this.guestSessionLoading) return
+      const staff = String(this.staffCode || '').trim()
+      if (!staff) return
+      if (this.guestSession && Date.now() < this.guestSessionExpiresAt) return
+      this.guestSessionLoading = true
+      this.guestSessionError = ''
+      try {
+        const login = await new Promise((resolve, reject) => uni.login({ timeout: 10000, success: resolve, fail: reject }))
+        const session = await mpRequirementListApi.createVisitorSession({
+          code: login.code,
+          staff_code: staff
+        })
+        this.guestSession = session.session_id
+        this.guestSessionExpiresAt = Date.now() + Math.max(30, (session.expires_in || 600) - 15) * 1000
+      } catch (error) {
+        const errMsg = String((error && (error.errMsg || error.message)) || '')
+        this.guestSession = ''
+        this.guestSessionError = /deny|cancel|privacy/i.test(errMsg)
+          ? '请同意微信隐私保护指引后重试'
+          : errorMessage(error) || '微信连接失败，请稍后重试'
+      } finally {
+        this.guestSessionLoading = false
+      }
+    },
+    beginGuestSubmit() {
+      this.guestAuthError = ''
+      this.normalizeGuestNickname()
+      if (!this.guestSubmitReady) {
+        if (!String(this.guestNickname || '').trim()) {
+          uni.showToast({ title: '请先填写微信昵称', icon: 'none' })
+          return
+        }
+        if (!this.guestConsent) {
+          uni.showToast({ title: '请先阅读并同意隐私说明', icon: 'none' })
+          return
+        }
+        const name = String(this.customerName || '').trim()
+        const place = String(this.address || '').trim()
+        if (!name && !place) {
+          uni.showToast({ title: '请填写楼盘地址或客户姓名', icon: 'none' })
+        }
+        if (!this.guestSession) this.prepareGuestSession()
+      }
+    },
+    async submitGuestWithPhone(event) {
+      if (this.readonly || this.submitting || !this.guestShare) return
+      const detail = event.detail || {}
+      this.normalizeGuestNickname()
+      if (!detail.code) {
+        this.guestAuthError = /deny|cancel/i.test(detail.errMsg || '')
+          ? '已取消手机号授权，尚未提交'
+          : '未能获取微信手机号，请稍后重试'
+        return
+      }
+      if (!this.guestSubmitReady) {
+        this.beginGuestSubmit()
+        return
+      }
+      const staff = String(this.staffCode || '').trim()
+      this.submitting = true
+      this.guestAuthError = ''
+      try {
+        const name = String(this.customerName || '').trim()
+        const place = String(this.address || '').trim()
+        const nickname = String(this.guestNickname || '').trim()
+        const payload = {
+          requirement_type: this.requirementType,
+          customer_name: name,
+          address: place,
+          staff_code: staff,
+          answers: cloneAnswers(this.answers),
+          visitor_session_id: this.guestSession,
+          phone_code: detail.code,
+          submitter_nickname: nickname
+        }
+        await mpRequirementListApi.createShared(payload)
+        uni.showModal({
+          title: '提交成功',
+          content: '您的需求清单已提交，设计师会尽快与您联系。',
+          showCancel: false
+        })
+      } catch (error) {
+        this.guestAuthError = errorMessage(error) || '提交失败'
+        if (error && error.statusCode === 401) this.guestSession = ''
+      } finally {
+        this.submitting = false
+      }
+    },
     async submitForm() {
-      if (this.readonly || this.submitting) return
+      if (this.readonly || this.submitting || this.guestShare) return
       const name = String(this.customerName || '').trim()
       const mobile = String(this.phone || '').trim()
       const place = String(this.address || '').trim()
@@ -358,19 +546,10 @@ export default {
           answers: cloneAnswers(this.answers)
         }
         if (mobile) payload.phone = mobile
-        if (this.guestShare) {
-          await mpRequirementListApi.createShared(payload)
-          uni.showModal({
-            title: '提交成功',
-            content: '您的需求清单已提交，设计师会尽快与您联系。',
-            showCancel: false
-          })
-        } else {
-          await mpRequirementListApi.create(payload)
-          const eventChannel = this.getOpenerEventChannel && this.getOpenerEventChannel()
-          if (eventChannel) eventChannel.emit('requirementSubmitted')
-          uni.navigateBack()
-        }
+        await mpRequirementListApi.create(payload)
+        const eventChannel = this.getOpenerEventChannel && this.getOpenerEventChannel()
+        if (eventChannel) eventChannel.emit('requirementSubmitted')
+        uni.navigateBack()
       } catch (error) {
         uni.showToast({ title: errorMessage(error) || '提交失败', icon: 'none' })
       } finally {
@@ -523,4 +702,45 @@ export default {
 .preview-value { display: block; font-size: 14px; color: #333; line-height: 1.5; }
 .preview-value.empty { color: #bbb; }
 .lbl { display: block; font-size: 13px; color: #666; margin-bottom: 8px; }
+.guest-error { display: block; margin-top: 8px; font-size: 12px; color: #d5262b; line-height: 1.5; }
+.guest-error.block { margin-top: 6px; }
+.guest-retry {
+  margin-top: 8px;
+  height: 40px;
+  line-height: 40px;
+  font-size: 14px;
+  color: #d5262b;
+  background: #fff7f7;
+  border: 1px solid #f0c4c4;
+  border-radius: 8px;
+}
+.guest-consent { display: flex; align-items: flex-start; gap: 10px; margin-top: 6px; }
+.guest-consent-toggle { flex-shrink: 0; padding: 2px 0; }
+.guest-consent-circle {
+  width: 18px;
+  height: 18px;
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #fff;
+}
+.guest-consent-circle.checked { background: #d5262b; border-color: #d5262b; }
+.guest-consent-text { font-size: 12px; color: #666; line-height: 1.55; }
+.guest-privacy { color: #3d6bff; }
+.guest-consent-card { padding-bottom: 12px; }
+button.guest-submit-btn,
+button.guest-submit-btn::after {
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+button.guest-submit-btn.foot-btn.primary {
+  background: #d5262b;
+  color: #fff;
+}
+button.guest-submit-btn.loading { opacity: 0.65; }
 </style>

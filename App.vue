@@ -20,7 +20,8 @@ import {
 } from './utils/share-entry.mjs'
 import {
   buildRequirementListGuestPath,
-  isRequirementListGuestLaunch
+  isRequirementListGuestLaunch,
+  REQUIREMENT_FILL_ROUTE
 } from './utils/requirement-list-share.mjs'
 
 const ENTRY_URL = '/pages/index/index'
@@ -134,7 +135,9 @@ export default {
 		}
 		if (isRequirementListGuestLaunch(options)) {
 			const guestPath = buildRequirementListGuestPath(options)
-			if (guestPath && path !== 'pages/mine/requirement-list-fill') safeReLaunch(guestPath)
+			const onFillGuest =
+				path === REQUIREMENT_FILL_ROUTE || route === REQUIREMENT_FILL_ROUTE
+			if (guestPath && !onFillGuest) safeReLaunch(guestPath)
 			return
 		}
 		const normalCaseEntry = NORMAL_ENTRY_SCENES.has(scene) && (

@@ -10,6 +10,10 @@ import {
   getLastShareId,
   saveLastShareId
 } from '../utils/share-entry.mjs'
+import {
+  buildRequirementListGuestPath,
+  isRequirementListGuestLaunch
+} from '../utils/requirement-list-share.mjs'
 
 function withStorage(initial = {}) {
   const storage = { ...initial }
@@ -55,11 +59,14 @@ test('app and entry pages keep share routing ahead of workspace routing', () => 
   assert.match(sharedCase, /saveLastShareId\(this\.shareId\)/)
 })
 
-function loadApp({ route = 'pages/materials/shared-case', shareId = 'case-A', allowed = true, storage = {} } = {}) {
+function loadApp({ route = 'pages/materials/shared-case', shareId = 'case-A', pageOptions, allowed = true, storage = {} } = {}) {
   const jumps = []
   let checks = 0
-  let page = { route, options: { shareId } }
+  let page = { route, options: pageOptions || { shareId } }
   const context = {
+    isRequirementListGuestLaunch,
+    buildRequirementListGuestPath,
+    REQUIREMENT_FILL_ROUTE: 'pages/mine/requirement-list-fill',
     resolveAllowedShowUrl,
     getActiveGeneration: () => storage.mp_active_generation || null,
     errorMessage: (error) => error.message || '验证失败',
@@ -128,6 +135,19 @@ test('a visitor reopening a viewed case keeps the existing public case behavior'
   const app = loadApp({ allowed: false, storage: { last_owner_share: { shareId: 'case-A', savedAt: Date.now() } } })
   await app.show({ scene: 1089, path: 'pages/materials/shared-case', query: {} })
   assert.deepEqual(app.jumps, [])
+})
+
+test('requirement share card skips employee login while fill page is open', async () => {
+  const app = loadApp({
+    route: 'pages/mine/requirement-list-fill',
+    pageOptions: { share: '1', staff: 'H001', type: 'rough' }
+  })
+  await app.show({
+    scene: 1007,
+    path: 'pages/mine/requirement-list-fill?share=1&staff=H001&type=rough'
+  })
+  assert.deepEqual(app.jumps, [])
+  assert.equal(app.checks, 0)
 })
 
 for (const allowed of [true, false]) {
