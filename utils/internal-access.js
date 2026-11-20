@@ -1,8 +1,17 @@
 import { safeReLaunch } from './safe-navigation'
 import { mpMeApi } from '../apis/mp'
 import { errorMessage, getToken, setToken } from './request'
-import { createCachedInternalAccessEvaluator, evaluateInternalAccess, hasMiniProgramAccess } from './internal-access-policy.mjs'
-import { clearPersistedEmployeeCode, persistEmployeeCode } from './requirement-list-employee.mjs'
+import {
+  createCachedInternalAccessEvaluator,
+  employeeFromMe,
+  evaluateInternalAccess,
+  hasMiniProgramAccess
+} from './internal-access-policy.mjs'
+import {
+  clearPersistedEmployeeCode,
+  extractEmployeeWorkCode,
+  persistEmployeeCode
+} from './requirement-list-employee.mjs'
 import { getActiveGeneration, resolveAllowedShowUrl, WORKSPACE_HOME_PATH } from './active-generation.mjs'
 import { startLeadReminder, stopLeadReminder } from './lead-reminder'
 
@@ -54,7 +63,7 @@ export function acceptConfirmedLogin(data) {
     throw new Error('登录响应异常，请联系管理员')
   }
   setToken(data.access_token)
-  persistEmployeeCode(data.employee.employee_code)
+  persistEmployeeCode(extractEmployeeWorkCode(data.employee))
   accessEvaluator.confirm(data.access_token)
 }
 
@@ -62,7 +71,12 @@ export async function requireInternalAccess({ redirect = true } = {}) {
   const token = getToken()
   const route = currentRoute()
   while (true) {
-    const decision = await accessEvaluator.evaluate(token, () => mpMeApi.get({ silentAuth: true }))
+    const decision = await accessEvaluator.evaluate(token, async () => {
+      const data = await mpMeApi.get({ silentAuth: true })
+      const code = extractEmployeeWorkCode(employeeFromMe(data))
+      if (code) persistEmployeeCode(code)
+      return data
+    })
     if (getToken() !== token) {
       throw { code: 'INTERNAL_ACCESS_STALE' }
     }

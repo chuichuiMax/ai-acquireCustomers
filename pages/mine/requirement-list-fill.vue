@@ -260,7 +260,8 @@ export default {
     rowDisplay(row) {
       return String(row.value || '').trim()
     },
-    openPreview() {
+    async openPreview() {
+      if (!this.guestShare) await this.loadStaffCode(true)
       this.previewMode = true
       uni.setNavigationBarTitle({ title: '填写预览' })
     },
@@ -341,6 +342,7 @@ export default {
         uni.showToast({ title: '请输入 11 位手机号码', icon: 'none' })
         return
       }
+      if (!this.guestShare) await this.loadStaffCode(true)
       const staff = String(this.staffCode || '').trim()
       if (!staff) {
         uni.showToast({ title: '缺少分享人工号，无法提交', icon: 'none' })

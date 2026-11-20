@@ -95,7 +95,7 @@
 import { mpAuthApi } from '../../apis/mp'
 import { errorMessage } from '../../utils/request'
 import { acceptConfirmedLogin, requireInternalAccess } from '../../utils/internal-access'
-import { persistEmployeeCode } from '../../utils/requirement-list-employee.mjs'
+import { extractEmployeeWorkCode, persistEmployeeCode } from '../../utils/requirement-list-employee.mjs'
 
 export default {
   data() {
@@ -235,6 +235,7 @@ export default {
         const data = await mpAuthApi.confirmLogin({ session_id: session.session_id })
         if (!this.pageActive) return
         acceptConfirmedLogin(data)
+        persistEmployeeCode(extractEmployeeWorkCode(data.employee))
         uni.reLaunch({ url: '/pages/generate/generate' })
       } catch (error) {
         if (this.pageActive) this.wechatError = errorMessage(error)

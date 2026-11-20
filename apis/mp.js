@@ -198,8 +198,17 @@ async function attachEmployee(result, account) {
 export const mpAuthApi = {
   lookupEmployee: (data) =>
     request({ url: '/api/mp/auth/employee/lookup', method: 'POST', data, requiresAuth: false, timeout: 15000 }),
-  loginByEmployeeCode: (data) =>
-    request({ url: '/api/mp/auth/employee/login', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
+  loginByEmployeeCode: async (data) => {
+    const code = String((data && data.employee_code) || '').trim()
+    const result = await request({
+      url: '/api/mp/auth/employee/login',
+      method: 'POST',
+      data,
+      requiresAuth: false,
+      timeout: 30000
+    })
+    return attachEmployee(result, code)
+  },
   sendSms: (data) =>
     request({
       url: '/api/mp/auth/sms/send',
@@ -247,8 +256,17 @@ export const mpAuthApi = {
     request({ url: '/api/mp/auth/wechat/code', method: 'POST', data, requiresAuth: false, timeout: 90000 }),
   bindWechatPhone: (data) =>
     request({ url: '/api/mp/auth/wechat/phone', method: 'POST', data, requiresAuth: false, timeout: 90000 }),
-  confirmLogin: (data) =>
-    request({ url: '/api/mp/auth/confirm', method: 'POST', data, requiresAuth: false, timeout: 30000 }),
+  confirmLogin: async (data) => {
+    const result = await request({
+      url: '/api/mp/auth/confirm',
+      method: 'POST',
+      data,
+      requiresAuth: false,
+      timeout: 30000
+    })
+    const account = result && result.employee ? result.employee.login_account : ''
+    return attachEmployee(result, account)
+  },
   cancelLogin: (data) =>
     request({ url: '/api/mp/auth/cancel', method: 'POST', data, requiresAuth: false, timeout: 15000 }),
   logout: () => request({ url: '/api/mp/auth/logout', method: 'POST' })

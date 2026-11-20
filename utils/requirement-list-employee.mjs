@@ -22,6 +22,13 @@ export function readPersistedEmployeeCode() {
   }
 }
 
+export function extractEmployeeWorkCode(employee = {}) {
+  if (!employee || typeof employee !== 'object') return ''
+  return String(
+    employee.employee_code || employee.employeeCode || employee.work_no || employee.workNo || ''
+  ).trim()
+}
+
 export function resolveRequirementListUserCode(employee = {}) {
-  return String(employee.employee_code || readPersistedEmployeeCode() || '').trim()
+  return extractEmployeeWorkCode(employee) || readPersistedEmployeeCode()
 }
