@@ -1,4 +1,5 @@
 import { downloadMediaToTempFile, publicMediaUrl, getToken, request, setToken, uploadFile } from '../utils/request'
+import { extractEmployeeWorkCode, mergeEmployeeProfile } from '../utils/requirement-list-employee.mjs'
 import { employeeFromMe } from '../utils/internal-access-policy.mjs'
 import {
   isImageDesignAnalysisPendingError,
@@ -123,6 +124,23 @@ function matchEmployeeAccount(employee, account) {
   )
 }
 
+function pickEmployeeListMatch(list, keyword) {
+  const account = String(keyword || '').trim()
+  const matches = []
+  for (let index = 0; index < list.length; index += 1) {
+    if (matchEmployeeAccount(list[index], account)) matches.push(list[index])
+  }
+  if (!matches.length) return list.length === 1 ? list[0] : null
+  const exactEmployee = matches.find(
+    (item) => item.source === 'employee' && extractEmployeeWorkCode(item)
+  )
+  if (exactEmployee) return exactEmployee
+  const codedEmployee = matches.find(
+    (item) => item.source === 'employee' && extractEmployeeWorkCode(item)
+  )
+  return codedEmployee || null
+}
+
 async function findEmployeeByAccount(account) {
   const keyword = String(account || '').trim()
   if (!keyword) return null
@@ -133,11 +151,7 @@ async function findEmployeeByAccount(account) {
       silentAuth: true
     })
     const list = (data && data.employees) || []
-    for (let index = 0; index < list.length; index += 1) {
-      if (matchEmployeeAccount(list[index], keyword)) return list[index]
-    }
-    if (list.length === 1) return list[0]
-    return null
+    return pickEmployeeListMatch(list, keyword)
   } catch (error) {
     if (isMissingApi(error) || (error && (error.statusCode === 401 || error.statusCode === 403))) return null
     if (error && error.statusCode === 408) return null
@@ -145,11 +159,29 @@ async function findEmployeeByAccount(account) {
   }
 }
 
+async function fetchMpMeProfile() {
+  try {
+    const me = await request({ url: '/api/mp/me', timeout: 10000, silentAuth: true })
+    return employeeFromMe(await enrichMeEmployeeCode(me, { silentAuth: true }))
+  } catch (error) {
+    return null
+  }
+}
+
 async function loadEmployeeRecord(data, extraAccount) {
-  const current = employeeFromMe(data)
+  const embedded =
+    data && data.employee && typeof data.employee === 'object' && Object.keys(data.employee).length
+      ? data.employee
+      : null
+  let current = employeeFromMe(data)
   if (current && Object.prototype.hasOwnProperty.call(current, 'login_port')) return current
-  if (data && data.employee && typeof data.employee === 'object' && Object.keys(data.employee).length) {
-    return current
+  if (!current && embedded) current = embedded
+  if (extractEmployeeWorkCode(embedded) || extractEmployeeWorkCode(current)) {
+    return mergeEmployeeProfile(embedded, current) || embedded || current
+  }
+  const meProfile = await fetchMpMeProfile()
+  if (extractEmployeeWorkCode(meProfile)) {
+    return mergeEmployeeProfile(current, meProfile)
   }
   const keywords = []
   const seen = {}
@@ -172,7 +204,7 @@ async function loadEmployeeRecord(data, extraAccount) {
   }
   for (let index = 0; index < keywords.length; index += 1) {
     const employee = await findEmployeeByAccount(keywords[index])
-    if (employee) return employee
+    if (employee) return mergeEmployeeProfile(current, employee)
   }
   return current
 }
@@ -189,10 +221,18 @@ async function withTemporaryToken(token, fn) {
 
 async function attachEmployee(result, account) {
   if (!result || !result.access_token) return result
+  if (result.employee && extractEmployeeWorkCode(result.employee)) {
+    return result
+  }
   const employee = await withTemporaryToken(result.access_token, function () {
     return loadEmployeeRecord(result, account)
   })
-  return employee ? Object.assign({}, result, { employee: employee }) : result
+  if (!employee) return result
+  const merged = mergeEmployeeProfile(result.employee, employee)
+  if (!extractEmployeeWorkCode(merged) && extractEmployeeWorkCode(result.employee)) {
+    merged.employee_code = extractEmployeeWorkCode(result.employee)
+  }
+  return Object.assign({}, result, { employee: merged })
 }
 
 export const mpAuthApi = {
@@ -272,8 +312,26 @@ export const mpAuthApi = {
   logout: () => request({ url: '/api/mp/auth/logout', method: 'POST' })
 }
 
+async function enrichMeEmployeeCode(data, { silentAuth = false } = {}) {
+  if (!data || typeof data !== 'object') return data
+  const employee = employeeFromMe(data) || {}
+  if (extractEmployeeWorkCode(employee)) return data
+  try {
+    const extra = await request({ url: '/api/mp/me/work-code', timeout: 10000, silentAuth })
+    const code = extractEmployeeWorkCode(extra)
+    if (!code) return data
+    const merged = mergeEmployeeProfile(data.employee, Object.assign({}, extra, { employee_code: code }))
+    return Object.assign({}, data, { employee: merged })
+  } catch (error) {
+    return data
+  }
+}
+
 export const mpMeApi = {
-  get: ({ silentAuth = false } = {}) => request({ url: '/api/mp/me', timeout: 15000, silentAuth })
+  get: async ({ silentAuth = false } = {}) => {
+    const data = await request({ url: '/api/mp/me', timeout: 15000, silentAuth })
+    return enrichMeEmployeeCode(data, { silentAuth })
+  }
 }
 
 export const mpContentApi = {
@@ -491,7 +549,19 @@ export const mpRequirementListApi = {
   /** 客户通过分享卡片填写：需微信会话、手机号授权码与昵称 */
   createShared: (data) =>
     request({ url: '/api/mp/requirement-lists/public', method: 'POST', data, requiresAuth: false }),
-  get: (id) => request({ url: `/api/mp/requirement-lists/${encodeURIComponent(id)}` })
+  get: (id) => request({ url: `/api/mp/requirement-lists/${encodeURIComponent(id)}` }),
+  listShareEmployees: (params = {}) =>
+    request({
+      url: `/api/mp/requirement-lists/share-employees?${requirementListQuery(params)}`,
+      timeout: 15000
+    }),
+  share: (id, data) =>
+    request({
+      url: `/api/mp/requirement-lists/${encodeURIComponent(id)}/share`,
+      method: 'POST',
+      data,
+      timeout: 30000
+    })
 }
 
 export const mpRequirementRecordApi = mpRequirementListApi

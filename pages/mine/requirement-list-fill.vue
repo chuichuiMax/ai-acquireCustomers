@@ -5,11 +5,30 @@
       <view class="preview-card head-card">
         <view class="preview-head-row">
           <text class="preview-type">{{ requirementType }}</text>
-          <text class="preview-percent">已填 {{ completion.percent }}%</text>
+          <text class="preview-percent">完成度{{ completion.percent }}%</text>
         </view>
         <text class="preview-sub">{{ formTitle }}</text>
-        <text class="preview-tip">以下为当前已填写的全部内容，提交前可返回任一步骤修改。</text>
-        <text class="preview-status">{{ readonly ? '已提交' : '未提交' }}</text>
+        <view v-if="readonly && detailDescription" class="preview-desc"><text>{{ detailDescription }}</text></view>
+        <text v-else-if="!readonly" class="preview-tip">以下为当前已填写的全部内容，提交前可返回任一步骤修改。</text>
+        <view v-if="readonly && detailCustomerLine" class="detail-customer-row">
+          <text class="detail-customer-line">{{ detailCustomerLine }}</text>
+          <text class="preview-status">已提交</text>
+        </view>
+        <view class="progress-track detail-progress"><view class="progress-fill" :style="{ width: progressWidth }" /></view>
+        <view v-if="readonly" class="detail-meta">
+          <view class="detail-meta-row">
+            <text class="detail-meta-item">提交时间：{{ detailSubmittedAt }}</text>
+            <text class="detail-meta-item">提交人：{{ detailSubmitterName }}</text>
+          </view>
+          <view class="detail-meta-row">
+            <text class="detail-meta-item">分享时间：{{ detailSharedAt }}</text>
+            <text class="detail-meta-item">分享人：{{ detailSharerName }}</text>
+          </view>
+          <view v-if="detailSharedMembersLine" class="detail-meta-row single">
+            <text class="detail-meta-item">共享成员：{{ detailSharedMembersLine }}</text>
+          </view>
+        </view>
+        <text v-if="!readonly" class="preview-status draft">未提交</text>
       </view>
 
       <view class="preview-card">
@@ -67,6 +86,9 @@
   <view v-else class="wizard-shell">
     <view class="wizard-head">
       <text class="wizard-type">{{ requirementType }}</text>
+      <text class="wizard-sub">{{ formTitle }}</text>
+      <view v-if="detailDescription" class="wizard-desc"><text>{{ detailDescription }}</text></view>
+      <text v-if="staffDisplayLine" class="wizard-staff">{{ staffDisplayLine }}</text>
       <view class="wizard-meta">
         <text class="wizard-step">第 {{ stepIndex + 1 }} / {{ stepCount }} 步 · {{ currentStep.title }}</text>
         <text class="wizard-percent">{{ completion.percent }}%</text>
@@ -162,7 +184,12 @@
 
       <view v-if="stepIndex === stepCount - 1 && !guestShare" class="card">
         <text class="lbl">分享人工号</text>
-        <input v-model="staffCode" class="txt block" />
+        <input
+          v-model="staffCode"
+          class="txt block"
+          :disabled="staffCodeLoading"
+          :placeholder="staffCodeLoading ? '正在获取工号…' : '登录后自动带出工号'"
+        />
       </view>
     </scroll-view>
 
@@ -182,10 +209,21 @@ import { errorMessage } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { employeeFromMe } from '../../utils/internal-access-policy.mjs'
 import {
+  persistEmployeeCode,
   readPersistedEmployeeCode,
+  refreshEmployeeWorkCodeFromMe,
   resolveRequirementListUserCode
 } from '../../utils/requirement-list-employee.mjs'
-import { REQUIREMENT_FORM_ITEMS, requirementTypeForForm } from '../../utils/requirement-list-catalog.mjs'
+import {
+  REQUIREMENT_FORM_ITEMS,
+  employeeRequirementSignature,
+  requirementTypeForForm
+} from '../../utils/requirement-list-catalog.mjs'
+import {
+  formatRequirementRecordTime,
+  requirementRecordCustomerLine,
+  requirementRecordSharedMembersLine
+} from '../../utils/requirement-list-records.mjs'
 import {
   blankAnswers,
   cloneAnswers,
@@ -225,10 +263,35 @@ export default {
       guestSessionLoading: false,
       guestSessionError: '',
       guestConsent: false,
-      guestAuthError: ''
+      guestAuthError: '',
+      staffCodeLoading: false,
+      detailSubmittedAt: '—',
+      detailSubmitterName: '—',
+      detailSharedAt: '—',
+      detailSharerName: '—',
+      detailSharedMembers: [],
+      staffProfile: { name: '', role: '' }
     }
   },
   computed: {
+    staffDisplayLine() {
+      return employeeRequirementSignature(this.staffProfile)
+    },
+    detailDescription() {
+      const item = REQUIREMENT_FORM_ITEMS.find((entry) => requirementTypeForForm(entry) === this.requirementType)
+      return item ? item.description : ''
+    },
+    detailCustomerLine() {
+      if (!this.readonly) return ''
+      return requirementRecordCustomerLine({
+        customer_name: this.customerName,
+        phone: this.phone,
+        address: this.address
+      })
+    },
+    detailSharedMembersLine() {
+      return requirementRecordSharedMembersLine(this.detailSharedMembers)
+    },
     guestSubmitReady() {
       if (!this.guestShare) return false
       if (!String(this.guestNickname || '').trim()) return false
@@ -300,13 +363,16 @@ export default {
     } else if (!(await this.ensureInternalAccess())) {
       return
     }
-    if (!this.guestShare && !this.readonly) await this.loadStaffCode(true)
+    if (!this.guestShare && !this.readonly) {
+      await this.loadStaffCode(true)
+      await this.loadStaffProfile()
+    }
     if (this.guestShare && !this.readonly) await this.prepareGuestSession()
     if (options.id && !this._detailLoaded) {
       this.readonly = true
       this.previewMode = true
       await this.loadDetail(options.id)
-      uni.setNavigationBarTitle({ title: '填写预览' })
+      uni.setNavigationBarTitle({ title: '需求清单详情' })
     }
   },
   methods: {
@@ -359,21 +425,46 @@ export default {
       if (this.stepIndex <= 0) return
       this.stepIndex -= 1
     },
-    nextStep() {
+    async nextStep() {
       if (this.stepCount < 1 || this.stepIndex >= this.stepCount - 1) return
-      this.stepIndex += 1
+      const next = this.stepIndex + 1
+      if (next === this.stepCount - 1 && !this.guestShare) await this.loadStaffCode(true)
+      this.stepIndex = next
     },
-    async loadStaffCode(force = false) {
-      if (!force && String(this.staffCode || '').trim()) return
-      const cached = readPersistedEmployeeCode()
-      if (cached) this.staffCode = cached
+    async loadStaffProfile() {
       try {
         const data = await mpMeApi.get()
         const employee = employeeFromMe(data) || {}
-        const code = resolveRequirementListUserCode(employee)
-        if (code) this.staffCode = code
+        this.staffProfile = {
+          name: employee.name || '',
+          role: employee.role || ''
+        }
       } catch {
-        if (!this.staffCode) this.staffCode = cached
+        if (!this.staffProfile.name && !this.staffProfile.role) {
+          this.staffProfile = { name: '', role: '全案设计师' }
+        }
+      }
+    },
+    async loadStaffCode(force = false) {
+      if (this.guestShare) return
+      if (!force && String(this.staffCode || '').trim()) return
+      const cached = readPersistedEmployeeCode()
+      if (cached && !force) this.staffCode = cached
+      this.staffCodeLoading = true
+      try {
+        const data = await mpMeApi.get()
+        let code = resolveRequirementListUserCode(employeeFromMe(data) || {})
+        if (!code) code = await refreshEmployeeWorkCodeFromMe(() => mpMeApi.get())
+        if (code) {
+          this.staffCode = code
+          persistEmployeeCode(code)
+        } else if (cached) {
+          this.staffCode = cached
+        }
+      } catch {
+        if (!this.staffCode && cached) this.staffCode = cached
+      } finally {
+        this.staffCodeLoading = false
       }
     },
     async loadDetail(id) {
@@ -388,6 +479,15 @@ export default {
         this.phone = detail.phone || ''
         this.address = detail.address || ''
         this.staffCode = detail.employee_code || this.staffCode
+        this.detailSubmittedAt = formatRequirementRecordTime(detail.submitted_at)
+        this.detailSubmitterName = String(detail.submitter_name || '—').trim() || '—'
+        this.detailSharedAt = formatRequirementRecordTime(detail.shared_at)
+        this.detailSharerName = String(detail.sharer_name || '—').trim() || '—'
+        this.detailSharedMembers = Array.isArray(detail.shared_members) ? detail.shared_members : []
+        this.staffProfile = {
+          name: detail.sharer_name || '',
+          role: detail.role || ''
+        }
         if (detail.answers) this.answers = mergeAnswers(detail.answers, pack.questions)
         this._detailLoaded = true
       } catch (error) {
@@ -442,6 +542,10 @@ export default {
         })
         this.guestSession = session.session_id
         this.guestSessionExpiresAt = Date.now() + Math.max(30, (session.expires_in || 600) - 15) * 1000
+        this.staffProfile = {
+          name: session.sharer_name || '',
+          role: session.sharer_role || ''
+        }
       } catch (error) {
         const errMsg = String((error && (error.errMsg || error.message)) || '')
         this.guestSession = ''
@@ -572,6 +676,17 @@ export default {
 }
 .wizard-head { padding: 12px 14px 10px; background: #fff; border-bottom: 1px solid #eee; }
 .wizard-type { display: block; font-size: 17px; font-weight: 600; color: #222; margin-bottom: 6px; }
+.wizard-sub { display: block; font-size: 13px; color: #666; margin-bottom: 8px; }
+.wizard-desc {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  background: #f6f6f6;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.6;
+}
+.wizard-staff { display: block; margin-bottom: 10px; font-size: 13px; color: #888; }
 .wizard-meta { display: flex; justify-content: space-between; align-items: center; }
 .wizard-step { font-size: 13px; color: #666; flex: 1; }
 .wizard-percent { font-size: 13px; color: #d5262b; flex-shrink: 0; margin-left: 8px; }
@@ -690,8 +805,48 @@ export default {
 .preview-type { font-size: 18px; font-weight: 600; color: #222; }
 .preview-percent { color: #3cb371; font-size: 14px; }
 .preview-sub { display: block; margin-top: 6px; font-size: 13px; color: #666; }
+.preview-desc {
+  display: block;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #f6f6f6;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.6;
+}
 .preview-tip { display: block; margin-top: 10px; padding: 10px; background: #f6f6f6; border-radius: 8px; font-size: 12px; color: #666; line-height: 1.6; }
-.preview-status { display: block; margin-top: 10px; text-align: right; color: #3cb371; font-size: 13px; }
+.detail-customer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+.detail-customer-line {
+  flex: 1;
+  font-size: 13px;
+  color: #888;
+  line-height: 1.5;
+}
+.detail-progress { margin-top: 10px; }
+.detail-meta { margin-top: 14px; }
+.detail-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+.detail-meta-row.single { margin-bottom: 0; }
+.detail-meta-item {
+  flex: 1;
+  min-width: 46%;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+}
+.preview-status { flex-shrink: 0; color: #3cb371; font-size: 13px; }
+.preview-status.draft { display: block; margin-top: 10px; text-align: right; }
 .preview-tools { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .preview-count { font-size: 14px; font-weight: 600; color: #333; }
 .preview-filter { font-size: 13px; color: #666; padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; }

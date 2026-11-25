@@ -43,7 +43,8 @@ export function requirementTypeForForm(formItem = {}) {
 }
 
 export function employeeRequirementSignature(employee = {}) {
-  const name = String(employee.name || '设计师').trim()
-  const code = String(employee.employee_code || '').trim()
-  return code ? `${name} · 全案设计师 · ${code}` : `${name} · 全案设计师`
+  const name = String(employee.name || '').trim()
+  const role = String(employee.role || employee.job_title || '全案设计师').trim()
+  if (!name) return role
+  return role ? `${name} · ${role}` : name
 }

@@ -27,6 +27,8 @@ test('requirement list uses native questionnaire fill like the prototype', () =>
   assert.match(requirement, /requirement-list-fill/)
   assert.match(requirement, /需求清单记录/)
   assert.match(requirement, /mpRequirementListApi/)
+  assert.match(requirement, /listShareEmployees/)
+  assert.match(requirement, /record-share-btn/)
   assert.match(requirement, /buildRequirementListSharePath/)
   const fill = readFileSync(resolve(root, 'pages/mine/requirement-list-fill.vue'), 'utf8')
   assert.match(fill, /QUESTIONS/)

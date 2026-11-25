@@ -8,7 +8,7 @@ const loginPage = readFileSync(resolve(projectRoot, 'pages/login/login.vue'), 'u
 const minePage = readFileSync(resolve(projectRoot, 'pages/mine/mine.vue'), 'utf8')
 
 test('login page presents the Hongyang customer acquisition name', () => {
-  assert.match(loginPage, /<text class="title">鸿扬获客<\/text>/)
+  assert.match(loginPage, /<text class="title">鸿小扬<\/text>/)
   assert.doesNotMatch(loginPage, /AI获客平台/)
 })
 

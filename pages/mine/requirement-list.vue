@@ -47,16 +47,78 @@
           <text v-if="completionLabel(item)" class="completion">{{ completionLabel(item) }}</text>
         </view>
         <view v-if="item.description || item.summary" class="form-desc"><text>{{ item.description || item.summary }}</text></view>
-        <view v-if="customerLine(item)" class="customer-pill"><text>{{ customerLine(item) }}</text></view>
+        <view v-if="customerLine(item) || sharedMembersLine(item.shared_members)" class="customer-pill">
+          <text v-if="customerLine(item)" class="customer-main">{{ customerLine(item) }}</text>
+          <view v-if="sharedMembersLine(item.shared_members)" class="shared-members-row">
+            <text class="shared-label">共享成员：</text>
+            <text class="shared-names">{{ sharedMembersLine(item.shared_members) }}</text>
+          </view>
+        </view>
+        <view class="record-meta">
+          <view class="record-meta-row">
+            <text class="record-meta-item">提交时间：{{ formatTime(item.submitted_at || item.created_at) }}</text>
+            <text class="record-meta-item">提交人：{{ recordSubmitterName(item) }}</text>
+          </view>
+          <view class="record-meta-row">
+            <text class="record-meta-item">分享时间：{{ recordSharedAt(item) }}</text>
+            <text class="record-meta-item">分享人：{{ recordSharerName(item) }}</text>
+          </view>
+        </view>
         <view class="record-foot">
-          <text>提交时间：{{ formatTime(item.submitted_at || item.created_at) }}</text>
           <text class="detail">查看详情 ›</text>
+          <button
+            v-if="canRecordShare(item)"
+            class="record-share-btn"
+            @click.stop="openRecordShare(item)"
+          >共享</button>
         </view>
       </view>
       <view v-if="filteredRecords.length" class="list-footer">
         <text v-if="recordsLoading">正在加载…</text>
         <text v-else-if="records.length < recordsTotal" @click="loadRecords(false)">加载更多</text>
         <text v-else>已显示全部记录</text>
+      </view>
+    </view>
+
+    <view v-if="shareRecord" class="share-overlay" @click="closeRecordShare">
+      <view class="share-sheet" @click.stop>
+        <view class="share-head">
+          <text class="share-title">共享需求清单</text>
+          <text class="share-close" @click="closeRecordShare">×</text>
+        </view>
+        <text class="share-tip">选择同事后，对方可在需求清单列表中查看本条记录。</text>
+        <input
+          v-model="shareKeyword"
+          class="share-search"
+          placeholder="输入姓名、工号或手机号"
+          @input="onShareKeywordInput"
+        />
+        <scroll-view scroll-y class="share-list">
+          <view v-if="shareLoading" class="share-empty">正在加载员工…</view>
+          <block v-else>
+            <view
+              v-for="employee in shareCandidates"
+              :key="employee.id"
+              class="share-item"
+              @click="toggleShareEmployee(employee.id)"
+            >
+              <view class="share-check" :class="{ on: shareSelected.includes(employee.id) }">
+                <text v-if="shareSelected.includes(employee.id)">✓</text>
+              </view>
+              <view class="share-item-body">
+                <text class="share-name">{{ employee.name }}</text>
+                <text class="share-meta">{{ employee.employee_code }} · {{ employee.branch || '—' }}</text>
+              </view>
+            </view>
+            <view v-if="!shareCandidates.length" class="share-empty">没有匹配的员工</view>
+          </block>
+        </scroll-view>
+        <view class="share-foot">
+          <button class="share-cancel" @click="closeRecordShare">取消</button>
+          <button class="share-confirm" :disabled="shareSubmitting" @click="submitRecordShare">
+            {{ shareSubmitting ? '提交中…' : '确认共享' }}
+          </button>
+        </view>
       </view>
     </view>
 
@@ -68,7 +130,12 @@ import { mpMeApi, mpRequirementListApi } from '../../apis/mp'
 import { errorMessage } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { employeeFromMe } from '../../utils/internal-access-policy.mjs'
-import { readPersistedEmployeeCode, resolveRequirementListUserCode } from '../../utils/requirement-list-employee.mjs'
+import {
+  persistEmployeeCode,
+  readPersistedEmployeeCode,
+  refreshEmployeeWorkCodeFromMe,
+  resolveRequirementListUserCode
+} from '../../utils/requirement-list-employee.mjs'
 import {
   REQUIREMENT_FORM_CATEGORIES,
   REQUIREMENT_FORM_ITEMS,
@@ -79,7 +146,11 @@ import {
   matchesRequirementCategory,
   normalizeRequirementRecordList,
   requirementRecordCompletion,
-  requirementRecordCustomerLine
+  requirementRecordCustomerLine,
+  requirementRecordSharedAt,
+  requirementRecordSharedMembersLine,
+  requirementRecordSharerName,
+  requirementRecordSubmitterName
 } from '../../utils/requirement-list-records.mjs'
 import { buildRequirementListSharePath } from '../../utils/requirement-list-share.mjs'
 
@@ -97,7 +168,14 @@ export default {
       recordsTotal: 0,
       recordsPage: 0,
       recordsLoading: false,
-      recordsError: ''
+      recordsError: '',
+      shareRecord: null,
+      shareKeyword: '',
+      shareCandidates: [],
+      shareSelected: [],
+      shareLoading: false,
+      shareSubmitting: false,
+      _shareKeywordTimer: null
     }
   },
   computed: {
@@ -146,6 +224,13 @@ export default {
     formatTime: formatRequirementRecordTime,
     customerLine: requirementRecordCustomerLine,
     completionLabel: requirementRecordCompletion,
+    recordSubmitterName: requirementRecordSubmitterName,
+    recordSharerName: requirementRecordSharerName,
+    recordSharedAt: requirementRecordSharedAt,
+    sharedMembersLine: requirementRecordSharedMembersLine,
+    canRecordShare(item) {
+      return item && item.can_share !== false
+    },
     switchTab(tab) {
       this.activeTab = tab
       if (tab === 'records') this.loadRecords(true)
@@ -157,6 +242,9 @@ export default {
       try {
         const data = await mpMeApi.get()
         this.employee = employeeFromMe(data) || {}
+        const code = resolveRequirementListUserCode(this.employee)
+        if (code) persistEmployeeCode(code)
+        else await refreshEmployeeWorkCodeFromMe(() => mpMeApi.get())
       } catch (error) {
         const code = readPersistedEmployeeCode()
         this.employee = code ? { employee_code: code } : {}
@@ -181,6 +269,77 @@ export default {
     onRecordClick(item) {
       if (!item || !item.id) return
       uni.navigateTo({ url: `/pages/mine/requirement-list-fill?id=${encodeURIComponent(item.id)}` })
+    },
+    async openRecordShare(record) {
+      if (!record || !record.id) return
+      this.shareRecord = record
+      this.shareKeyword = ''
+      this.shareSelected = []
+      this.shareCandidates = []
+      await this.loadShareCandidates()
+    },
+    closeRecordShare() {
+      this.shareRecord = null
+      this.shareKeyword = ''
+      this.shareCandidates = []
+      this.shareSelected = []
+      if (this._shareKeywordTimer) {
+        clearTimeout(this._shareKeywordTimer)
+        this._shareKeywordTimer = null
+      }
+    },
+    onShareKeywordInput() {
+      if (this._shareKeywordTimer) clearTimeout(this._shareKeywordTimer)
+      this._shareKeywordTimer = setTimeout(() => {
+        this._shareKeywordTimer = null
+        this.loadShareCandidates()
+      }, 280)
+    },
+    toggleShareEmployee(employeeId) {
+      const id = String(employeeId || '')
+      if (!id) return
+      const next = this.shareSelected.slice()
+      const index = next.indexOf(id)
+      if (index >= 0) next.splice(index, 1)
+      else next.push(id)
+      this.shareSelected = next
+    },
+    async loadShareCandidates() {
+      this.shareLoading = true
+      try {
+        const data = await mpRequirementListApi.listShareEmployees({
+          keyword: String(this.shareKeyword || '').trim()
+        })
+        this.shareCandidates = (data && data.items) || []
+      } catch (error) {
+        this.shareCandidates = []
+        uni.showToast({ title: errorMessage(error) || '员工列表暂时无法加载', icon: 'none' })
+      } finally {
+        this.shareLoading = false
+      }
+    },
+    async submitRecordShare() {
+      if (!this.shareRecord || this.shareSubmitting) return
+      if (!this.shareSelected.length) {
+        uni.showToast({ title: '请至少选择一位员工', icon: 'none' })
+        return
+      }
+      this.shareSubmitting = true
+      try {
+        const updated = await mpRequirementListApi.share(this.shareRecord.id, {
+          employee_ids: this.shareSelected
+        })
+        const index = this.records.findIndex((item) => item.id === this.shareRecord.id)
+        if (index >= 0) {
+          this.records.splice(index, 1, Object.assign({}, this.records[index], updated))
+        }
+        this.closeRecordShare()
+        uni.showToast({ title: '共享成功', icon: 'success' })
+      } catch (error) {
+        uni.showToast({ title: errorMessage(error) || '共享失败', icon: 'none' })
+      } finally {
+        this.shareSubmitting = false
+      }
     },
     async loadRecords(reset) {
       if (this.recordsLoading && !reset) return
@@ -277,14 +436,111 @@ export default {
   font-size: 13px;
   color: #444;
 }
+.customer-main { display: block; font-size: 13px; color: #444; line-height: 1.5; }
+.shared-members-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.shared-label { color: #3478ff; flex-shrink: 0; }
+.shared-names { color: #3478ff; }
+.record-meta { margin-top: 10px; }
+.record-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 10px;
+  margin-bottom: 4px;
+}
+.record-meta-item {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+  flex: 1;
+  min-width: 46%;
+}
 .record-foot {
   margin-top: 12px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 12px;
   color: #999;
 }
 .detail { color: #666; }
+.record-share-btn {
+  margin: 0;
+  padding: 0 18px;
+  line-height: 2.1;
+  font-size: 13px;
+  color: #fff;
+  background: #5d6df3;
+  border-radius: 6px;
+}
+.record-share-btn::after { border: 0; }
+.share-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+.share-sheet {
+  width: 100%;
+  max-height: 78vh;
+  background: #fff;
+  border-radius: 14px 14px 0 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.share-head { display: flex; justify-content: space-between; align-items: center; }
+.share-title { font-size: 17px; font-weight: 600; color: #222; }
+.share-close { font-size: 24px; color: #999; padding: 0 4px; line-height: 1; }
+.share-tip { display: block; margin-top: 8px; font-size: 13px; color: #666; line-height: 1.5; }
+.share-search {
+  margin-top: 12px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.share-list { margin-top: 10px; max-height: 42vh; }
+.share-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+.share-check {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.share-check.on { background: #5d6df3; border-color: #5d6df3; }
+.share-item-body { flex: 1; min-width: 0; }
+.share-name { display: block; font-size: 15px; color: #222; }
+.share-meta { display: block; margin-top: 2px; font-size: 12px; color: #888; }
+.share-empty { padding: 24px 0; text-align: center; font-size: 13px; color: #999; }
+.share-foot { display: flex; gap: 10px; margin-top: 14px; }
+.share-cancel, .share-confirm {
+  flex: 1;
+  margin: 0;
+  line-height: 2.4;
+  font-size: 15px;
+  border-radius: 8px;
+}
+.share-cancel { background: #f3f3f3; color: #333; }
+.share-cancel::after, .share-confirm::after { border: 0; }
+.share-confirm { background: #5d6df3; color: #fff; }
+.share-confirm[disabled] { opacity: 0.6; }
 .state { padding: 36px 12px; text-align: center; color: #777; font-size: 14px; line-height: 1.7; }
 .state-note { display: block; margin-top: 8px; font-size: 12px; color: #999; }
 .retry { margin-top: 12px; color: #3478ff; background: #edf3ff; }

@@ -61,6 +61,11 @@ test('form wizard has six steps and field-based completion', () => {
 
 test('requirement fill page avoids invalid :class object keys', () => {
   const page = readFileSync(resolve(import.meta.dirname, '../pages/mine/requirement-list-fill.vue'), 'utf8')
+  assert.match(page, /detailSubmitterName/)
+  assert.match(page, /detailSharerName/)
+  assert.match(page, /detailSharedAt/)
+  assert.match(page, /staffDisplayLine/)
+  assert.match(page, /wizard-staff/)
   const classBlocks = page.match(/:class="\{[\s\S]*?\}"/g) || []
   for (const block of classBlocks) {
     assert.doesNotMatch(block, /^\s*[a-z][\w]*-[\w-]*\s*:/m)

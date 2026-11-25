@@ -56,6 +56,16 @@ export function parseRequirementProgress(value) {
 export function formatRequirementRecordTime(value) {
   if (!value) return '—'
   const compact = String(value).trim()
+  const dashed = compact.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})$/)
+  if (dashed) {
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${dashed[1]}-${dashed[2]}-${dashed[3]} ${pad(dashed[4])}:${dashed[5]}`
+  }
+  const legacy = compact.match(/^(\d{4})(\d{2})(\d{2})\s+(\d{1,2}):(\d{2})$/)
+  if (legacy) {
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${legacy[1]}-${legacy[2]}-${legacy[3]} ${pad(legacy[4])}:${legacy[5]}`
+  }
   if (/^\d{8}$/.test(compact)) {
     return `${compact.slice(0, 4)}-${compact.slice(4, 6)}-${compact.slice(6, 8)}`
   }
@@ -64,6 +74,27 @@ export function formatRequirementRecordTime(value) {
   const date = new Date(timestamp + 8 * 60 * 60 * 1000)
   const pad = (n) => String(n).padStart(2, '0')
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`
+}
+
+export function requirementRecordSharedMembersLine(members = []) {
+  const names = (Array.isArray(members) ? members : [])
+    .map((item) => String((item && item.name) || '').trim())
+    .filter(Boolean)
+  return names.join('，')
+}
+
+export function requirementRecordSubmitterName(record = {}) {
+  const name = String(record.submitter_name || '').trim()
+  return name || '—'
+}
+
+export function requirementRecordSharerName(record = {}) {
+  const name = String(record.sharer_name || '').trim()
+  return name || '—'
+}
+
+export function requirementRecordSharedAt(record = {}) {
+  return formatRequirementRecordTime(record.shared_at)
 }
 
 export function requirementRecordCustomerLine(record = {}) {

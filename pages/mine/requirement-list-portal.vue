@@ -19,7 +19,11 @@ import { mpMeApi } from '../../apis/mp'
 import { errorMessage } from '../../utils/request'
 import { internalPageMixin } from '../../utils/internal-access'
 import { employeeFromMe } from '../../utils/internal-access-policy.mjs'
-import { readPersistedEmployeeCode, resolveRequirementListUserCode } from '../../utils/requirement-list-employee.mjs'
+import {
+  readPersistedEmployeeCode,
+  refreshEmployeeWorkCodeFromMe,
+  resolveRequirementListUserCode
+} from '../../utils/requirement-list-employee.mjs'
 import { requirementListUrl } from '../../utils/requirement-list-url.mjs'
 
 export default {
@@ -49,6 +53,7 @@ export default {
         const data = await mpMeApi.get()
         const employee = employeeFromMe(data) || {}
         userCode = resolveRequirementListUserCode(employee)
+        if (!userCode) userCode = await refreshEmployeeWorkCodeFromMe(() => mpMeApi.get())
       } catch (meError) {
         userCode = readPersistedEmployeeCode()
         if (!userCode) throw meError

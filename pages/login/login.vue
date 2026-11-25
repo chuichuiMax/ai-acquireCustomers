@@ -2,7 +2,7 @@
   <view class="page">
     <view class="hero">
       <image class="logo" src="/static/hirun-logo.png" mode="aspectFill" />
-      <text class="title">鸿扬获客</text>
+      <text class="title">鸿小扬</text>
     </view>
 
     <view class="login-card">
@@ -92,10 +92,14 @@
 </template>
 
 <script>
-import { mpAuthApi } from '../../apis/mp'
+import { mpAuthApi, mpMeApi } from '../../apis/mp'
 import { errorMessage } from '../../utils/request'
 import { acceptConfirmedLogin, requireInternalAccess } from '../../utils/internal-access'
-import { extractEmployeeWorkCode, persistEmployeeCode } from '../../utils/requirement-list-employee.mjs'
+import {
+  extractEmployeeWorkCode,
+  persistEmployeeCode,
+  refreshEmployeeWorkCodeFromMe
+} from '../../utils/requirement-list-employee.mjs'
 
 export default {
   data() {
@@ -235,7 +239,9 @@ export default {
         const data = await mpAuthApi.confirmLogin({ session_id: session.session_id })
         if (!this.pageActive) return
         acceptConfirmedLogin(data)
-        persistEmployeeCode(extractEmployeeWorkCode(data.employee))
+        const fromConfirm = extractEmployeeWorkCode(data.employee)
+        if (fromConfirm) persistEmployeeCode(fromConfirm)
+        await refreshEmployeeWorkCodeFromMe(() => mpMeApi.get())
         uni.reLaunch({ url: '/pages/generate/generate' })
       } catch (error) {
         if (this.pageActive) this.wechatError = errorMessage(error)

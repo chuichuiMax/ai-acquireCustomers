@@ -2,10 +2,15 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  formatRequirementRecordTime,
   matchesRequirementCategory,
   normalizeRequirementRecordList,
   presentRequirementRecord,
   requirementRecordCustomerLine,
+  requirementRecordSharedAt,
+  requirementRecordSharerName,
+  requirementRecordSharedMembersLine,
+  requirementRecordSubmitterName,
   resolveRequirementRecordCompletion
 } from '../utils/requirement-list-records.mjs'
 import { blankAnswers, completionOf } from '../utils/requirement-list-form.mjs'
@@ -14,6 +19,30 @@ test('requirement records accept paginated list shapes', () => {
   const rows = [{ id: '1', title: '毛坯房' }]
   assert.deepEqual(normalizeRequirementRecordList({ items: rows }), rows)
   assert.deepEqual(normalizeRequirementRecordList({ records: rows }), rows)
+})
+
+test('requirement record time accepts dashed and legacy stamps', () => {
+  assert.equal(formatRequirementRecordTime('2026-11-20 15:00'), '2026-11-20 15:00')
+  assert.equal(formatRequirementRecordTime('20261120 15:00'), '2026-11-20 15:00')
+})
+
+test('shared members line joins names', () => {
+  assert.equal(
+    requirementRecordSharedMembersLine([{ name: '张三' }, { name: '李四' }]),
+    '张三，李四'
+  )
+})
+
+test('record meta fields show submitter sharer and share time', () => {
+  const row = {
+    submitter_name: '微信用户甲',
+    sharer_name: '徐迎港',
+    shared_at: '2026-11-20 15:00'
+  }
+  assert.equal(requirementRecordSubmitterName(row), '微信用户甲')
+  assert.equal(requirementRecordSharerName(row), '徐迎港')
+  assert.equal(requirementRecordSharedAt(row), '2026-11-20 15:00')
+  assert.equal(requirementRecordSubmitterName({}), '—')
 })
 
 test('requirement record customer line joins visible fields', () => {
